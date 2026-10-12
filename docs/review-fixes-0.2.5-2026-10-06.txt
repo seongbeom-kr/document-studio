@@ -1,0 +1,112 @@
+Document Studio 0.2.5 SDK 중심 리뷰 대응
+작업일: 2026-10-06 KST
+SDK: D:\dev\document-studio
+프론트: D:\dev\_worktrees\document-studio-ux-review-fixes
+기준 리뷰: docs/sdk-focused-review-0.2.4-2026-10-06.txt
+
+수정 1: 검색 조건/결과/선택 연결
+검색 결과는 문서 ID/편집 세션/revision/검색어/대소문자/단어 단위 조건과 함께 보관한다.
+조건을 바꾸면 결과와 선택을 즉시 무효화한다. 늦은 검색/선택 응답과 오류는 버린다.
+반복 검색 및 연속 선택에는 요청 세대를 사용한다. 선택 치환은 현재 결과 안에 있는
+선택과 현재 revision이 일치할 때만 활성화한다. 검색/선택 처리 중 상태를 표시한다.
+문서 재열기·전환·unmount 이후 오래된 선택을 다시 쓰지 않는다. 읽기 전용에서는 치환을 비활성화한다.
+
+수정 2: 실행 중 preset의 권한/세션 검사
+각 후속 명령 전후에 읽기 전용, 세션, 원본, namespace와 지원/활성 상태를 검사한다.
+읽기 전용으로 한 번 전환되면 곧 권한이 복구되어도 해당 preset은 중단한다.
+요청 명령도 미리 복사하므로 실행 중 호출자가 배열을 바꿔 후속 명령을 교체할 수 없다.
+PresetApplicationError.completedCommands/totalCommands로 중단 지점을 반환한다.
+이미 엔진 응답으로 확인된 단계는 현재 편집본에 남고, 아직 전송하지 않은 명령은 실행하지 않는다.
+
+수정 3: 강조색 제약 전달
+DOCX 엔진은 CommandState.valueChoices와 valueSchema.enum으로 Word의 16색을 제공한다.
+SDK UI는 그 팔레트를 사용하고, 에이전트 listCommands에도 같은 schema를 노출한다.
+글자색과 강조색 입력은 분리한다. DOCX 글자색 및 HWPX 강조색은 자유 RGB 입력을 유지한다.
+허용되지 않은 팔레트 값은 적용 버튼을 활성화하지 않는다.
+
+검증
+SDK 단위 256개, 타입 검사, 빌드 통과. 라이선스 gate 102 npm/393 Rust 패키지 통과.
+신규 리뷰의 실제 SDK 소스 재현 시험 7개 모두 통과. 기존 리뷰 스냅샷은 보존했다.
+배포 tarball을 설치한 실제 SDK의 정식 UI/상태 시험 17개 통과.
+검색 조건 3종 변경, 응답 역전, 지연 선택 중 조건/revision/문서 변경, 오래된 실패,
+preset의 readOnly/권한 복구/문서 교체/unmount/지원 상태 변경, 명령 배열 변경,
+색상 입력 분리/지원하지 않는 선택/HWPX 자유 RGB를 포함한다.
+실제 Chrome/Edge × DOCX/HWPX 신규 시험 12개 통과. DOCX 16색 모두 적용했고
+HWPX 자유 색상은 getState의 미제공 속성 대신 내보낸 HWPX XML로 확인했다.
+기존 관련 브라우저 회귀 52개 통과. 독립 npm 소비 앱 Next.js 16.3.8 빌드와
+Chrome/Edge × DOCX/HWPX 4개 통과. SDK 새 디렉터리 immutable 설치 통과.
+프론트 타입/ESLint/빌드 통과. madge 순환 참조 없음(경고 192개).
+프론트 전체 시험 74개 파일/581개 모두 통과. 프론트 immutable 설치도 통과했다.
+최종 정적 서버 전체 브라우저 시험은 383/384 통과, 1개 실패했다(10.2분).
+실패는 Edge DOCX의 글자 크기 입력 후 Ctrl+S 흐름에서 시험 API 초기화 전
+rolldown-runtime JS 요청이 net::ERR_NO_BUFFER_SPACE로 끊긴 경우였다.
+해당 흐름을 수정 없이 Chrome/Edge × DOCX/HWPX × 3회 반복해 12개 모두 통과했다.
+따라서 전체 실행을 384/384 무실패라고 기록하지 않는다. 관찰된 SDK 동작 실패는
+재검증에 남지 않았지만 Windows/브라우저의 간헐적 자원 요청 오류 원인은 미해결이다.
+신규 SDK 회귀 12개는 최종 전체 실행에서도 두 브라우저/형식에서 모두 통과했다.
+검증 중 SDK/하네스/E2E 소스 51개 파일의 변경이 없음을 SHA-256으로 확인했다.
+
+라이브 반영
+0.2.5 tarball을 프론트에 설치하고 sandbox-agent와 settings를 함께 재기동했다.
+시작: 2026-10-06 15:01:10 KST, launcher PID 18916.
+두 앱 모두 platform-core bootstrap 및 설정 SSE 연결을 확인했다.
+15:04:44 KST의 basePath 포함 로컬 health: 두 앱 모두 HTTP 200/healthy.
+15:26:26 KST에도 같은 health를 확인했고 두 앱 모두 HTTP 200/healthy였다.
+문서 파일 저장/lease 시험과 이 health 확인은 구분한다.
+샌드박스: https://sblim.dev.gridone.net/sandbox-agent
+설정: https://sblim.dev.gridone.net/settings
+
+과부하 실행의 기록
+최초 전체 브라우저 시험 384개 중 382개 통과, Chrome 문서 전환 2개가
+HWPX WASM 초기 로딩 중 준비 대기 10초를 넘겨 실패했다. 화면/trace를 보존했다.
+WASM 요청은 200 응답이었고, 같은 케이스를 동일 조건/검증값으로 2 worker에서
+DOCX/HWPX × Chrome/Edge × 3회 반복한 24개는 모두 통과했다.
+최초 프론트 581개 중 580개 통과. 다운로드 시험이 준비 전 비활성 버튼을 클릭해 실패했다.
+버튼이 활성화될 때까지 기다린 뒤 클릭하도록 시험을 수정해 해당 13개 시험을 재검증했다.
+worker 종료 지연도 있어 전체 프론트 시험을 1 worker에서 다시 실행했다.
+
+개발 서버 전체 재실행은 382/384 통과했다. 두 실패는 모두 편집기/시험 API의
+초기화 전에 요청한 JS 또는 CSS가 net::ERR_NO_BUFFER_SPACE로 실패한 경우였다.
+가로 문서 생성과 초안 전환의 실제 편집 검증에 도달하지 않았고 화면은 빈 페이지였다.
+실패 화면/trace 및 분석 결과를 보존했다. OS/브라우저의 자원 문제로 추정하지만
+이를 해당 편집 동작의 합격 결과로 세지 않는다.
+테스트 서버에 번들 모드를 추가해 개발 모듈 그래프/HMR 요청을 줄였다.
+동일한 케이스·검증값·개별 시험 제한 시간으로 정적 서버에서 전체를 다시 검증한다.
+정적 서버의 첫 설정에는 review-host.html이 빠져 두 원본 보호 시험이 잘못된 페이지를
+열었다. 이를 발견하고 실행을 중단했다. 모든 playground HTML을 자동으로 번들에
+포함하고 출력 파일 존재를 검사하도록 수정한 뒤 전체 시험을 다시 시작했다.
+중단한 실행은 전체 검증의 합격 근거로 세지 않으며 로그/trace를 보존했다.
+
+최종 정적 실행에서도 한 번의 초기 JS 요청 오류가 있어 번들 모드가 OS/브라우저
+자원 문제 자체를 해결했다고 판단하지 않는다. 정적 서버는 요청 수를 줄이는 시험
+인프라 개선이며, 실패 trace와 원래 전체 결과를 반복 검증 결과와 함께 보관한다.
+
+산출물
+리뷰 재현: .build/sdk-focused-review-20261006/fixed-results.json
+최초 관련 회귀: .build/fixes-0.2.5/initial-regressions.json
+신규 동작: .build/fixes-0.2.5/new-controls-e2e.json
+초기 전체: .build/fixes-0.2.5/full-before-readiness-adjustment.json
+초기 로딩 실패 trace/화면: .build/fixes-0.2.5/loading-failures
+문서 전환 반복: .build/fixes-0.2.5/lifecycle-repeated-e2e.json
+개발 서버 전체: .build/fixes-0.2.5/dev-server-full-e2e.json
+개발 요청 실패: .build/fixes-0.2.5/module-load-failures, trace-analysis.json
+최종 전체 로그: .build/fixes-0.2.5/final-bundled-e2e.log
+최종 전체 JSON: .build/fixes-0.2.5/final-e2e.json
+최종 자원 요청 실패: .build/fixes-0.2.5/bundled-network-failure, bundled-network-failure-analysis.json
+동일 흐름 12회 재검증: .build/fixes-0.2.5/final-failed-case-rechecks.json
+소스 동결 해시: .build/fixes-0.2.5/tested-source-hashes.json
+종합 검증/패키지 해시/라이브 상태: .build/fixes-0.2.5/verification-summary.json
+팔레트/자유 입력 화면: .build/fixes-0.2.5/ui
+프론트 전체: apps/sandbox-agent/.build/document-studio-0.2.5-tests.json
+프론트 이전 실패: apps/sandbox-agent/.build/document-studio-0.2.5-tests-under-load.json
+소비/설치: .build/package-verification.json, .build/consumer-browser.json, .build/clean-install.json
+
+남은 범위
+순차 preset은 단계별 native Undo를 사용한다. 한 번의 preset/한 번의 Undo 및 전체
+롤백은 별도의 엔진 transaction 기능 개선으로 남는다. 수치 표시 정돈, 자동화 입력
+필드 개편, 그림 비율/위치 안내도 이번 신규 P2 세 건의 수정 범위와 구분한다.
+실제 Word/한컴/물리 Windows IME와 실무 corpus는 이번 시험의 합격 범위가 아니다.
+인증된 sblim 브라우저 접근은 저장된 사용자 설정으로 차단돼 화면 조작/운영 lease
+통합을 우회하지 않는다. 로컬 health는 인증된 파일 저장 시험의 증거가 아니다.
+Apache-2.0과 고정 의존성을 유지했으며 새 production 의존성을 추가하지 않았다.
+push/merge/npm publish는 수행하지 않았다.

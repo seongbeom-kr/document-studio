@@ -1,0 +1,123 @@
+{
+  "date": "2026-10-05",
+  "platform": "Windows",
+  "typecheck": "passed",
+  "immutableInstall": "passed",
+  "unit": {
+    "passed": 46,
+    "failed": 0,
+    "files": 3
+  },
+  "e2e": {
+    "passed": 180,
+    "failed": 0,
+    "projects": ["Chrome", "Edge"],
+    "casesPerProject": 90
+  },
+  "packageConsumer": {
+    "passed": true,
+    "consumer": ".cache/package-consumer",
+    "packages": ["core", "react", "engine-docx", "engine-rhwp"],
+    "framework": "Next.js 16.2.6",
+    "installation": "npm from Yarn-generated tarballs",
+    "sourceAliases": false
+  },
+  "consumerBrowsers": [
+    {
+      "browser": "chrome",
+      "version": "153.0.8010.54",
+      "format": "docx",
+      "passed": true,
+      "checks": [
+        "production package load",
+        "font size 14pt",
+        "line spacing 150%",
+        "downloaded XML",
+        "source text",
+        "saved bytes and version callback",
+        "own save acknowledgement retains content and formatting",
+        "no external requests",
+        "no missing runtime assets",
+        "no page errors"
+      ]
+    },
+    {
+      "browser": "chrome",
+      "version": "153.0.8010.54",
+      "format": "hwpx",
+      "passed": true,
+      "checks": [
+        "production package load",
+        "font size 14pt",
+        "line spacing 150%",
+        "downloaded XML",
+        "source text",
+        "saved bytes and version callback",
+        "own save acknowledgement retains content and formatting",
+        "no external requests",
+        "no missing runtime assets",
+        "no page errors"
+      ]
+    },
+    {
+      "browser": "msedge",
+      "version": "154.0.4258.53",
+      "format": "docx",
+      "passed": true,
+      "checks": [
+        "production package load",
+        "font size 14pt",
+        "line spacing 150%",
+        "downloaded XML",
+        "source text",
+        "saved bytes and version callback",
+        "own save acknowledgement retains content and formatting",
+        "no external requests",
+        "no missing runtime assets",
+        "no page errors"
+      ]
+    },
+    {
+      "browser": "msedge",
+      "version": "154.0.4258.53",
+      "format": "hwpx",
+      "passed": true,
+      "checks": [
+        "production package load",
+        "font size 14pt",
+        "line spacing 150%",
+        "downloaded XML",
+        "source text",
+        "saved bytes and version callback",
+        "own save acknowledgement retains content and formatting",
+        "no external requests",
+        "no missing runtime assets",
+        "no page errors"
+      ]
+    }
+  ],
+  "nativeDocx": {
+    "application": "Microsoft Word",
+    "version": "16.0",
+    "passed": true,
+    "tables": 1,
+    "images": 1,
+    "fontSizePt": 14,
+    "lineSpacingMultiple": 1.5,
+    "executedOn": "2026-10-04",
+    "rerunForReviewFixes": false
+  },
+  "notExecuted": [
+    "Hancom native HWPX",
+    "physical Windows IME",
+    "Firefox",
+    "Safari",
+    "Linux",
+    "remote GitHub Actions",
+    "production sandbox storage",
+    "public npm release"
+  ],
+  "immutableInstallExecutedOn": "2026-10-04",
+  "reviewResolution": "review-resolution-2026-10-05.md",
+  "reviewRegressionCases": 44
+}

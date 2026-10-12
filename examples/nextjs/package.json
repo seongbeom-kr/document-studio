@@ -1,0 +1,20 @@
+{
+  "name": "@document-studio/next-example",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 4174",
+    "build": "next build",
+    "start": "next start -p 4174"
+  },
+  "dependencies": {
+    "@document-studio/core": "workspace:*",
+    "@document-studio/engine-docx": "workspace:*",
+    "@document-studio/engine-rhwp": "workspace:*",
+    "@document-studio/react": "workspace:*",
+    "next": "16.3.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  }
+}

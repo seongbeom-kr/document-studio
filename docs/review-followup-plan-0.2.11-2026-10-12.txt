@@ -1,0 +1,23 @@
+Document Studio 0.2.11 리뷰 후속 구현·검증 계획
+기준: sdk-balanced/sdk-adversarial/sdk-uiux-review-0.2.9-2026-10-08
+
+신규 길이 계약 P2는 0.2.10 대응 상태를 유지한다.
+남은 설계·사용성 제안과 실제 환경 검증을 이번 작업의 범위로 삼는다.
+
+1. SDK 문서 저장 성공과 선택적 자동화 입력 저장 실패를 분리한다.
+   save() 성공은 문서의 확정 저장을 의미한다. onSaved/getState에서 로컬 입력 상태를 제공한다.
+   flushAutomationDraft()는 본문 업로드 없이 입력만 재시도한다.
+   flushDraft()와 문서 전환은 보관되지 않은 입력을 보호한다.
+2. 생성 원본 template를 사용해 표·명찰·명패·마크다운 구조를 미리보기로 표시한다.
+   사용자 문자열은 React text로 렌더하고 큰 내용은 표시 범위만 제한한다.
+   실제 쪽 나눔·글꼴·크기는 생성 문서에서 확인한다는 범위를 명시한다.
+3. 샌드박스 저장·닫기·생성·lease 이양 시 입력 보관 결과를 다시 확인한다.
+4. 최신 origin/dev 3d1da27ec8f310bdc2b4da8989a4eaf4bbe62995에 새 격리 브랜치를 만든다.
+   프론트: D:\dev\_worktrees\document-studio-0.2.11
+   브랜치: codex/document-studio-0.2.11
+   기존 작업 트리와 사용자 변경은 보존한다.
+5. 단위·형식별 저장 경계·대용량/유니코드·브라우저 회귀·tarball 독립 소비·라이선스 게이트를 실행한다.
+6. 프론트 typecheck/lint/test/build/madge 후 sandbox-agent와 settings를 함께 띄운다.
+   실제 인증된 개발자 프록시에서 생성·저장·재열기·복구·좁은 화면/확대 전환을 확인한다.
+
+commit/push/npm publish/원격 배포는 수행하지 않는다.

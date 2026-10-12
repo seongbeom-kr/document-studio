@@ -1,0 +1,9 @@
+{
+  "name": "react-remove-scroll-bar",
+  "version": "2.3.8",
+  "source": "https://registry.npmjs.org/react-remove-scroll-bar/2.3.8",
+  "commit": "b3b1287aad81def2e2ae707274b74531b61ddbaf",
+  "license": "MIT",
+  "basis": "Release metadata, original attribution and standard MIT terms; no standalone license file",
+  "sha256": "8eacc7806c0e6b15565d46c4011f99bf7d942843a7a25c29513825e7928edfe4"
+}

@@ -1,0 +1,122 @@
+Document Studio 0.2.12 — UI/UX·에이전트 리뷰 수정과 검증
+2026-10-12 KST
+
+대상 리뷰 3개
+uiux-agent-review-0.2.11-2026-10-12.txt
+uiux-review-0.2.11-2026-10-12.txt
+agent-sdk-readiness-review-0.2.11-2026-10-12.txt
+
+수정 위치
+SDK: D:\dev\document-studio
+현재 프론트: D:\dev\_worktrees\document-studio-0.2.11
+프론트 브랜치: codex/document-studio-0.2.11
+SDK 네 패키지와 실제 프론트 설치 패키지는 0.2.12다. 작업 디렉터리 이름은 유지했다.
+git fetch origin dev로 확인한 최신 dev HEAD는 3d1da27ec8f310bdc2b4da8989a4eaf4bbe62995다.
+커밋·푸시·npm 공개·원격 배포는 수행하지 않았다.
+
+F1 — 전체 선택 범위 보호
+agent.execute와 agent.applyPreset은 expectedSelectionKey를 필수로 요구한다.
+DOCX getState().selection은 이 고정 엔진에서 문자 offset을 생략하므로 public
+surface의 anchor/head offset, story scope와 그림 선택 intent를 사용한다.
+HWPX는 캐럿, ordered selection의 양 끝, 선택 셀 범위·표·그림을 함께 기록한다.
+React 경계와 실제 native 실행 직전에 토큰을 확인한다. 선택에 묶인 명령을
+진행하는 동안 native 입력을 고정하고 새 SDK 명령을 막는다. 지연 중 권한 철회와
+세션 교체는 assertCurrent에서 거절한다. 실패한 토큰으로 다른 문장을 수정하지 않는다.
+SelectionConflictError는 code=selection-conflict, retryable=true다.
+
+DOCX/HWPX 실제 엔진에서 같은 문단의 다른 범위, 같은 끝/다른 시작 위치,
+다른 문단, 다른 표 셀을 거절했다. 정상 범위의 실행과 저장도 함께 검증했다.
+비동기 에이전트 그림 삽입은 현재 권한·범위 보장을 제공할 수 없어 브리지
+카탈로그와 guarded execute에서 명시적으로 거절한다. 사람의 그림 삽입은 유지된다.
+전체 형식·모든 객체/병합 셀·실제 네트워크 경합을 검증했다는 뜻은 아니다.
+HWPX에서 제외 셀이 있는 비직사각형 셀 선택은 전체 모양을 공개 범위로 조회할 수
+없어 guarded 명령을 거절하고 선택 상태에 지원 불가를 표시한다. native 경계도 거절한다.
+
+F2 — 삽입과 생성의 의미 구분
+버튼: '텍스트로 삽입 · 표/서식 제외', '구조를 유지해 새 문서 만들기'.
+평문 삽입 성공은 실제 줄 수와 표/서식 제외를 표시한다. 구조 작업의 평문 결과는
+접힌 '텍스트 결과'에 두고 표/카드 미리보기를 주 결과로 보여준다.
+실제 DOCX/HWPX XML로 평문 삽입의 표 0개, 같은 원본의 새 문서 표 1개를 검증했다.
+생성 전 제목 기반 파일명, 현재 형식, 호스트의 저장 위치를 확인·수정할 수 있다.
+프론트의 기존 고유 번호·digest 확인·업로드 재시도·lease 이양은 유지했다.
+
+F3 — 명찰/회의명패 범위 바로잡기
+명찰과 회의명패는 '내용 초안'으로 표시한다. 카드 미리보기는 내용 확인용이고
+생성 파일이 일반 문단임을 행동 전에 안내한다. 카드 mm 크기·격자·재단선·
+인쇄용 배치를 제공한다고 표시하지 않는다. 실제 인쇄 템플릿은 아직 구현하지 않았다.
+
+F4 및 UI 세부 개선 — 부분 개선, 전체 대조 작업 완료와 구분
+도구 영역 크기 24~48% 조절과 탭 세션 내 선호도 보관, 확대 상태에서도 유지되는
+적용 대상 표시, DOCX 선택 발췌/HWPX 문단·셀·글자 위치를 추가했다.
+자동화 20개를 목적별로 묶고 기능 검색과 현재 도구 세션의 최근 사용을 제공한다.
+입력 14px, 도움말 13px로 조정했다. 알려진 DOCX undo/redo/표 선택 사유는 한글로 안내한다.
+'보고서 작성 프롬프트'가 요청 문장을 만드는 기능이며 LLM 실행이 아님을 표시한다.
+문서 native DOM과 확대/복귀 구조는 유지한다. 좁은 화면의 채팅·문서 대조,
+작업 모드 전환과 채팅 변경 링크 전체는 이번 수정으로 완성되지 않았다.
+HWPX 발췌, 모든 영문 native 지침, 모바일 전체 화면, WCAG 준수 전체도 별도 과제다.
+
+F5 — SDK 저장 확정 계약 추가; 실제 General 연결은 남음
+새 agent.commit은 operationId와 대상 identity/revision으로 저장을 실행하고
+저장 version·저장 revision·SHA-256·storage/download 구분·경고·로컬 입력 상태를 반환한다.
+SHA-256은 제출한 문서 bytes의 해시이며 SDK가 서버 파일을 다시 읽었다는 증명은 아니다.
+같은 ID/요청은 브리지 수명 안에서 같은 receipt를 재사용하고 재업로드하지 않는다.
+호출자가 receipt를 바꿔도 다음 receipt를 오염시키지 않는다. 저장 실패는 성공으로 바꾸지 않는다.
+탭 재연결/서버 재시작까지의 작업 ID 영속 보장은 호스트 책임이다. 편집 명령의
+응답 유실 후 새 revision으로 삽입/toggle을 무작정 반복하면 안 된다.
+
+확인한 General: D:\dev\go-agent-platform\go_agent_general_api
+dev HEAD f3da3738f79826c220d723c4515ab952bcccd68c.
+현재 일반 도구는 document_agent_operation으로 편집 lease/pendingSave와 직렬화된다.
+프론트의 실제 저장은 General에 연결됐지만 LLM→열린 SDK 명령 transport는 별개다.
+이 transport와 실제 LLM tool trace를 이번에 구현/검증했다고 주장하지 않는다.
+실제 소스 경계와 다음 구현 계약은 general-sdk-integration-boundary-0.2.12-2026-10-12.txt에 있다.
+General 제품 코드와 컨테이너는 변경하지 않았다. 해당 AGENTS.md 요구에 따라
+읽기 전용 조사 근거만 .project-memory의 PM-0070에 기록했다.
+
+F6 — 내보낸 문서의 구조 검사
+새 agent.inspect는 내보낸 snapshot의 본문 표/행/열/셀 주소·텍스트·병합 정보,
+그림 크기/대체 텍스트, 용지 mm 치수와 revision/digest를 반환한다.
+표 100개, 셀/표 2,000개, 텍스트/셀 2,000자, 그림·용지 100개로 결과를 제한하며
+truncated와 limitations를 명시한다. ZIP 실제 해제량 검사와 DTD/ENTITY 거절을 적용한다.
+주소는 해당 export snapshot 안에서만 유효하다. DOCX 세로 병합은 원본 merge
+상태로 반환하며 rowSpan은 미확정(null)이다. 머리말·꼬리말·각주, 글자 서식,
+실제 페이지 배치/인쇄 결과를 전체 검증했다고 주장하지 않는다.
+
+검증 결과
+SDK 단위 287/287, 최종 설치 패키지의 프론트 단위 610/610 통과.
+SDK/프론트 타입 검사, SDK 빌드와 프론트 lint/빌드 통과.
+별도 npm 소비 앱의 Next 프로덕션 빌드와 Chrome/Edge × DOCX/HWPX 4개 통과.
+라이선스 게이트: Apache-2.0 자체 패키지, npm 102개, 고정 Rust registry crate 393개 통과.
+프론트 madge 순환 의존성 0개. resolution 경고 192개는 별도 진단 정보다.
+knip은 --no-exit-code 진단 실행이며 미사용 후보가 남아 있다. 무경고 게이트 통과로 표시하지 않는다.
+최종 Chrome/Edge 전체 브라우저 검사 568/568 통과(각 284개).
+unexpected/flaky/skipped 모두 0개. SDK 설치 dist 95개 전체의 SHA-256 일치.
+프론트에서 제공하는 RHWP extension도 최종 SDK 파일과 SHA-256이 일치한다.
+
+첫 전체 실행의 568개 중 563개 통과/5개 실패는 그대로 보관한다.
+4개는 제목 기반 파일명과 맞지 않는 기존 생성 기대값이었다. 1개는 키보드 입력
+직후 내보내기 중 revision이 바뀌어 export가 올바르게 거절한 경우다.
+이름 기대값을 갱신했고, 키보드 내용 시험은 공개 입력 잠금으로 snapshot을
+고정해 검증한다. 내용/탭/줄바꿈 확인과 별도 동시 내보내기 거절 시험을 유지한다.
+작업자 3개의 추가 실행은 565개 통과/3개 실패였고 해당 자료도 보관한다.
+재열기 시험이 이전 세션의 ready를 읽지 않도록 새 sessionId까지 기다리고,
+그림 삽입 완료와 재시도 가능한 내보내기 경계도 분리했다. 호스트 초기화 45초
+대기 초과가 1개 있었다. 기본 작업자 2개로 최종 전체 재실행한 결과가 위 568/568이다.
+
+실제 화면
+https://sblim.dev.gridone.net/sandbox-agent, /settings/profile.
+SDK 0.2.12 실제 로딩, HWPX 최초 배율 100%, 정상 General 저장, 자동화 원본 복원,
+구조 미리보기·파일명·저장 위치·적용 대상과 한글 버튼을 확인했다.
+자체 검증용 sdk-live-B.hwpx에 SDK-0.2.12-LIVE-20261012,
+sdk-live-A.docx에 SDK-0.2.12-DOCX-20261012 표시를 추가하고 실제 저장·재열기를 확인했다.
+최종 빌드 후 DOCX 재열기에서 새 표시와 기존 BEFORE-CREATE-DOCX-0211을 확인했다.
+HWPX 실제 서버 r7을 다운로드해 9,515 bytes, SHA-256
+9ae25727d4d005e239a15df2dab3a79ef5761579674a8e428bfb1536fa994c1a를 기록했다.
+새 표시·기존 표시·문단 30, 원본 표 1개와 그림 1개가 함께 보존됐다.
+HWPX 자동화 원본 92자는 0.2.12 제목으로 복원됐으며 최초 배율은 100%였다.
+실제 General LLM 요청, 서버/lease 장애 주입, 물리 Windows IME와 Word/한컴/인쇄는 미검증이다.
+
+산출물
+.build/fixes-0.2.12: 단위/타입/전체 브라우저/소비 앱/설치 패키지 해시와 요약.
+.build/live-ui-0.2.12-20261012: 실제 프론트 검증 화면과 자체 문서 결과.
+프론트 apps/sandbox-agent/.build/dev-runtime: typecheck/lint/test/build/madge/knip 및 현재 실행 정보.

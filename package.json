@@ -1,0 +1,44 @@
+{
+  "name": "document-studio-workspace",
+  "private": true,
+  "type": "module",
+  "packageManager": "yarn@4.14.1",
+  "engines": {
+    "node": ">=24.13.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "examples/*"
+  ],
+  "scripts": {
+    "dev:playground": "node scripts/prepare-playground.mjs && vite --config apps/playground/vite.config.ts --host 127.0.0.1",
+    "build": "node scripts/build.mjs",
+    "build:playground": "node scripts/prepare-playground.mjs && vite build --config apps/playground/vite.config.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:native:prepare": "node scripts/export-native-fixtures.mjs",
+    "assets:prepare": "node scripts/prepare-rhwp.mjs",
+    "fixtures:generate": "node scripts/generate-fixtures.mjs",
+    "verify:packages": "node scripts/verify-packages.mjs",
+    "audit:licenses": "node scripts/audit-licenses.mjs",
+    "audit:security": "yarn npm audit --all --recursive --environment production",
+    "verify:clean-install": "node scripts/verify-clean-install.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.12.0",
+    "@types/pngjs": "6.0.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "docx": "9.8.1",
+    "fflate": "0.8.3",
+    "pngjs": "7.0.0",
+    "prettier": "3.6.2",
+    "typescript": "5.9.3",
+    "vite": "8.3.2",
+    "vitest": "5.0.3"
+  }
+}

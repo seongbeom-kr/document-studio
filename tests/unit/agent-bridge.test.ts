@@ -1,0 +1,320 @@
+import { describe, expect, it, vi } from "vitest";
+import { createAgentBridge } from "../../packages/react/src/agent-bridge";
+import type { DocumentEditorHandle } from "../../packages/react/src/document-editor";
+import type { EditorSnapshot } from "@document-studio/core";
+function fixture() {
+  let documentId = "first-document";
+  let sessionId = "session-1";
+  let version = "v1";
+  const snapshot: EditorSnapshot = {
+    ready: true,
+    selectionKey: "range-1",
+    revision: "7",
+    dirty: false,
+    pageCount: 1,
+    zoom: 1,
+    commands: { lineSpacing: { supported: true, enabled: true } },
+  };
+  const execute = vi.fn(async () => {
+    snapshot.revision = "8";
+    snapshot.dirty = true;
+  });
+  const handle: DocumentEditorHandle = {
+    getState: () => ({
+      ...snapshot,
+      documentId,
+      format: "docx",
+      sessionId,
+      version,
+      automationDraft: {
+        ready: true,
+        pending: false,
+        storage: "memory",
+        error: "",
+      },
+    }),
+    execute,
+    exportDocument: vi.fn(),
+    flushDraft: vi.fn(),
+    flushAutomationDraft: vi.fn(),
+    readDocument: vi.fn(),
+    search: vi.fn(),
+    selectMatch: vi.fn(),
+    replace: vi.fn(),
+    applyPreset: vi.fn(),
+    save: vi.fn(),
+    acquireInputLock: vi.fn(async () => async () => {}),
+  };
+  return {
+    agent: createAgentBridge(() => handle),
+    execute,
+    handle,
+    snapshot,
+    reload: (nextVersion = version) => {
+      sessionId = `next:${sessionId}`;
+      version = nextVersion;
+    },
+    switchDocument: () => {
+      documentId = "second-document";
+    },
+  };
+}
+describe("agent document targeting", () => {
+  it("reports a native selection without a complete guard as unavailable to agent commands", () => {
+    const test = fixture();
+    test.snapshot.selectionGuardedCommands = false;
+    expect(
+      test.agent.listCommands().find((command) => command.id === "lineSpacing"),
+    ).toMatchObject({ enabled: false });
+  });
+  it("rejects range drift independently of content revision and requires a range token", async () => {
+    const test = fixture(),
+      state = test.agent.getState();
+    test.snapshot.selectionKey = "range-2";
+    const target = {
+      documentId: state.documentId,
+      expectedSessionId: state.sessionId,
+      expectedRevision: state.revision,
+    };
+    await expect(
+      test.agent.execute({
+        ...target,
+        expectedSelectionKey: state.selectionKey!,
+        command: { id: "insertText", value: "wrong" },
+      }),
+    ).rejects.toMatchObject({ code: "selection-conflict", retryable: true });
+    await expect(
+      test.agent.execute({ ...target, command: { id: "bold" } } as never),
+    ).rejects.toThrow("expectedSelectionKey");
+    expect(test.execute).not.toHaveBeenCalled();
+  });
+  it("replays one commit receipt without uploading again and rejects operation ID reuse", async () => {
+    const test = fixture(),
+      s = test.agent.getState();
+    test.handle.commit = vi.fn(async () => ({
+      documentId: s.documentId,
+      sessionId: s.sessionId,
+      version: "v2",
+      format: "docx",
+      fileName: "test.docx",
+      digest: "sha256:proof",
+      savedRevision: "7",
+      destination: "storage" as const,
+      warnings: [],
+      automationDraft: s.automationDraft,
+    }));
+    const request = {
+      documentId: s.documentId,
+      expectedSessionId: s.sessionId,
+      expectedRevision: s.revision,
+      operationId: "task:1",
+    };
+    const first = await test.agent.commit(request);
+    first.version = "caller-modified";
+    expect((await test.agent.commit(request)).version).toBe("v2");
+    expect(test.handle.commit).toHaveBeenCalledTimes(1);
+    await expect(
+      test.agent.commit({ ...request, expectedRevision: "8" }),
+    ).rejects.toThrow("operationId");
+  });
+  it("retains save failure as retryable and never invents a commit receipt", async () => {
+    const test = fixture(),
+      s = test.agent.getState();
+    test.handle.commit = vi.fn(async () => {
+      throw new Error("storage unavailable");
+    });
+    const request = {
+      documentId: s.documentId,
+      expectedSessionId: s.sessionId,
+      expectedRevision: s.revision,
+      operationId: "retry:1",
+    };
+    await expect(test.agent.commit(request)).rejects.toThrow(
+      "storage unavailable",
+    );
+    await expect(test.agent.commit(request)).rejects.toThrow(
+      "storage unavailable",
+    );
+    expect(test.handle.commit).toHaveBeenCalledTimes(2);
+  });
+  it("provides isolated function-specific automation contracts to agents", () => {
+    const agent = fixture().agent,
+      forms = agent.listAutomationForms();
+    expect(forms).toHaveLength(20);
+    expect(forms.find((f) => f.name === "만 나이")?.argument?.label).toBe(
+      "나이 계산 기준일",
+    );
+    forms[0]!.example = "changed by host";
+    expect(agent.listAutomationForms()[0]!.example).toBe("12340");
+  });
+  it("rejects an old target even when two documents have the same local revision", async () => {
+    const test = fixture();
+    const before = test.agent.getState();
+    test.switchDocument();
+    await expect(
+      test.agent.execute({
+        documentId: before.documentId,
+        expectedRevision: before.revision,
+        expectedSelectionKey: before.selectionKey!,
+        expectedSessionId: before.sessionId,
+        command: { id: "lineSpacing", value: 1.6 },
+      }),
+    ).rejects.toThrow("대상 문서");
+    expect(test.execute).not.toHaveBeenCalled();
+  });
+  it("returns the target and revision after a successful edit", async () => {
+    const test = fixture();
+    const before = test.agent.getState();
+    const receipt = await test.agent.execute({
+      documentId: before.documentId,
+      expectedRevision: before.revision,
+      expectedSelectionKey: before.selectionKey!,
+      expectedSessionId: before.sessionId,
+      command: { id: "lineSpacing", value: 1.6 },
+    });
+    expect(test.execute).toHaveBeenCalledWith(
+      { id: "lineSpacing", value: 1.6 },
+      { expectedRevision: "7", expectedSelectionKey: "range-1" },
+    );
+    expect(receipt).toEqual({
+      applied: true,
+      documentId: before.documentId,
+      revision: "8",
+      sessionId: "session-1",
+      version: "v1",
+      dirty: true,
+    });
+  });
+  it.each([
+    { documentId: undefined, expectedRevision: "7" },
+    { documentId: "first-document", expectedRevision: undefined },
+  ])(
+    "rejects a transport request with missing target or revision: %j",
+    async (input) => {
+      const test = fixture();
+      await expect(
+        test.agent.execute({
+          ...input,
+          command: { id: "bold" },
+        } as unknown as Parameters<typeof test.agent.execute>[0]),
+      ).rejects.toThrow("필요합니다");
+      expect(test.execute).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe("agent session boundaries", () => {
+  it.each(["v1", "v2"])(
+    "rejects a same-ID/revision reload of version %s",
+    async (version) => {
+      const test = fixture(),
+        before = test.agent.getState();
+      test.reload(version);
+      await expect(
+        test.agent.execute({
+          documentId: before.documentId,
+          expectedSessionId: before.sessionId,
+          expectedRevision: before.revision,
+          expectedSelectionKey: before.selectionKey!,
+          command: { id: "bold" },
+        }),
+      ).rejects.toThrow("세션");
+      expect(test.execute).not.toHaveBeenCalled();
+    },
+  );
+  it("requires the session identity on mutations, even after a newer state was read", async () => {
+    const test = fixture(),
+      before = test.agent.getState();
+    test.reload();
+    test.agent.getState();
+    await expect(
+      test.agent.execute({
+        documentId: before.documentId,
+        expectedRevision: before.revision,
+        expectedSelectionKey: before.selectionKey!,
+        command: { id: "bold" },
+      } as Parameters<typeof test.agent.execute>[0]),
+    ).rejects.toThrow("expectedSessionId");
+    expect(test.execute).not.toHaveBeenCalled();
+  });
+  it("validates an explicitly supplied stored version", async () => {
+    const test = fixture(),
+      before = test.agent.getState();
+    await expect(
+      test.agent.execute({
+        documentId: before.documentId,
+        expectedSessionId: before.sessionId,
+        expectedRevision: before.revision,
+        expectedSelectionKey: before.selectionKey!,
+        expectedVersion: "old",
+        command: { id: "bold" },
+      }),
+    ).rejects.toThrow("버전");
+    expect(test.execute).not.toHaveBeenCalled();
+  });
+  it.each([
+    "readDocument",
+    "search",
+    "execute",
+    "replace",
+    "select",
+    "applyPreset",
+  ] as const)(
+    "refuses to report success if %s completes after a reload",
+    async (operation) => {
+      const test = fixture(),
+        before = test.agent.getState();
+      const pending = vi.fn(async () => {
+        test.reload();
+        return { revision: before.revision, count: 1 };
+      });
+      if (operation === "select") test.handle.selectMatch = pending as never;
+      else test.handle[operation] = pending as never;
+      const target = {
+        documentId: before.documentId,
+        expectedSessionId: before.sessionId,
+        expectedRevision: before.revision,
+      };
+      let promise: Promise<unknown>;
+      switch (operation) {
+        case "readDocument":
+          promise = test.agent.readDocument(target);
+          break;
+        case "search":
+          promise = test.agent.search({ ...target, query: "text" });
+          break;
+        case "execute":
+          promise = test.agent.execute({
+            ...target,
+            expectedSelectionKey: "range-1",
+            command: { id: "bold" },
+          });
+          break;
+        case "replace":
+          promise = test.agent.replace({
+            ...target,
+            query: "text",
+            replacement: "new",
+            all: true,
+          });
+          break;
+        case "select":
+          promise = test.agent.select({ ...target, matchId: "m1" });
+          break;
+        case "applyPreset":
+          promise = test.agent.applyPreset({
+            ...target,
+            expectedSelectionKey: "range-1",
+            preset: {
+              id: "p",
+              name: "p",
+              description: "p",
+              commands: [{ id: "bold" }],
+            },
+          });
+          break;
+      }
+      await expect(promise).rejects.toThrow("세션");
+    },
+  );
+});

@@ -1,0 +1,13 @@
+{
+  "name": "@document-studio/sandbox-host-example",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@document-studio/core": "workspace:*",
+    "@document-studio/engine-docx": "workspace:*",
+    "@document-studio/engine-rhwp": "workspace:*",
+    "@document-studio/react": "workspace:*",
+    "react": "19.3.0"
+  }
+}

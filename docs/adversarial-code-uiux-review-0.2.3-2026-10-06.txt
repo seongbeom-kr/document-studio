@@ -1,0 +1,208 @@
+Document Studio 0.2.3 코드 및 UI/UX 재리뷰
+작성: 2026-10-06, Asia/Seoul
+검토 대상: 로컬 현재 소스와 인증된 개발자 샌드박스의 실제 브라우저 화면
+
+검토한 위치
+- SDK: D:\dev\document-studio
+- 프론트: D:\dev\_worktrees\document-studio-ux-review-fixes
+- 실제 테스트 주소: https://sblim.dev.gridone.net/sandbox-agent
+- 참고 세션: 프론트 독립 프로젝트 시작하기
+  thread ID: 01a104f9-67b3-7bb2-850b-73f615366106 / host: local
+  세션 내용을 읽었지만 최신 구현 여부는 현재 코드와 화면의 0.2.3 표시로 판단했다.
+- 증거 및 재현 시험: D:\dev\document-studio\.build\review-0.2.3-20261006
+- 소스 SHA-256 및 수정 시각: 위 폴더의 manifest.json
+
+평가
+이전의 중복 헤더와 색상 이질감은 줄었고, 기본 도구와 저장 상태도 더 이해하기 쉬워졌다.
+0.2.2의 DOCX 모두 바꾸기 되돌리기와 화면 크기 변경 후 파일 목록 복귀 문제는 실제 화면에서 해결을 확인했다.
+초안 보존과 오래된 에이전트 요청 차단도 개선됐다.
+다만 신규 문제 2건이 남았다. 하나는 명령 처리 중 종료로 마지막 변경이 저장되지 않을 수 있는 문제이고,
+다른 하나는 성공한 자신의 저장을 원본 변경으로 오인하는 문제다.
+지금 상태를 안정적인 문서 편집기로 승인하기에는 이 두 경계 조건을 먼저 해결해야 한다.
+
+1. [P1] 비동기 편집 명령이 완료되기 전에 편집 완료가 저장 없이 종료한다
+
+위치
+- SDK packages/react/src/document-editor.tsx:433-465, 472-485, 603-612
+- SDK packages/react/src/document-editor.tsx:219-232의 snapshot / liveSnapshot
+- 프론트 apps/sandbox-agent/app/_components/workspace/document-studio-panel.tsx:201-222
+- 실제 비동기 엔진 경로: packages/engine-rhwp/src/index.tsx:454-502
+
+원인
+SDK는 execute 및 runSessionTask의 Promise를 commandTasks에 기록하지만 처리 중 상태를 snapshot.busy에 반영하지 않는다.
+엔진이 아직 명령을 적용하지 않았다면 dirty도 false다.
+프론트 save(true)는 dirty가 true일 때만 SDK save를 호출한다.
+따라서 ready=true, busy=false, dirty=false로 보이는 짧은 구간에는 진행 중 명령을 기다리지 않고 onSaved(true)를 호출한다.
+SDK exportDocument가 commandTasks를 기다리는 보호 장치도 이 경우에는 호출되지 않는다.
+HWPX는 iframe 명령 응답을 await하고, DOCX도 이미지 처리처럼 비동기 경로가 있어 현실적인 경계 조건이다.
+
+재현
+실제 DocumentStudioPanel과 실제 SDK DocumentEditor를 연결하고, 엔진과 네트워크만 제어하는 컴포넌트 시험을 만들었다.
+1) 변경 없는 문서를 연다.
+2) 굵게 명령을 실행하되 엔진 Promise 완료를 지연시킨다.
+3) 엔진 응답 전에 편집 완료를 누른다.
+4) 부모는 실제 종료 콜백에 따라 편집기를 unmount한다.
+
+결과
+- 명령 완료 전에 종료 콜백이 호출됐다: closedBeforeCommandCompletion=true.
+- 종료까지 업로드 호출은 0회였다.
+- 편집기는 부모에 의해 닫혔다.
+- 변경 없는 문서의 정상 종료 대조 시험은 통과했다.
+- 저장 완료를 보장해야 한다는 회귀 기대값은 실패했다.
+
+증거
+- .build/review-0.2.3-20261006/pending-command.test.tsx
+- .build/review-0.2.3-20261006/results.json
+
+확인 범위
+실제 SDK/프론트 상태 기계에서 재현한 문제다. 실제 브라우저에서 엔진 RPC를 강제로 지연시켜 데이터 손실을 발생시킨 시험은 수행하지 않았다.
+따라서 특정 실문서에서 손실이 이미 발생했다고 주장하는 것은 아니다.
+
+권고
+명령 진행 상태를 호스트가 확인할 수 있게 하고, 종료 및 저장의 dirty 판단 전에 진행 중 편집 명령을 기다리는 장벽을 둔다.
+장벽 이후 문서와 세션이 그대로인지 확인하고, 바뀐 내용을 저장한 뒤 종료한다.
+느린 HWPX 명령과 DOCX 이미지 명령에 대해 종료·파일 이동·저장의 통합 회귀 시험을 추가한다.
+단순히 저장 버튼만 잠그면 파일 이동과 종료 경로는 남으므로 함께 처리해야 한다.
+
+2. [P2] 내용과 버전이 같은 자신의 저장을 외부 원본 변경으로 오인한다
+
+위치
+- SDK packages/react/src/document-editor.tsx:230-242의 matchesAcceptedSource
+- SDK packages/react/src/document-editor.tsx:306-316, 360-382의 소스 변경 판정
+- SDK packages/react/src/document-editor.tsx:652-663의 저장 대상 검사
+- 프론트 apps/sandbox-agent/app/_components/workspace/document-studio-panel.tsx:183-193의 저장 후 source 갱신
+
+원인
+현재 소스 판정은 같은 version이면 Uint8Array 객체가 같은지를 검사한다.
+다른 version에 대한 자신의 저장 승인은 있지만, version이 그대로인 성공한 저장은 승인하지 못한다.
+프론트는 성공한 저장 이벤트의 bytes로 source를 갱신한다. 내용이 같아도 이 bytes는 새 객체다.
+내용 기반 digest를 쓰는 서버에서 바꾸기 후 Undo로 원문을 복구하면 저장 digest는 그대로일 수 있다.
+이 정상적인 경우가 원본 변경 제안으로 처리된다.
+
+실제 브라우저 재현
+1) SDK-live-review-20261005.hwpx를 0.2.3 편집기로 연다.
+2) 검증 1개를 검토로 모두 바꾼다.
+3) 한 번 되돌리기로 원문을 복구하고, 검증이 다시 1개 검색되는 것을 확인한다.
+4) 작업 공간에 저장을 누른다.
+
+결과
+하단에는 작업 공간 저장됨 · 오후 1:16:01이 표시됐다.
+동시에 SDK에는 다음 문구가 지속해서 표시됐다.
+- 원본 문서가 변경됐습니다. 현재 편집본은 유지됩니다. 초안을 다운로드하거나 새 원본을 열어 주세요.
+- 문서를 저장했습니다.
+- 현재 편집본을 보존하고 있습니다. / 새 원본 열기
+
+파일 목록의 HWPX digest와 revision은 저장 전후 동일했다.
+sha256:18e5bb1c41be4a9775adc7b9f950dd8ba1415d596be32f5eb55593cff94aef1d / revision 3
+다른 사용자나 에이전트가 내용을 바꿨다는 증거는 없으며, 같은 버전과 같은 바이트 내용의 컴포넌트 시험에서도 동일 경고를 재현했다.
+코드상 이 상태에서 새 편집을 하고 저장하면 matchesAcceptedSource 검사에서 SaveConflictError를 낸다.
+최초 저장 자체의 파일 손상은 관찰되지 않았다.
+
+증거
+- .build/review-0.2.3-20261006/06-hwpx-own-save-false-conflict.png
+- .build/review-0.2.3-20261006/preservation.test.tsx의 same-version save 시험
+- .build/review-0.2.3-20261006/results.json
+
+권고
+자신이 승인받아 저장한 document/session/version/bytes를 명시적으로 연결해 source 갱신을 수용한다.
+버전이 달라졌을 때에만 자신의 저장으로 판단하는 조건을 제거한다.
+같은 version의 임의의 다른 내용까지 모두 허용해서는 안 되므로 저장 승인 내용과 비교해야 한다.
+Undo로 내용 복구 → 같은 digest 저장 → 계속 편집 → 재저장까지 회귀 시험을 둔다.
+
+3. UI/UX 개선 우선순위
+
+우선순위 높음: 작은 화면의 기본 편집 폭과 속성 패널
+1366×768에서 파일·목표 시트의 폭은 약 768px이다.
+편집 도구를 열면 328px 속성 패널이 옆에 붙어 문서 영역이 약 439px로 줄어든다.
+DOCX 페이지 폭은 약 794px이고, 내부 가로 스크롤이 존재한다.
+스크롤로 접근할 수 없는 기능 결함은 아니지만 본문과 표 오른쪽을 보면서 문단 설정을 조절하기 불편하다.
+문서 작업을 하려고 들어온 사용자가 크게 보기나 확대 비율을 먼저 조절해야 한다.
+크게 보기에서는 이 문제가 크게 줄었다.
+
+권고
+- 작은 화면에서 편집 진입 시 충분한 문서 폭을 확보하도록 기본 확장 여부를 조정한다.
+- 확대에 페이지 너비에 맞춤을 제공하고, 속성 패널을 열 때 사용 가능한 폭에 맞춰 계산한다.
+- 패널을 열어도 문서 작업 폭을 일정 수준 유지하도록 컨테이너 크기로 판단한다.
+- 단순 색상 변경보다 문서 가시 영역을 먼저 개선한다.
+
+우선순위 중간: 두 도구 진입점의 의미
+편집 도구와 고급 기능이 바로 옆에 있지만 처음 쓰는 사용자는 어느 쪽에 표·그림·페이지 기능이 있는지 알기 어렵다.
+표·그림·쪽 설정처럼 결과를 설명하는 이름을 쓰거나 메뉴/설명을 보강한다.
+기능이 많은 것은 장점이지만 기본 편집과 전문 기능의 경계가 사용자에게 보이도록 해야 한다.
+
+우선순위 중간: 종료 버튼의 동작 예측
+작업 공간에 저장과 편집 완료가 함께 있다.
+편집 완료가 변경을 저장하고 닫는 동작이라면 저장 후 닫기라는 표현이 더 명확하다.
+P1을 먼저 해결한 뒤 버튼이 말하는 동작과 실제 완료 시점을 일치시킨다.
+
+우선순위 낮음: 안내 문구와 상태의 간결함
+속성 패널의 일반 안내가 공간을 차지한다. 사용할 수 없는 기능의 이유는 해당 항목 근처에서 설명하고,
+반복되는 일반 문구는 접을 수 있게 하거나 도움말로 옮기는 편이 낫다.
+찾기/바꾸기 후 Undo했을 때도 직전 작업 결과인 3개 바꿈 문구가 남는다.
+작업 이력임을 명시하거나 현재 검색 결과를 갱신하면 현재 문서 상태와 혼동을 줄일 수 있다.
+
+판단
+색상과 정렬은 0.2.1보다 분명히 개선됐다. 이상한 별도 앱처럼 보이던 인상도 줄었다.
+그러나 사용자가 문서 내용을 보면서 편집하는 공간과 저장 결과에 대한 신뢰가 아직 부족하다.
+시각적 장식을 늘리기보다 저장/종료의 안정성, 너비 맞춤, 도구 이름의 명확함을 먼저 해결하는 것이 효과적이다.
+
+4. 이전 지적의 재확인
+
+해결 확인
+- DOCX 모두 바꾸기의 원자적 Undo: 본문 제목 2곳과 표 셀 1곳, 총 3곳을 바꾼 뒤 한 번 Undo로 전체 원문 복구.
+  Redo 한 번으로 3곳 다시 변경, Undo 한 번으로 전체 복구. 저장 후 재열기 텍스트도 원문과 같았다.
+- 넓게 진입 → 1366×768 전환 → 파일 목록 → 저장하고 이동: 파일 목록 시트가 열리고 17개 파일 목록이 유지됐다.
+- 초안 조회 실패: 엔진 편집 진입을 막고 기존 저장 바이트를 보존하는 시험 통과.
+- draftStore 교체: 새 저장소 get을 수행하고 기존 새 저장소 초안에 덮어쓰지 않는 시험 통과.
+- 에이전트 요청 세션 식별: 같은 document ID/revision을 재사용해도 이전 expectedSessionId 쓰기 요청 차단 시험 통과.
+- 변경 없는 문서 beforeunload: 불필요한 unsaved guard를 발생시키지 않는 시험 통과.
+- 복원 대상 검증: 현재 코드의 검증 선행 흐름을 확인했고 프론트 관련 기존 테스트를 직접 실행해 통과했다.
+  실제 사이트에서 사용자 문서의 과거 버전을 복원하는 작업은 하지 않았다.
+
+유지 확인
+- HWPX 찾기/모두 바꾸기/Undo가 동작했다.
+- DOCX와 HWPX 저장 및 재열기가 동작했고 원문을 확인했다.
+- 기본 서식 툴바, 보라색 호스트 테마, 속성 패널 배치는 이전보다 통일됐다.
+
+5. 직접 수행한 검증과 한계
+
+직접 실행
+- SDK yarn test: 12개 파일, 234개 통과.
+- 프론트 관련 기존 테스트: 5개 파일, 92개 통과.
+  document-studio-panel / document-edit-session / file-preview-panel / workspace-shell / document-studio-storage
+- 리뷰용 추가 재현 시험: 3개 파일, 7개 중 5개 통과, 신규 결함을 드러내는 2개 실패.
+  위 2개 실패는 테스트 환경 초기화 실패가 아니라 정상 보존 기대값이 깨진 결과다.
+- 추가 재현 실행 명령:
+  작업 디렉터리 D:\dev\_worktrees\document-studio-ux-review-fixes
+  node node_modules/vitest/vitest.mjs run --config D:/dev/document-studio/.build/review-0.2.3-20261006/vitest.config.mts
+
+브라우저
+- 실제 인증된 Chrome 탭, 개발자 샌드박스에서 data-document-studio-version=0.2.3 확인.
+- 일반 넓은 화면과 1366×768 화면에서 탐색·편집·속성 패널을 확인.
+- 검토용으로 직접 만든 SDK-live-review-20261005.docx / .hwpx만 변경·저장.
+- DOCX 종료 후 원문 비교, HWPX 종료 후 재열기와 검색으로 원문 확인.
+- HWPX 잘못된 원본 변경 경고는 새 원본 열기로 정리한 뒤 편집을 종료했다.
+- 브라우저 크기 시험 설정을 원복하고 편집 권한을 해제했다.
+
+테스트 파일 최종 상태
+- DOCX revision 5 / sha256:8b042253b92390d075fc895d07736284a4f1499d47a3ce8a1af221b49afe22c2
+- HWPX revision 3 / sha256:18e5bb1c41be4a9775adc7b9f950dd8ba1415d596be32f5eb55593cff94aef1d
+- 바꾼 내용은 Undo로 원문을 복구한 뒤 저장했다. 저장 시각은 갱신됐으나 digest와 revision은 유지됐다.
+
+범위 제한
+- 이번에 전체 Chrome/Edge E2E, 전체 프론트 테스트, 새로운 빌드/타입 검사, MS Word/한컴의 외부 앱 대조까지 실행한 것은 아니다.
+- 개발 세션의 완료 기록에 적힌 전체 테스트 수치는 이번 직접 실행 결과에 합산하지 않았다.
+- 모든 실무 DOCX/HWPX 문서의 원본 서식 보존을 보장하는 리뷰는 아니다.
+- 제품 소스를 수정하지 않고 리뷰 문서와 격리된 재현 시험/증거만 추가했다.
+
+스크린샷
+- 01-docx-atomic-undo.png: DOCX 전체 Undo 복구
+- 02-resize-file-list-fixed.png: 화면 크기 전환 후 파일 목록 정상 유지
+- 03-docx-saved-reopened.png: 저장한 DOCX 재열기
+- 04-narrow-properties.png: 작은 화면에서 속성 패널을 열었을 때 문서 폭 감소
+- 05-expanded-properties.png: 크게 보기 비교
+- 06-hwpx-own-save-false-conflict.png: 성공한 자기 저장과 원본 변경 경고의 동시 표시
+- 07-hwpx-saved-reopened.png: HWPX 저장본 재열기 및 원문 검색 확인
+
+리뷰 문서 전체 위치
+D:\dev\document-studio\docs\adversarial-code-uiux-review-0.2.3-2026-10-06.txt

@@ -1,0 +1,20 @@
+{
+  "name": "@document-studio/core",
+  "version": "0.2.12",
+  "type": "module",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "fflate": "0.8.3"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  }
+}

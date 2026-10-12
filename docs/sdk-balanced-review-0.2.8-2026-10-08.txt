@@ -1,0 +1,129 @@
+Document Studio SDK 0.2.8 코드와 UI UX 통합 리뷰
+검토일: 2026-10-08 KST
+최종 검증 확인: 10:22 KST
+SDK: D:\dev\document-studio
+소비 앱: D:\dev\_worktrees\document-studio-ux-review-fixes
+실제 시험 주소: https://sblim.dev.gridone.net/sandbox-agent
+
+결론
+
+기존 DOCX/HWPX를 편집·저장·재열기하는 기본 작업은 직접 성공했다.
+하지만 자동화에서 새 문서를 저장하는 핵심 작업은 두 형식 모두 실제 서버의 409로 실패했다.
+따라서 현재 0.2.8을 '전체 흐름이 안정적이며 사람이 쓰기 좋은 완성형'으로 승인하지 않는다.
+단위 시험의 통과와 실제 제품 작업의 완료를 구분해야 하는 상태다.
+
+요청한 구성
+
+코드 계약과 실패 경계를 보는 적대적 리뷰 1개,
+실제 사용자의 작업 완료와 조작을 보는 UI UX 리뷰 1개를 같은 비중으로 작성했다.
+발견 개수를 맞추기 위한 추측성 결함을 추가하지 않았다.
+각 문서에는 재현, 영향, 코드 위치, 개선 방향, 완료 기준 및 검증 한계를 기록했다.
+
+상세 문서
+
+적대적 코드 리뷰
+D:\dev\document-studio\docs\sdk-adversarial-review-0.2.8-2026-10-08.txt
+
+UI UX 리뷰
+D:\dev\document-studio\docs\sdk-uiux-review-0.2.8-2026-10-08.txt
+
+적대적 코드 리뷰의 주요 발견
+
+P1 새 문서 생성과 세션 편집 잠금의 계약 불일치
+현재 문서의 lease를 유지한 상태에서 일반 신규 파일 업로드를 완료하려 한다.
+일반 complete는 편집 lease가 있으면 DOCUMENT_EDIT_BUSY를 반환하는 서버 정책과 충돌한다.
+lease release는 업로드 이후 파일 열기 callback에서 이루어져 시점이 늦다.
+실제 DOCX/HWPX 화면 오류와 HTTP 409를 확인했다.
+파일별 또는 세션별 다른 정책을 암묵적으로 가정하지 말고 생성 계약을 함께 맞춰야 한다.
+
+P2 SDK 닫기 확인창의 native 입력과 public 쓰기 잠금 불일치
+standalone 닫기 dialog는 native 입력을 막지만 새 execute() 쓰기는 받아들인다.
+실제 DocumentEditor와 controlled engine을 사용한 신규 경계 시험에서 재현했다.
+명시적 acquireInputLock의 쓰기 거절 및 해제 후 편집 대조 시험은 통과했다.
+샌드박스에서 실제 최근 입력 유실을 재현한 발견으로 확대하지 않는다.
+
+UI UX 리뷰의 주요 발견
+
+P2 미리보기 결과를 수정하면 이유 없이 새 문서 생성 버튼이 꺼짐
+평문 결과와 문서 template의 차이를 사용자가 알 수 없으며 복구 행동도 설명하지 않는다.
+읽기 전용 결과와 원본 수정 흐름 또는 명시적인 상태 안내가 필요하다.
+
+P2 자동화 원본 입력의 보관 범위가 실제 업무에 부족함
+같은 편집 세션의 입력은 보존되지만 닫기/재열기 후에는 기본 예제로 돌아온다.
+도움말의 세션 제한은 있으므로 영구 보관 계약 위반은 아니다.
+생성 실패 안내대로 편집을 닫을 때 작성한 입력도 잃는 UX를 개선해야 한다.
+
+P2 키보드 탭 동작과 패널 관계 누락
+role=tab을 선언했으나 방향키 이동, roving tabindex, aria-controls/tabpanel 연결이 없다.
+실제 ArrowRight 입력에서 포커스가 그대로 남는 것을 확인했다.
+
+P3 좁은 파일 패널에서 문서 작업 높이가 부족함
+1366x768의 HWPX 모달에서 문서 본문은 약 260px, 도구는 약 188px였다.
+크게 보기, 도구 접기, 긴 입력의 확장 작업 공간을 더 자연스럽게 연결하는 것이 좋다.
+
+직접 확인한 개선
+
+- 두 형식의 한국어 치환, 실제 서버 저장, 닫기, 재열기 및 내용 복구 성공.
+- 같은 편집 세션 안에서 자동화 기능 전환/도구 재열기 후 입력 보존.
+- DOCX 표 밖 안내와 표 안의 현재 크기/활성 상태 표시.
+- HWPX Ctrl+F 공통 찾기 및 preset Undo 한 번 복구.
+- DOCX 148x210mm 작은 용지에서 자동화 차트가 본문 폭으로 축소됨.
+- HWPX 페이지 너비 맞춤 후 canvas가 iframe 안에 들어옴.
+- 이전의 제목 그림 겹침 오판을 다시 결함으로 집계하지 않음.
+
+직접 실행한 검사
+
+SDK 단위: 264 통과 / 0 실패, 17개 파일.
+이전 재현/경계 시험: 10 통과 / 0 실패, 2개 파일.
+신규 잠금/모달 경계 시험: 1 통과 / 1 실패, 1개 파일.
+프론트 집중 시험: 57 통과 / 0 실패, 3개 파일.
+SDK TypeScript 검사: 통과.
+
+새 시험의 실패 1개는 위 SDK 모달 쓰기 잠금 불일치를 재현한 결과다.
+프론트 집중 시험의 업로드 대역에는 실제 서버 잠금 정책이 없어 새 문서 생성 결함을 놓친다.
+개발자가 실행한 전체 Chrome/Edge 494개 및 프론트 전체 605개는 이번 직접 실행 숫자에 합산하지 않았다.
+
+소스와 설치 기준
+
+실제 화면과 네 설치 SDK 패키지는 모두 0.2.8이다.
+SDK dist/index.js와 소비 앱에 설치된 네 패키지의 파일은 byte 단위로 같았다.
+고정한 SDK 파일 70개와 프론트 주요 파일 5개의 해시가 검토 종료까지 변하지 않았다.
+프론트 HEAD: 636c146e8.
+SDK 저장소는 초기 커밋이 없어 파일 SHA-256을 기준으로 검토했다.
+
+증거 폴더
+
+D:\dev\document-studio\.build\sdk-balanced-review-0.2.8-20261008
+manifest.json, frontend-manifest.json: 검토 소스와 해시
+unit-results.json, results.json, boundary-results.json, frontend-focused-results.json: 직접 실행 결과
+verification-summary.json: 이번 검증 요약
+installed-packages.json: 설치 버전과 SDK dist 일치
+live-create-http-status.txt: 이번 시험 세션의 HTTP 결과
+final-cloud-files.json: 복구 후 실제 파일 hash/revision
+01~13 PNG: 실제 화면 근거
+snapshot/, front/, backend/: 검토한 관련 소스 사본
+
+시험 데이터 보존
+
+기존에 만든 SDK-live-review-20261005.docx/.hwpx만 편집했다.
+두 파일의 최종 SHA-256은 검증 시작과 같으며, 실제 저장 이력 때문에 revision은 증가했다.
+
+DOCX: revision 5 → 7
+sha256:8b042253b92390d075fc895d07736284a4f1499d47a3ce8a1af221b49afe22c2
+HWPX: revision 4 → 6
+sha256:1b74f6f11cc491c9e751a40cd34077bf9463b0e239116d5bbb752c702d5dc6e6
+
+생성 시도는 실패해 이번 시험으로 새 문서가 만들어지지 않았다.
+다른 작업의 문서, 대화, 권한, 실행 프로세스, 배포 설정은 변경하지 않았다.
+편집을 종료해 lease를 해제하고 임시 viewport override를 원래대로 되돌렸다.
+
+다음 수정 순서
+
+1. 서버 잠금 정책을 지키면서 실제 새 문서 생성이 끝나도록 호스트/서버 계약을 맞춘다.
+2. SDK 신규 쓰기의 공통 정책에 모달 동결 상태를 포함한다.
+3. 자동화 결과 수정과 입력 보관 상태를 화면에서 명확히 설명한다.
+4. 키보드 탭 및 좁은 화면 작업 공간을 개선한다.
+5. 실제 인증 샌드박스의 생성/실패 복구/재열기를 배포 수용 시험으로 추가한다.
+
+이번 리뷰는 제품 수정을 수행한 작업이 아니다.
+수정 후에는 위 P1의 실제 서버 생성 경로를 먼저 다시 검증하는 것이 가장 중요하다.

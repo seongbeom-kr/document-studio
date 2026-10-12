@@ -1,0 +1,9 @@
+{
+  "name": "@rhwp/editor",
+  "version": "0.8.6",
+  "source": "https://raw.githubusercontent.com/edwardkim/rhwp/e8800c8def63449808a4092798442652ed460552/LICENSE",
+  "commit": "e8800c8def63449808a4092798442652ed460552",
+  "license": "MIT",
+  "basis": "Pinned source license file",
+  "sha256": "1c3a7d5643b163a3ead4965e1bea33b832caee5bfca265efe42afcd7bc696b5b"
+}

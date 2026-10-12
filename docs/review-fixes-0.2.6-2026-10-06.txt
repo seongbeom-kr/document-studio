@@ -1,0 +1,93 @@
+Document Studio 0.2.6 SDK 재리뷰 대응 및 프론트 반영
+완료일: 2026-10-06 KST
+기준 리뷰: docs/sdk-rereview-0.2.5-2026-10-06.txt
+SDK: D:\dev\document-studio
+프론트: D:\dev\_worktrees\document-studio-ux-review-fixes
+브랜치: codex/document-studio-ux-review-fixes
+검증 기준 dev: 3d1d1c32020428ea546b7d6e537069d440cbb769
+
+수정 계획과 결과
+1. 서식 묶음을 엔진의 하나의 편집 작업으로 실행한다.
+   DOCX는 공개 canonical transaction API로 먼저 변경을 계획하고 한 번에 적용한다.
+   HWPX는 고정 MIT 소스의 JS 이력을 SDK 빌드 플러그인으로 확장한다. 바깥 native
+   SnapshotCommand가 내용 롤백과 한 번 Undo/Redo를 맡고 안쪽 명령의 별도 이력은
+   보관하지 않는다. upstream 원본 소스 파일과 Rust/WASM은 수정하지 않았다.
+   커서 입력 대기 서식도 복구한다. 실행 직전 세션·권한·원본·revision 검사와
+   지원/값 검증을 유지한다. 연결 오류로 결과가 불확실한 경우 상태 확인을 안내한다.
+   executePreset이 없는 외부 엔진은 기존 순차 fallback과 단계별 복구 안내를 유지한다.
+   DOCX의 사용되지 않는 목록 정의가 Undo 뒤 남는 native 동작은 문서 내용 복구와 구분한다.
+
+2. 수치는 소수 둘째 자리까지 표시하고 원래 내부 수치를 보존한다.
+   혼합/미확인 값에 설명을 연결하고, 직접 수정한 문단 속성만 적용한다.
+   변경 없는 페이지/문단 적용은 비활성화한다. 원래 값으로 돌아간 변경도 정리한다.
+
+3. 업무 자동화 20종의 입력을 기능별 이름·예시·기본값·검증으로 교체한다.
+   기준일, 취합 시작 행, 조직 순서, 차트 종류, 추첨 인원, 조 수 등을 구분한다.
+   탭/CSV 자동 감지와 명시적 구분 선택을 제공한다. 취합 시작 행은 1부터 센다.
+   오류 뒤 이전 결과를 남기지 않으며 좁은 패널은 입력과 결과를 세로로 배치한다.
+   에이전트도 listAutomationForms()로 같은 입력 계약을 조회한다.
+
+4. 그림의 원본 비율 유지, 본문 폭 맞춤, 삽입 위치 안내를 제공한다.
+   표시 반올림과 실제 크기를 분리하고 PNG/JPEG/GIF 해제 화소를 사전 검사한다.
+   파일 8 MiB, 한 변 32,768px, 전체 4,000만 화소 제한을 적용한다.
+   GIF의 누적 프레임도 검사한다. 문서 전환 중 늦게 읽힌 그림은 버린다.
+
+5. 자체 제작 복합 corpus의 편집·저장·재열기 및 Word native 검사를 추가한다.
+   표, 병합 셀, 그림, 머리말·꼬리말, DATE 필드와 각주를 포함한다.
+   미디어 bytes, 비대상 XML, 문서 텍스트/문단 수를 검사한다.
+   최초 XML 직렬화의 정규화와 ZIP 디렉터리 항목 제거를 콘텐츠 손실로 세지 않는다.
+
+최종 검증
+- SDK 단위 264개 통과, 타입 검사·빌드 통과.
+- Chrome 212개, Edge 212개: 각 브라우저 전체를 독립 실행하여 424개 통과.
+  skipped/flaky/실패 없음. 최초 혼합 실행의 브라우저 전환 중 정지는 합격 실행으로 세지 않는다.
+- 수정된 복합 fixture의 두 형식 × 두 브라우저 재검증 4개 통과.
+- 최신 dev를 포함한 프론트 단위 584개 통과, 타입 검사·lint·프로덕션 빌드 통과.
+- 실제 설치된 0.2.6 tarball의 공통 도구 시험 20개 통과(프론트 전체 수치에 포함).
+- 별도 npm 소비 앱의 Next.js 빌드 및 Chrome/Edge × DOCX/HWPX 4개 통과.
+- 새 디렉터리의 immutable 설치 통과. 프론트 immutable 설치 통과.
+- madge 순환 참조 0개. 최신 dev 검사에서 unresolved-import 경고 236개는 보존한다.
+- Word 16.0에서 rich/complex 각각 원본과 편집본을 확인했다. 본문, 표, 그림,
+  머리말·꼬리말, 각주 수 보존과 14pt·1.5 행간을 확인했다.
+- Apache-2.0 공개 라이선스와 고정 의존성을 유지한다. 라이선스 gate:
+  npm 102개/Rust 393개 통과. 각 tarball의 LICENSE/NOTICE/SBOM을 확인했다.
+- 의존성 audit 보고 항목 없음, 명령 exit 0. 새 production 의존성은 추가하지 않았다.
+
+반영
+네 0.2.6 tarball과 설치본, RHWP runtime provenance를 SHA-256으로 비교했다.
+검증 시작 시점의 dev가 기존 브랜치보다 45커밋 앞서 있어, 기존 수정 파일과
+겹침이 없는 것을 확인한 후 fast-forward했다. 기존 수정본과 원본 프론트 작업은 보존했다.
+최신 dev 기준으로 재검증한 뒤 sandbox-agent와 settings를 함께 재시작했다.
+settings의 오래된 개발 캐시는 보존 후 새로 생성했다. 두 앱의 public health가
+200/healthy이고 bootstrap·SSE 연결을 확인했다. General 컨테이너는 조작하지 않았다.
+실행 정보: apps/sandbox-agent/.build/dev-runtime/current.json
+URL: https://sblim.dev.gridone.net/sandbox-agent
+URL: https://sblim.dev.gridone.net/settings
+
+실패 시도와 수정 내역
+초기 native DOCX 시험의 fixture URL과 빈 Undo 가정을 바로잡았다.
+복합 fixture의 중복 OPC 메타데이터와 누락된 xml:space를 native Word 검사로 발견해
+생성기를 고쳤다. 이전 결과와 수정 내역은 corpus-amendment.json에 보존했다.
+최초 프론트 전체는 동시 작업 부하 중 관련 없는 일정 관리 시험 2개가 10초 제한에 걸렸다.
+같은 검증값과 제한 시간으로 최신 dev 전체를 재실행하여 584개 모두 통과했다.
+최초 혼합 E2E는 Chrome 시험 완료 후 브라우저 전환이 멈춰 중단했고, 각 브라우저의
+전체 실행과 원래 로그를 별도로 보존했다. 이를 단일 혼합 실행의 성공으로 표시하지 않는다.
+
+산출물
+.build/fixes-0.2.6/verification-summary.json
+.build/fixes-0.2.6/chrome-final.json, edge-final.json
+.build/fixes-0.2.6/complex-corrected-final.json
+.build/fixes-0.2.6/unit-final.json
+.build/fixes-0.2.6/package-verification-final.json, consumer-browser-final.json
+.build/fixes-0.2.6/corpus-amendment.json, tested-source-hashes.json
+.build/native-qa/word-observations.json, word-complex-observations.json
+프론트 apps/sandbox-agent/.build/document-studio-0.2.6-tests-latest-dev.json
+프론트 apps/sandbox-agent/.build/document-studio-0.2.6-runtime-health.json
+
+검증 범위와 한계
+자체 제작 corpus에 대한 검증이다. 실제 업무 문서 전체, 한컴 native 앱,
+물리 Windows IME를 이번 통과 수치에 포함하지 않는다.
+인증된 sblim 브라우저 접근은 저장된 권한 설정의 사용자 거부로 차단돼 우회하지 않았다.
+public health와 설정 SSE 확인은 인증된 BFF·lease·실제 서버 파일 저장의 대체 증거가 아니다.
+이전 리뷰자의 0.2.5 실제 인증 화면 검증을 이번 0.2.6 직접 검증 수치에 합산하지 않는다.
+GitHub/npm 게시, push/merge-to-dev는 수행하지 않았다.

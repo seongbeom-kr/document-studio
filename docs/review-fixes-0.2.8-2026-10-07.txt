@@ -1,0 +1,132 @@
+Document Studio 0.2.8 적대적 리뷰 수정 및 프론트 반영
+작성일: 2026-10-07
+대상 리뷰: docs/sdk-adversarial-review-0.2.7-2026-10-07.txt
+SDK: D:\dev\document-studio
+프론트: D:\dev\_worktrees\document-studio-ux-review-fixes
+브랜치: codex/document-studio-ux-review-fixes
+프론트 HEAD: 636c146e870ab2714897127cc7eeb8bc5456e74d
+
+수정 범위
+
+1. [P1] 마지막 저장 이후 문서 전환 중 입력 유실: SDK + 프론트 수정
+
+- SDK에 acquireInputLock()을 추가했다. 내부 입력 차단의 응답을 기다린 뒤 반환한다.
+- 잠금 중 새 execute/replace/applyPreset을 거절한다. 이미 시작한 명령은 마지막 저장에서 기다린다.
+- save()가 끝나도 호스트의 전환 잠금은 유지한다. 중첩 잠금은 각각 해제하며 새 편집 세션에는 전달하지 않는다.
+- DocumentEditSession은 마지막 저장 전에 SDK 잠금을 확보하고, lease 해제와 문서 전환까지 유지한다.
+- lease 해제 직전·응답 직후 문서/편집 세션/권한과 저장 상태를 재확인한다.
+- 저장이나 release 실패 시 잠금을 회수하고 현재 편집기를 유지한다. 편집권 재확인 후 재시도할 수 있다.
+- 새 문서 열기와 에이전트 작업 요청의 공통 handoff에 적용했다.
+
+주요 파일
+packages/react/src/document-editor.tsx
+apps/sandbox-agent/app/_components/workspace/document-edit-session.tsx
+apps/sandbox-agent/app/_components/workspace/document-studio-panel.tsx
+
+2. [P1] HWPX readonly/busy에서 포커스된 내부 입력창 변경: SDK + 엔진 수정
+
+- EngineViewProps.inputBlocked와 EditorSession.setInputBlocked()로 내부 입력 차단 계약을 추가했다.
+- HWPX는 iframe 내부의 inert/textarea readonly와 capture 단계 입력·조합·붙여넣기·드롭 차단을 함께 적용한다.
+- iframe 생성 때부터 초기 잠금 상태를 전달한다. 변경 시 native 명령의 적용 응답을 기다린다.
+- 잠금 직전까지 이미 표시된 한글 조합은 native undo history에 한 번 확정한다.
+- 잠금 뒤 도착한 input/compositionend가 문서를 바꾸지 않도록 하며, 해제 후 다시 편집할 수 있다.
+- 허용된 이전 SDK 명령의 내부 이벤트와 새 사용자 이벤트를 구분해 저장 대기 중 명령을 유실하지 않는다.
+- 저장/flushDraft/preset 직렬화 전에도 내부 입력 차단을 기다리고, 완료 뒤 남은 readonly/전환 잠금을 존중한다.
+- DOCX도 native surface의 inert와 포커스 해제를 명시적으로 적용한다.
+- 고정 RHWP 소스 파일은 직접 수정하지 않았다. 기존 build-time 플러그인에 조합 확정 메서드를 추가하고 자산을 재생성했다.
+
+주요 파일
+packages/react/src/types.ts
+packages/core/src/index.ts
+packages/engine-rhwp/src/index.tsx
+packages/engine-rhwp/assets/document-studio-extension.js
+packages/engine-rhwp/native-history-plugin.mjs
+packages/engine-docx/src/docx-view.tsx
+
+3. [P2] 늦은 저장 알림이 다른 문서의 dirty 상태를 해제: 프론트 수정
+
+- 실제 저장 bytes/version은 완료 시 해당 원본에 먼저 반영한다.
+- 파일 목록 갱신을 기다리기 전에 문서/owner/편집 세션/generation을 캡처한다.
+- await 후 동일한 문서와 마운트된 편집 세션인지 재검증한다.
+- unmount되거나 새 문서로 교체된 경우 이전 알림으로 onSaved(false)를 호출하지 않는다.
+- 같은 세션이어도 새 미저장 내용이나 대기 명령이 있으면 dirty 해제 알림을 생략한다.
+
+추가 회귀 시험
+
+- tests/e2e/input-lock.spec.ts: Chrome·Edge × DOCX·HWPX의 readonly, 저장 중 입력, 저장 실패 후 재편집,
+  중첩 전환 잠금, 이전 비동기 텍스트 명령 저장, 새 편집 세션에서 이전 잠금 격리.
+- HWPX에는 CDP IME 조합 중 잠금·확정·늦은 IME 입력 차단·재편집을 추가했다.
+- document-studio-handoff.test.tsx: 실제 설치 SDK + 실제 FilePreviewPanel/DocumentEditSession/DocumentStudioPanel.
+  엔진과 네트워크/초안 경계는 시험 대역으로 제어한다. release 응답을 지연하고 늦은 SDK 쓰기의 거절을 확인한다.
+- document-edit-session.test.tsx: 저장/release 실패 시 잠금 회수·재시도, release 전/도중 저장 상태 변경 거절.
+- document-studio-panel.test.tsx: A 저장의 refresh 대기 중 B로 교체/unmount한 뒤 B의 dirty 유지.
+
+반영
+
+- 네 패키지를 0.2.8로 빌드하고 실제 tarball을 샌드박스 vendor에 설치했다.
+- npm 소비 앱의 Next.js production build 및 Chrome·Edge × 두 형식 4개 검사를 수행했다.
+- 프론트 작업 브랜치에서 확인한 origin/dev를 로컬 fast-forward로 반영했다.
+  이번 dev 갱신은 apps/gorag와 service-client/go-evaluator 변경이며 로컬 편집기 변경과 충돌하지 않았다.
+- 네 설치 패키지의 dist/index.js가 검증한 SDK build와 byte 단위로 일치한다.
+- vendor integrity 및 정적 RHWP 확장 파일과 고정 소스 provenance를 확인했다.
+- 18:42:31 KST에 sandbox-agent와 settings를 함께 재기동했다. launcher PID 45540.
+- 앱 자체 health는 각각 200 healthy이며 platform-core bootstrap과 두 앱의 설정 SSE 연결을 확인했다.
+- 로그인 없는 개발 프록시의 health 요청은 각각 401 NO_SESSION이었다.
+- General 컨테이너와 별도 보호된 SDK 프리뷰는 건드리지 않았다.
+- 커밋, 푸시, npm 게시, 운영 배포는 수행하지 않았다.
+
+검증 한계
+
+- 실제 인증 워크스페이스의 저장/lease/새 파일 전환 수용 시험은 수행하지 못했다.
+  저장된 브라우저 접근 제한을 우회하거나 인증 정보를 주입하지 않았다.
+- SDK 브라우저 시험은 자체 합성 fixture corpus이며 실제 업무 문서 전체의 호환성을 보장하지 않는다.
+- IME 검사는 Playwright/CDP 조합 입력이다. 물리 Windows IME 입력 시험은 아니다.
+- 이번 수정에서 한컴 한글/Word native 프로그램 검사는 재실행하지 않았다.
+- madge는 순환 의존성 0건이나 기존 unresolved 경고 236건이 남아 있다.
+- 자체 코드 Apache-2.0, 고정된 엔진과 upstream 라이선스/NOTICE를 유지한다. 새 의존성은 추가하지 않았다.
+  license gate는 npm 102개와 고정 Rust registry crate 393개를 검사했다.
+
+최종 수치와 산출물은 .build/fixes-0.2.8/verification-summary.json에 기록한다.
+
+최종 검증 결과
+
+- SDK 단위 테스트: 264개 통과.
+- 프론트 전체 단위 테스트: 605개 통과. 마지막 handoff 상태 검증 관련 집중 시험 57개도 통과했다.
+- SDK 전체 Chrome E2E: 247개 통과. 전체 Edge E2E: 247개 통과. 건너뜀/실패/불안정 재시도 0개.
+- 이 중 새 입력 잠금 회귀는 22개(브라우저별 11개)이며 별도 집중 실행과 전체 실행 양쪽에서 통과했다.
+- 네 tarball을 설치한 별도 npm 소비 앱: Next.js 16.3.8 build와 Chrome·Edge × DOCX·HWPX 4개 검사 통과.
+- SDK/프론트 타입 검사, 라이선스 gate, SDK build, 프론트 lint/build, immutable install 통과.
+- madge 순환 0건. unresolved 경고 236건은 기존 제한으로 남아 있다.
+- 최종 소스 manifest 14개가 검증 이후 변경되지 않았음을 확인했다.
+
+검증 산출물
+.build/fixes-0.2.8/verification-summary.json
+.build/fixes-0.2.8/source-manifest.json
+.build/fixes-0.2.8/fixes-0.2.8-unit.json
+.build/fixes-0.2.8/fixes-0.2.8-full-unit.json
+.build/fixes-0.2.8/fixes-0.2.8-focused.json
+.build/fixes-0.2.8/fixes-0.2.8-chrome.json
+.build/fixes-0.2.8/fixes-0.2.8-edge.json
+.build/fixes-0.2.8/package-verification.json
+.build/fixes-0.2.8/consumer-browser.json
+.build/fixes-0.2.8/fixes-0.2.8-health.json
+
+재현 명령
+SDK 디렉토리:
+yarn typecheck
+yarn test
+yarn assets:prepare
+yarn build
+yarn verify:packages
+DOCUMENT_STUDIO_TEST_SERVER=bundle, DOCUMENT_STUDIO_TEST_PORT=4182 환경으로
+node node_modules/@playwright/test/cli.js test --project=chrome --workers=2
+node node_modules/@playwright/test/cli.js test --project=edge --workers=2
+(4174 보호 프리뷰는 사용하지 않는다.)
+
+프론트 작업 브랜치:
+yarn install --immutable --mode=skip-build
+yarn workspace @apps/sandbox-agent typecheck
+yarn workspace @apps/sandbox-agent lint
+yarn workspace @apps/sandbox-agent test --maxWorkers=2
+yarn workspace @apps/sandbox-agent build
+yarn workspace @apps/sandbox-agent madge

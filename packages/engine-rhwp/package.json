@@ -1,0 +1,36 @@
+{
+  "name": "@document-studio/engine-rhwp",
+  "version": "0.2.12",
+  "type": "module",
+  "license": "Apache-2.0",
+  "files": [
+    "dist",
+    "bin",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "bin": {
+    "document-studio-rhwp-assets": "./bin/copy-assets.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@document-studio/core": "workspace:^",
+    "@document-studio/react": "workspace:^",
+    "@rhwp/core": "0.8.6",
+    "@rhwp/editor": "0.8.6",
+    "fflate": "0.8.3"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  }
+}

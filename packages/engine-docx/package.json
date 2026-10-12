@@ -1,0 +1,33 @@
+{
+  "name": "@document-studio/engine-docx",
+  "version": "0.2.12",
+  "type": "module",
+  "license": "Apache-2.0",
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@document-studio/core": "workspace:^",
+    "@document-studio/react": "workspace:^",
+    "@docx-editor.dev/core": "2.25.0",
+    "@docx-editor.dev/i18n": "2.25.0",
+    "@docx-editor.dev/react": "2.25.0",
+    "docx": "9.8.1"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  }
+}

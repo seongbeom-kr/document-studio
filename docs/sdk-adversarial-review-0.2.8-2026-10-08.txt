@@ -1,0 +1,244 @@
+Document Studio SDK 0.2.8 적대적 코드 및 연동 리뷰
+검토일: 2026-10-08 KST
+SDK: D:\dev\document-studio
+소비 앱: D:\dev\_worktrees\document-studio-ux-review-fixes
+실제 시험: https://sblim.dev.gridone.net/sandbox-agent
+동등한 비중의 사용성 리뷰: sdk-uiux-review-0.2.8-2026-10-08.txt
+통합 판정: sdk-balanced-review-0.2.8-2026-10-08.txt
+
+판정
+
+제한된 문서 편집·저장 흐름은 개선됐지만, SDK와 소비 앱을 합친 전체 작업을
+문제없는 상태로 승인하기는 어렵다. 실제 새 문서 생성의 P1 연동 결함 1건과
+닫기 확인창의 P2 SDK 쓰기 잠금 불일치 1건을 확인했다.
+
+이번에는 테스트 숫자보다 계약이 만나는 경계를 우선했다.
+실제 샌드박스에서는 DOCX/HWPX 새 문서 생성이 모두 실패했지만,
+관련 프론트 집중 시험 57개는 통과했다. 시험 대역이 실제 서버 잠금 정책을
+재현하지 않는 것이 이 차이를 설명한다.
+
+P1은 자주 쓰는 핵심 작업을 현재 환경에서 완료할 수 없는 결함,
+P2는 특정 통합 조건에서 상태 일관성 또는 사용자를 보호하는 계약이 깨지는 결함으로 분류했다.
+P1 발견을 서버 권한 우회나 기존 문서 손상으로 표현하지 않는다.
+제품 소스, 서버 정책, 배포 설정은 수정하지 않았다.
+
+1. P1 현재 편집 lease를 유지한 채 일반 업로드를 완료해 새 문서 생성이 실패한다
+
+사용자 영향
+
+업무 자동화에서 보고서·명단 등을 미리보기까지 만든 뒤 '새 문서로 만들기'를 누르면
+현재 화면이 편집권을 확보한 상태인데도 '다른 화면에서 문서를 편집 중입니다.
+편집을 닫은 뒤 다시 시도해 주세요.'라는 오류가 나타난다.
+DOCX와 HWPX에서 각각 직접 재현했다. 기존 문서는 남지만 새 문서 작성은 완료되지 않는다.
+
+실제 재현
+
+1) '문서 테스트' 작업의 SDK-live-review-20261005.docx를 편집으로 연다.
+2) 화면에서 SDK 0.2.8 및 '편집 권한 확보' 상태를 확인한다.
+3) 업무 자동화 > 마크다운 보고서에서 '# SDK 균형 리뷰 20261008'을 포함한
+   자체 검증용 내용을 입력하고 결과 미리보기를 실행한다.
+4) 활성화된 새 문서로 만들기를 누른다.
+5) 업로드 초기화와 청크 전송은 성공하지만 일반 완료 요청이 409로 실패한다.
+6) HWPX를 열어 '# SDK HWPX 검증 20261008' 내용으로 같은 작업을 반복한다.
+7) HWPX에서도 같은 오류와 409를 확인한다.
+
+HTTP 근거
+
+실제 개발 서버 로그에서 이번 시험 세션의 요청만 추출했다.
+- POST files/uploads: 201
+- PUT files/uploads/{uploadId}/chunk: 200
+- POST files/uploads/{uploadId}/complete?overwrite=false: 409
+- 일반 DOCX/HWPX 본문 변경 저장의 complete-edit: 201
+
+즉 인증되지 않은 localhost 요청, 임의 헤더 주입, 모의 서버의 실패가 아니다.
+인증된 Chrome 화면의 작업과 같은 요청의 프론트 서버 로그를 대조했다.
+다른 작업의 성공/실패 요청은 근거 파일에서 제외했다.
+
+코드 경로
+
+D:\dev\_worktrees\document-studio-ux-review-fixes\apps\sandbox-agent\app\_components\workspace\document-studio-panel.tsx:393
+createDocument는 현재 문서를 저장한 뒤 uploadWorkspaceFile(..., { path })를 호출한다.
+expectedDigest/editToken을 사용하는 기존 문서 저장과 달리 일반 새 파일 업로드다.
+
+같은 파일 439행에서 업로드·반영·목록 갱신을 마친 뒤에야
+onOpenCreatedDocument를 호출한다.
+
+D:\dev\_worktrees\document-studio-ux-review-fixes\apps\sandbox-agent\app\_components\workspace\file-preview-panel.tsx:463
+onOpenCreatedDocument 안에서 handoff.current()를 호출한다.
+현재 문서의 최종 저장 및 lease release는 이 단계에서 이루어진다.
+따라서 일반 업로드 완료 시점에는 여전히 원래 문서의 lease가 살아 있다.
+
+D:\dev\_worktrees\document-studio-ux-review-fixes\apps\sandbox-agent\lib\work-agent\file-upload.ts:93
+expectedDigest가 없는 요청은 complete?overwrite=false 경로를 사용한다.
+
+서버 정책과의 대조
+
+D:\dev\go-agent-platform\go_agent_general_api\src\go_agent_general\application\native_runtime.py:2000
+expected_digest가 없는 일반 완료는 document_agent_operation(..., wait=False) 안에서 수행된다.
+
+D:\dev\go-agent-platform\go_agent_general_api\src\go_agent_general\application\document_editing.py:51
+이 경로는 live lease 또는 pendingSave가 있으면 DOCUMENT_EDIT_BUSY를 반환한다.
+편집 잠금은 파일별이 아닌 세션 단위라는 정책 문서와도 일치한다.
+
+로컬 서버 소스는 관찰한 현상과 일치한다. 실제 배포 서버의 커밋을 추출하거나
+서버 내부 상태에 직접 접근한 것은 아니다. 실제 409와 화면 오류가 일차 근거다.
+
+왜 기존 시험이 놓쳤는가
+
+document-studio-panel.test.tsx의 setupCreation은 uploadWorkspaceFile 대역에서
+committed=true와 성공 digest를 바로 반환한다(120행 주변).
+현재 편집 lease가 있는 상태의 일반 complete가 서버에서 거절되는 정책은 모델링하지 않는다.
+handoff 시험도 마지막 저장과 release 사이의 입력 안전성을 검증하지만,
+일반 신규 업로드 완료에 적용되는 서버 fence를 실제와 같은 계약으로 검증하지 않는다.
+이 시험들은 실패/재시도 및 늦은 응답의 유효한 검증이며, 그 범위를 전체 통합 성공으로
+확대해서 해석하면 안 된다.
+
+수정 방향
+
+권장: 편집 lease 소유자가 새 문서를 만드는 서버 계약을 명시하고 프론트와 함께 연결한다.
+기존 편집권 확인, 새 경로 생성, 원문서 최종 저장, 작업 전환의 상태를 일관되게 처리해야 한다.
+일반 업로드의 세션 단위 보호를 무조건 해제하는 방식은 적절하지 않다.
+
+대안으로 release를 업로드 앞으로 옮길 경우에는, 그 전부터 SDK/native 입력을 계속 잠그고
+업로드 실패 시 원래 편집권 재확보와 초안 복구까지 설계해야 한다.
+단순한 호출 순서 변경만으로 안전성이 완성되는 것은 아니다.
+
+수정 후 필수 검증
+
+- 인증된 실제 샌드박스에서 DOCX/HWPX 각각 사용자 입력으로 새 문서 생성.
+- 새 파일이 목록에 한 번만 나타나고 저장된 제목·문단·표가 재열기에서 유지됨.
+- 완료 응답 유실 후 재시도에서도 중복 생성 없이 같은 산출물을 확인함.
+- 최종 저장/release 지연 동안 새 입력과 SDK 쓰기가 계속 차단됨.
+- 업로드·반영·열기 실패 시 원래 편집 내용과 편집권을 정상 복구함.
+- 다른 브라우저나 에이전트 작업이 경합할 때 실제 서버 정책대로 실패/대기함.
+
+증거
+.build/sdk-balanced-review-0.2.8-20261008/03-create-document-conflict.png
+.build/sdk-balanced-review-0.2.8-20261008/09-hwpx-create-conflict.png
+.build/sdk-balanced-review-0.2.8-20261008/live-create-http-status.txt
+
+2. P2 SDK 닫기 확인창은 native 입력을 막지만 새 public execute 쓰기는 허용한다
+
+사용자 및 통합 영향
+
+standalone DocumentEditor에서 미저장 문서를 닫으려 하면 확인창이 열린다.
+SDK는 이 동안 본문을 동결하지만 외부 에이전트/호스트가 public execute()로 보내는
+새 쓰기는 받아들인다. 사용자에게 확인을 요구하는 동안 대상 상태가 다시 바뀔 수 있다.
+이후 '변경 버리고 닫기'를 선택하면 확인창을 띄운 뒤 들어온 편집도 함께 버리게 된다.
+
+재현 시험
+
+실제 DocumentEditor 컴포넌트와 SessionStore를 사용했다.
+native codec/렌더러는 쓰기 호출·revision과 입력 잠금 상태를 관찰하는 시험 대역이다.
+
+1) 준비된 문서에서 public execute(insertText)로 첫 변경을 만든다.
+2) standalone 헤더의 닫기를 누른다.
+3) '편집을 마칠까요?' dialog가 열리고 setInputBlocked(true)가 호출된 것을 확인한다.
+4) 그 상태에서 public execute(insertText)로 새 명령을 보낸다.
+5) Promise가 거절되지 않고 완료된다. '거절되어야 한다'는 새 경계 시험이 실패한다.
+
+대조 시험은 acquireInputLock()을 명시적으로 확보했을 때 같은 쓰기가 거절되고,
+release 후 다시 편집할 수 있음을 확인했으며 통과했다.
+따라서 새 입력 잠금 기능 전체가 작동하지 않는다는 발견이 아니다.
+모달 상태가 public 쓰기 가드에 포함되지 않는 것이 문제다.
+
+코드
+
+D:\dev\document-studio\packages\react\src\document-editor.tsx:206
+modalBlocked.current는 closeDialog 또는 recovery offer가 있을 때 true다.
+syncInputBlock은 busy, inputLocks, modalBlocked, readOnly를 모두 포함해 native 입력을 막는다.
+
+같은 파일 523행의 execute 가드는 readOnly와 inputLocks만 확인한다.
+replace/applyPreset 경로의 초기 쓰기 가드도 같은 형태다(652/665행 주변).
+readOnlySnapshot 역시 모달 상태를 포함하지 않아, 확인창 중에도 command capability가
+enabled로 전달될 수 있다.
+
+수정 방향
+
+신규 쓰기의 공통 가드를 만들고 execute/replace/applyPreset/agent bridge 경로에 적용한다.
+UI/native 동결 사유와 public mutation 거절 사유가 서로 달라지지 않게 한다.
+잠금 이전에 수락한 명령을 마지막 저장에서 drain하는 동작은 유지해야 한다.
+확인창을 닫고 계속 편집할 때는 새 쓰기가 다시 가능해야 한다.
+
+범위 한정
+
+이 발견은 SDK standalone 닫기 확인과 programmatic 쓰기를 함께 사용하는 조건이다.
+실제 샌드박스의 '저장 후 닫기'에서 새 입력 유실을 이번에 재현한 것은 아니다.
+기존 0.2.7의 HWPX readonly 문제를 다시 재현한 결과로 표현하지 않는다.
+native DOCX/HWPX 엔진에서 이 모달 경로를 강제로 호출한 브라우저 시험도 수행하지 않았다.
+
+증거
+.build/sdk-balanced-review-0.2.8-20261008/boundary-current.test.tsx
+.build/sdk-balanced-review-0.2.8-20261008/boundary-results.json: 1 통과, 1 실패
+
+3. 직접 검증한 정상 경로
+
+DOCX와 HWPX에서 각각 다음 작업을 실제 개발자 샌드박스로 수행했다.
+- 기존 '한국어'를 '한국어 검증 1008'로 치환.
+- 작업 공간 저장 성공.
+- 저장 후 닫기 및 재열기.
+- 저장한 검증 문자열 확인.
+- '한국어'로 되돌리고 다시 저장.
+
+DOCX는 최종 본문 전체가 초기 텍스트와 같음을 확인했다.
+HWPX는 재열기 검색에서 저장된 검증 문자열을 찾은 뒤 원래 문구로 복구했다.
+HWPX 보고서 제목 preset도 적용 후 Undo 한 번으로 10pt/양쪽 정렬이 복구됐다.
+
+DOCX에서는 용지를 148x210mm로 바꾸고 자동화 차트 그림을 삽입했다.
+최종 그림 너비와 본문 너비가 모두 약 367.40 CSS px로 맞아 용지 밖으로 넘치지 않았다.
+그림과 용지 변경을 Undo 두 번으로 복구했다.
+고정 160mm 요청을 보고 작은 용지에서 넘칠 것이라는 가설은 실제 화면에서 성립하지 않았다.
+
+4. 직접 실행한 검사
+
+- SDK 단위 시험: 264/264, 17개 파일.
+- 이전 재현/경계 시험: 10/10, 2개 파일.
+- 신규 모달/잠금 경계 시험: 1/2, 1개 파일. 위 P2 재현이 실패 1개.
+- 프론트 집중 시험: 57/57, panel/handoff/edit-session 3개 파일.
+- SDK yarn typecheck: 통과.
+
+개발자가 남긴 Chrome/Edge 전체 494개, 프론트 전체 605개, 별도 소비 앱 빌드 결과는
+읽었지만 이번 리뷰에서 재실행한 숫자로 합산하지 않았다.
+브라우저 UI 시험은 인증된 Chrome에서 직접 수행했다. Edge 전체 회귀는 이번 실행 범위가 아니다.
+
+5. 검토한 방어와 남는 유지보수 부담
+
+좋은 방어
+- agent bridge의 documentId/sessionId/version/revision 확인 및 비동기 완료 후 대상 재검증.
+- 저장 시 입력 동결, 선행 명령 drain, 원본 버전 확인, 저장 성공과 후속 처리 실패의 구분.
+- 검색 요청 세대와 revision에 묶인 결과/치환 대상. 기존 재현 시험 통과.
+- ZIP 크기/항목 수/실제 압축 해제량/CRC 및 엔트리 구조 검사.
+- 이미지 헤더를 먼저 읽는 크기 제한과 애니메이션 프레임 관련 방어.
+- RHWP message origin과 source window 확인.
+- 고정 native patch의 해시/대상 유일성 검사 및 적용되지 않은 빌드의 실패 처리.
+
+이 항목은 코드 검토와 기존 단위 시험 범위의 평가다.
+모든 악성 파일, 모든 native 렌더러 오류, 모든 업무 문서 호환성을 증명하는 보안 인증은 아니다.
+
+후속 개선
+- 입력 동결, 모달, 저장, 전환, 권한을 여러 가드가 각각 판정한다. 이번 P2처럼 판정이
+  어긋나지 않도록 공통 쓰기 정책과 상태 전이를 분리해 검증하는 것이 좋다.
+- 외부 engine 구현자에게 setInputBlocked의 의미, 잠금 완료 응답, 진행 중 조합 입력 처리,
+  잠금 이전 명령 drain 계약을 문서화해야 한다. built-in 엔진 시험만으로 외부 엔진을 보장할 수 없다.
+- native minified paint 패치는 버전 고정으로 방어하지만 업그레이드 때 의도·해시·화면 QA를
+  함께 갱신해야 한다. 단순 dependency bump로 처리하지 않는 검증 절차가 필요하다.
+
+6. 근거와 판정의 한계
+
+SDK 사본은 .build/sdk-balanced-review-0.2.8-20261008/snapshot에 보관했다.
+manifest.json과 frontend-manifest.json으로 검토 소스와 시점을 식별한다.
+프론트 HEAD는 636c146e8이며 SDK 저장소에는 아직 초기 커밋이 없어 파일 해시를 사용했다.
+앱 화면과 설치 패키지 버전은 0.2.8이다.
+
+실제 시험은 자체 검증용 DOCX/HWPX 두 파일만 수정했다.
+이번 시험의 문장 변경은 원래 내용으로 복구했으며, 실제 저장 때문에 revision은 증가할 수 있다.
+다른 작업 파일이나 사용자 대화를 수정하지 않았다.
+Windows 물리 IME 조합 입력, 최신 Word/한컴 native 호환성, 오프라인/다중 브라우저 경합은
+이번에 새로 수용 검증한 범위가 아니다.
+
+수정 우선순위
+
+첫째, 실제 새 문서 생성의 lease/업로드 계약을 맞춘다.
+둘째, 모달과 public SDK 쓰기의 잠금 판정을 통일한다.
+셋째, 실제 서버 정책을 포함한 생성 수용 시험을 gate로 추가한다.
+단위 시험 개수를 늘리는 것보다, 현재 빠진 경계 계약을 정확히 시험하는 것이 우선이다.

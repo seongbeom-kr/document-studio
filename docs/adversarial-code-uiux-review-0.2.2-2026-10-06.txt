@@ -1,0 +1,241 @@
+Document Studio 0.2.2 적대적 코드 리뷰 + UI/UX 개선 제안
+검토일: 2026-10-06 KST
+SDK: D:\dev\document-studio
+프론트: D:\dev\_worktrees\document-studio-ux-review-fixes
+참고 세션: 프론트 독립 프로젝트 시작하기
+
+1. 판단
+
+UI의 큰 구조는 이전보다 좋아졌다. 그러나 초안 보존 경로의 결함 때문에
+중요한 문서를 다루는 운영 투입 전에 아래 P1 항목을 수정해야 한다.
+기존 테스트가 모두 통과하는 것과 예외 상황의 데이터 보존은 별개다.
+
+추가 시험은 실제 DocumentEditor, DocumentEditSession 및 agent bridge를 실행했다.
+엔진의 렌더링·직렬화와 네트워크·저장 실패는 통제된 mock으로 주입했다.
+실제 서버나 사용자 파일을 손상시키는 시험은 실행하지 않았다.
+
+2. 확인된 코드 문제
+
+[P1] 초안 저장소 교체 시 새 저장소의 기존 초안을 조회하지 않고 덮어쓴다
+
+위치:
+D:\dev\document-studio\packages\react\src\document-editor.tsx:294-299
+쓰기 경로: 같은 파일 777-792
+
+조건:
+같은 문서를 편집 중인 상태에서 draftStore를 다른 객체로 바꾼다.
+새 저장소에는 같은 문서 키의 복구 초안이 이미 있다.
+
+원인:
+matchesAcceptedSource(input)과 document 존재 여부만으로 초기화 경로를 건너뛴다.
+새 저장소를 activeDrafts에 바로 지정하고 resolveRecovery를 호출하지 않는다.
+이후 자동 저장은 새 저장소에 현재 편집본을 쓴다.
+
+재현:
+기존 저장소에서 문서를 열고 dirty 상태로 만든 뒤 새 저장소를 전달했다.
+새 저장소의 기존 bytes [9]가 자동 저장 주기 후 현재 편집본 [2]로 바뀌었다.
+새 저장소에 있던 초안을 복구하거나 버리겠다는 선택 없이 보존 자료가 사라졌다.
+
+수정 방향:
+저장소 identity도 수락한 문서 상태의 일부로 관리해야 한다.
+새 저장소의 조회와 복구 선택이 끝날 때까지 자동 쓰기를 승인하지 않는다.
+현재 편집본은 기존 저장소 또는 별도 임시 초안에 보존한 뒤 전환한다.
+
+범위:
+SDK 소비 앱이 draftStore를 실행 중 교체하는 경로다.
+현재 샌드박스의 안정적인 useMemo 저장소에서 상시 발생한다고 주장하지 않는다.
+
+[P1] 초안 조회 실패를 '초안 없음'과 같은 편집 가능 상태로 처리한다
+
+위치:
+D:\dev\document-studio\packages\react\src\recovery.ts:47-53
+연결 경로: document-editor.tsx:263-268 및 777-792
+
+조건:
+기존 복구 초안이 있는데 get()만 일시적으로 실패한다.
+이후 put()은 다시 정상 작동한다.
+
+원인:
+resolveRecovery는 조회 오류에 kind: source와 경고 문구를 반환한다.
+호출자는 원본 편집기를 열고, 초안 저장소는 쓰기 가능한 상태로 계속 사용한다.
+'조회하지 못함'을 '기존 복구 자료를 덮어써도 됨'으로 처리하는 셈이다.
+
+재현:
+get()에서 일시 오류를 발생시켰다. 원본이 열렸고, 편집 후 자동 저장이 실행됐다.
+기존 복구 bytes [9]가 [2]로 덮어써졌다.
+기존 recovery.test.ts의 조회 오류 시험도 경고와 원본 반환만 검사하며
+뒤따르는 자동 쓰기와 기존 자료 보존까지 검사하지 않는다.
+
+수정 방향:
+조회 실패를 별도 recovery 상태로 표현한다.
+같은 키의 자동 쓰기는 재조회 성공 또는 사용자의 명시적 결정 전까지 막는다.
+원본 편집을 계속 허용한다면 다른 임시 키에 새 초안을 보관한다.
+경고만 표시하면서 원래 키에 쓰는 처리는 충분하지 않다.
+
+범위:
+SDK 기본/사용자 제공 DraftStore 경로다. 샌드박스는 최초 복구 조회를 별도
+DocumentEditSession에서 수행하고, 그 조회 실패 시 편집기 마운트를 막는다.
+따라서 이 결함을 현재 샌드박스 최초 조회 경로의 동일한 버그로 일반화하지 않는다.
+
+[P1] 이전 버전 복원 시 대상 검증보다 현재 초안 교체·편집기 해제가 먼저 일어난다
+
+위치:
+D:\dev\_worktrees\document-studio-ux-review-fixes\apps\sandbox-agent\app\_components\workspace\document-edit-session.tsx:297-300
+
+조건:
+현재 미저장 초안이 있는 상태에서 읽을 수 없는 이전 DOCX/HWPX 버전을 선택한다.
+네트워크 응답은 성공하지만 내용이 손상되었거나 엔진 검증에 실패한다.
+
+원인:
+응답 bytes를 검증하기 전에 storeDraft()로 현재 초안과 같은 키를 덮어쓴다.
+setDraft()와 setGeneration()으로 현재 편집기를 해제하고 복원 대상에 대해 새로 연다.
+SDK의 문서 검증은 이 이후에 이루어진다.
+검증 실패는 restoreDraft의 catch 바깥에서 발생하므로 원래 편집본을 되돌리지 못한다.
+
+재현:
+현재 로컬 초안 [9]를 보관한 뒤, 검증기가 거부하는 버전 bytes [99]를 반환했다.
+새 편집기는 'invalid version bytes' 오류를 표시했다.
+그런데 로컬 복구 저장소에는 원래 [9] 대신 [99]가 남았다.
+
+수정 방향:
+다운로드 대상의 크기·형식·엔진 검증이 끝날 때까지 현재 편집기와 초안을 유지한다.
+대상은 임시 버퍼/별도 키에서 준비하고, 성공한 경우에만 현재 초안을 교체한다.
+원래 초안은 교체가 완료될 때까지 보존하여 실패 시 복귀할 수 있게 한다.
+
+범위:
+실제 샌드박스의 이전 버전 복원 흐름에 해당한다.
+이번 재현은 손상된 응답을 주입한 컴포넌트 시험이며 서버 버전을 실제로 손상시키지 않았다.
+
+[P2] 같은 파일의 새 원본에 이전 에이전트 요청이 적용될 수 있다
+
+위치:
+D:\dev\document-studio\packages\react\src\agent-bridge.ts:20-34, 109-126
+revision 제공 경로:
+packages\engine-docx\src\docx-view.tsx:51
+packages\engine-rhwp\src\index.tsx:356-359
+
+조건:
+같은 documentId를 유지한 채 원본 또는 편집 세션이 바뀐다.
+새 엔진 세션이 이전 요청과 같은 local revision을 사용한다.
+
+원인:
+요청은 documentId와 expectedRevision만 비교한다.
+getState에서 version을 제공하지만 요청 검증에는 이를 사용하지 않는다.
+편집 세션을 구별하는 generation/load identity도 없다.
+
+재현:
+documentId=same-file, revision=0, version=v1에서 상태를 읽었다.
+같은 ID와 revision을 유지하고 version을 v2로 바꾼 뒤 이전 요청을 보냈다.
+execute가 호출되고 applied: true를 반환했다.
+
+수정 방향:
+에이전트의 읽기 결과와 편집 요청에 session/load identity를 포함한다.
+expectedVersion도 검사하고, 비동기 작업 완료 후 같은 세션인지 다시 확인한다.
+원본을 다시 열면 local revision이 같더라도 이전 요청을 거절해야 한다.
+
+재현 한계:
+동일 ID·revision 재사용 조건을 bridge 함수 시험으로 주입했다.
+이번 검토에서 DOCX/HWPX 네이티브 엔진의 실제 재열기별 revision 초기값까지
+추가 브라우저 시험으로 측정하지는 못했다. 조건부 경계 결함으로 P2를 부여했다.
+
+3. 검증 결과 및 재현 자료
+
+정상 회귀 검사:
+- SDK 기존 단위 시험: 218개 통과
+- SDK TypeScript 검사: 통과
+- 프론트 관련 4개 파일 시험: 59개 통과
+  document-studio-panel / document-edit-session / file-preview-panel / document-studio-storage
+
+추가 적대적 시험:
+- 정상 복구 초안을 조회하고 보존하는 대조군: 1개 통과
+- 위 4개 결함의 보존/거절 기대값 검사: 4개 실패
+- 단순 환경 초기화 실패가 아니라 [9]→[2], [9]→[99] 및 applied:true를 확인한 실패다.
+
+자료:
+D:\dev\document-studio\.build\adversarial-review-20261006\preservation.test.tsx
+D:\dev\document-studio\.build\adversarial-review-20261006\vitest.config.mts
+D:\dev\document-studio\.build\adversarial-review-20261006\results.json
+D:\dev\document-studio\.build\adversarial-review-20261006\manifest.json
+
+재현 명령: 프론트 작업 트리에서 실행
+yarn exec vitest run --config D:/dev/document-studio/.build/adversarial-review-20261006/vitest.config.mts
+
+기존 검사 명령:
+SDK: yarn test
+SDK: yarn typecheck
+프론트: yarn workspace @apps/sandbox-agent test app/_components/workspace/document-studio-panel.test.tsx app/_components/workspace/document-edit-session.test.tsx app/_components/workspace/file-preview-panel.test.tsx lib/work-agent/document-studio-storage.test.ts
+
+시험 파일은 리뷰 자료 디렉터리에 두었으며 제품 코드는 수정하지 않았다.
+실패하는 시험을 기본 CI에 자동 편입하지 않았다.
+
+4. UI/UX를 더 좋게 만드는 우선 제안
+
+아래는 현재 코드와 직전에 직접 확인한 0.2.2 실제 화면을 기준으로 한 개선 제안이다.
+이미 개선된 중복 헤더 제거·문서 집중 화면·오른쪽 패널 배치는 유지하는 편이 좋다.
+
+첫째: 초안 보관과 서버 저장을 사용자에게 분리해서 보여준다.
+
+지금은 3초 주기의 로컬 초안 보관이 있어도 사용자는 서버 저장 여부만 주로 본다.
+'브라우저 초안 보관됨 · 작업 공간 저장 전'과 '작업 공간 저장됨 · 시각'을 구분하면
+창을 닫거나 다른 문서로 이동할 때 무엇이 남는지 판단할 수 있다.
+보관 실패는 재시도/현재 편집본 다운로드 동작과 연결한다.
+이 개선은 위 초안 보존 결함을 수정한 뒤 진행해야 한다.
+
+둘째: 문단 속성 패널을 자주 쓰는 설정 중심으로 재구성한다.
+
+328px 정도 폭에 8개 탭, 설명 문장, 버튼, 숫자 칸이 모여 있다.
+styles.css의 라벨은 11px이고 숫자 칸은 86px 고정 폭이어서 긴 한국어 라벨이 빽빽하다.
+'행간·문단 앞뒤 간격'을 먼저 보여주고 들여쓰기·줄 나눔 보호는 접을 수 있게 한다.
+설명은 핵심 한 줄과 도움말로 나누고, 적용 버튼을 패널 아래에 고정한다.
+입력 라벨은 12~13px 정도로 키우고 의미별 2열 배치를 검토한다.
+
+셋째: 사용자가 선택한 대상과 적용 범위를 먼저 보여준다.
+
+현재 '선택한 영역에 서식 적용'은 항상 같은 문구다.
+'현재 문단 / 선택한 3개 문단 / 표의 셀 / 문서 전체'처럼 적용 대상을 보여주면
+페이지 설정이나 보고서 서식에서 뜻하지 않은 전체 변경을 줄일 수 있다.
+엔진이 혼합 상태를 지원하지 않으면 해당 제한과 실제 적용 범위를 함께 표시한다.
+
+넷째: 고급 기능보다 공통 경로를 완성한다.
+
+문단·표·페이지의 일반 작업은 공통 패널에서 수행하게 한다.
+DOCX 페이지 여백의 inch와 공통 속성의 mm를 통일한다.
+작업 영역 배경, 눈금자 표시와 종이 경계를 DOCX/HWPX에서 맞춘다.
+메뉴에 같은 기능이 두 경로로 있으면 사용자에게 기본 경로를 분명하게 제시한다.
+
+다섯째: 반복 편집을 위한 키보드 흐름을 정리한다.
+
+Ctrl+F는 유지하고 검색 결과의 다음/이전 이동과 Esc 복귀를 쉽게 한다.
+속성 패널은 Tab 순서와 탭 사이 방향키 이동, 패널을 닫은 뒤 본문 초점 복귀를 점검한다.
+서식 preset과 모두 바꾸기는 사용자가 한 번의 작업으로 인식하므로,
+되돌리기도 그 작업 전체를 한 번에 취소하도록 묶는 방향이 좋다.
+이번 검토에서 모두 바꾸기의 실제 네이티브 Undo 묶음 동작을 추가 측정하지는 않았다.
+
+여섯째: 구조가 복잡한 보고서는 의미 있는 스타일을 중심으로 편집하게 한다.
+
+'본문 / 제목 1 / 제목 2 / 표 제목 / 주석' 스타일을 공통 도구에 제공한다.
+긴 문서에서는 제목 목차를 이용해 이동하고, 기관별 보고서 서식도 스타일에 연결한다.
+글꼴·크기·행간을 문단마다 다시 지정하는 수고를 줄일 수 있다.
+이 항목은 기능 개선 제안이며 이번 리뷰에서 모든 스타일 엔진 지원 여부를 검증한 것은 아니다.
+
+5. 이번 실서비스 접속 상태
+
+실제 사용자 Chrome의 https://sblim.dev.gridone.net/sandbox-agent 탭을 확인했다.
+최초 검토 때는 '404 - 페이지를 찾을 수 없습니다' 화면이며 새로고침 후에도 동일했다.
+브라우저 권한 차단이 아니라 실제 페이지의 404 표시다.
+따라서 최초 검토 당시 추가 네이티브 UI 조작 시험은 진행하지 못했다.
+직전 검토의 저장·재열기 성공과 지금의 접속 결과를 같은 시점의 검증으로 취급하지 않는다.
+
+증거:
+D:\dev\document-studio\.build\adversarial-review-20261006\live-site-404.png
+
+직전 실제 화면 기록:
+D:\dev\document-studio\docs\uiux-rereview-live-2026-10-06.txt
+D:\dev\document-studio\.build\live-uiux-rereview-20261006\
+
+권장 순서: P1 초안 보존 수정 → 조건부 에이전트 경계 보강 → 저장 상태 명확화
+→ 속성 패널 밀도와 적용 범위 정리 → 스타일·문서 이동 기능 확장.
+
+후속 확인: 같은 날 접속이 복구됐으며 실제 브라우저 리뷰를 완료했다.
+새 발견과 정상 동작 확인은 아래 기록에 있다. 최초 404 증거는 과거 관찰로 보존한다.
+D:\dev\document-studio\docs\live-browser-adversarial-review-0.2.2-2026-10-06.txt

@@ -1,0 +1,44 @@
+name: Verify
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          package-manager-cache: false
+      - run: npm install --global corepack@0.34.6
+      - run: corepack enable
+      - run: yarn install --immutable
+      - run: yarn assets:prepare
+      - run: yarn fixtures:generate
+      - run: yarn audit:licenses
+      - run: yarn audit:security
+      - run: yarn playwright install --with-deps chromium
+      - run: yarn typecheck
+      - run: yarn test
+      - run: yarn test:e2e
+      - run: yarn build
+      - run: yarn build:playground
+      - run: yarn verify:packages
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: validation
+          path: |
+            playwright-report/
+            test-results/
+            .build/package-verification.json
+            .build/consumer-browser.json
+            .build/licenses/sbom.json
+          retention-days: 14

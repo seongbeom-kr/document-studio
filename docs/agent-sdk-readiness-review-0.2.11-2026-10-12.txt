@@ -1,0 +1,238 @@
+Document Studio 0.2.11 — 에이전트가 SDK로 업무를 끝낼 수 있는가
+2026-10-12 KST
+대상: D:\dev\document-studio, D:\dev\_worktrees\document-studio-0.2.11
+
+1. 현재 준비 수준
+
+SDK는 에이전트 연결에 필요한 일부 기반을 갖고 있다. 명령 목록/값 스키마/
+지원 및 활성 상태, 문서 읽기, 검색, opaque match id, 단일/전체 치환, 서식
+묶음, documentId/sessionId/version/revision 방어, 저장·입력 잠금 API가 있다.
+오래된 revision의 명령은 실제 엔진 재현에서도 거절됐고 읽기 전용 보호도
+작동했다. 이 기반을 새로 버리고 다시 만들 필요는 없다.
+
+그러나 createAgentBridge는 열린 브라우저 편집기를 감싸는 클라이언트 helper다.
+에이전트 transport/인증은 호스트 책임이며 저장/생성/구조 검증의 작업 계약까지
+제공하지 않는다. 검토한 현재 샌드박스 production TS/TSX에는 브리지 등록이나
+에이전트 명령 수신 경로가 확인되지 않았다. 백엔드의 기존 파일 작업과 문서
+lease 기능은 별도 경로다. 이 리뷰는 그 에이전트가 파일을 편집할 수 없다고
+주장하는 것이 아니라, SDK를 실제로 사용했다는 증거가 없다는 판단이다.
+
+이번에는 General 에이전트에 메시지를 보내지 않았다. 공개 브리지와 실제
+DOCX/HWPX 엔진의 계약을 검증했으며 실제 LLM의 작업 성공률은 측정하지 않았다.
+
+2. P1: 문서 내용 revision만으로 현재 선택 위치를 보호할 수 없다
+
+관련 소스:
+packages/react/src/agent-bridge.ts:17-20 — 쓰기 target에 selection/range가 없다.
+packages/react/src/agent-bridge.ts:31-63 — 문서/세션/버전/revision을 검사한다.
+packages/react/src/agent-bridge.ts:147-151 — execute에 expectedRevision만 전달한다.
+packages/react/src/document-editor.tsx:613 이후 — 명령은 현재 session 선택에 적용한다.
+packages/engine-docx/src/docx-view.tsx:183-184 — selectionKey는 내용 revision과 별개다.
+packages/engine-rhwp/src/index.tsx:119-121 — caret scope와 selectionKey를 노출한다.
+
+자체 문서는 다음 두 문단만 가진다.
+첫 번째 대상 문장입니다.
+두 번째 대상 문장입니다.
+
+재현:
+1) createAgentBridge로 첫 문장을 search/select한다.
+2) getState의 documentId, sessionId, version, revision과 선택 상태를 보관한다.
+3) 두 번째 문장을 search/select한다. 본문은 수정하지 않는다.
+4) 2)의 target과 insertText:'[[AGENT-INSERT]]'로 execute한다.
+5) 공개 readDocument와 native 화면에서 결과를 확인한다.
+
+DOCX:
+captured revision 0, 현재 revision 0.
+selectionKey는 첫 paraId에서 다른 paraId로 변경됐다.
+반환 applied:true, revision:1, dirty:true.
+첫 문장은 그대로이고 두 번째 문장만 [[AGENT-INSERT]]가 됐다.
+
+HWPX:
+captured revision 0, 현재 revision 0.
+selectionKey의 paragraphIndex는 0에서 1로 변경됐다.
+반환 applied:true, revision:2, dirty:true.
+첫 문장은 그대로이고 두 번째 문장만 [[AGENT-INSERT]]가 됐다.
+
+실제 사용에서는 사람이 캐럿/선택을 이동하거나 다른 도구가 선택을 바꾸는
+동안 에이전트가 앞서 조회한 문맥을 대상으로 명령을 준비할 수 있다. 내용
+revision이 바뀌지 않아도 명령의 대상이 달라진다. 성공 receipt의 documentId와
+revision만으로는 에이전트가 의도한 문장에 적용됐는지 알 수 없다.
+
+해석의 범위:
+현재 execute는 '현재 선택에 명령 실행'인 API다. 라이브러리의 명시적 현재 선택
+사용 자체를 위법/보안 문제로 주장하지 않는다. 에이전트가 앞선 select의 대상을
+유지한다고 기대하는 read→select→execute 조합에 보장이 없는 것이 문제다.
+실제 네트워크/LLM 경합은 별도로 재현하지 않았고 공개 select로 동일한 상태
+변경을 만들었다. 실제 사용자 파일은 수정하지 않았다.
+
+개선 방향:
+A) 명령 target에 opaque match/range와 expectedRevision을 포함하고 엔진의
+   한 실행 경계에서 대상 확인→선택→적용을 수행한다.
+B) 선택 기반 API를 유지하면 전체 범위를 나타내는 expectedSelection 토큰을
+   넣고 적용 바로 직전에 native 범위가 같음을 검사한다. 단순 문단 ID나
+   캐럿 끝 위치만으로는 같은 문단의 다른 범위를 구별할 수 없을 수 있다.
+C) 에이전트 작업 중 사람 입력/선택 이동을 제어하고 범위 단위 검증을 병행한다.
+
+현재 acquireInputLock는 native 입력뿐 아니라 새 SDK 수정도 막는다. 이를
+그대로 감싼 뒤 agent.execute를 호출하는 제안은 실행되지 않는다. 인간 입력
+차단과 허가된 에이전트 명령 실행의 소유권을 분리하거나 별도의 원자적 엔진
+명령을 만들어야 한다. 검사를 한 번 더 하는 것만으로 await 사이의 경합이
+모두 해결된다고 단정하면 안 된다.
+
+회귀 수용 기준:
+- select A 후 사람/다른 명령이 B로 이동해도 A 요청은 B를 수정하지 않는다.
+- 같은 문단의 다른 문자 범위, 표의 다른 셀, collapsed caret을 포함한다.
+- 이동 후 명령은 명확한 selection conflict 또는 원래 대상 적용을 반환한다.
+- DOCX/HWPX, 긴 명령, 권한 철회, 세션 재열기와 함께 검사한다.
+
+3. 긍정 대조 검사
+
+DOCX에서 첫 문장 선택을 유지한 execute는 첫 문장만 수정했다.
+읽기 전용으로 전환한 뒤 같은 요청은 '읽기 전용 문서입니다.'로 거절됐다.
+HWPX에서 본문 revision을 바꾼 뒤 이전 요청은 '편집 revision이 변경됐습니다.'로
+거절됐다. 따라서 이번 발견은 revision 방어 전체가 없는 문제와 구분된다.
+독립 저장소에 save한 뒤 새 version, 저장 bytes, dirty:false도 확인했다.
+이는 메모리 DocumentStorage 검증이며 실제 BFF/서버 저장 증거는 아니다.
+
+4. 작업 완료의 격차: 브리지에 저장 확정과 생성 계약이 없다
+
+실제로 확인한 브리지 메서드 9개:
+getState, listAutomationForms, listCommands, readDocument, search, select,
+replace, applyPreset, execute.
+
+execute의 receipt는 applied, documentId, sessionId, version, revision, dirty다.
+dirty:true는 편집본의 변경이고 저장 완료가 아니다. createAgentBridge에는
+save/commit/export/새 문서 생성이 없다. handle.save는 존재하나 Promise<void>며
+저장 metadata는 onSaved 이벤트로 전달된다. 소비 호스트가 별도 도구와 이벤트
+연계를 구현하면 해결 가능하므로 이를 기존 API의 약속 위반으로 분류하지 않는다.
+
+에이전트용 commit 도구에는 최소한 다음이 필요하다.
+- 대상 identity와 expectedVersion, 작업/재시도 식별자.
+- 저장된 version, 저장 대상 경로/문서 ID, 저장 bytes의 digest 또는 검증 식별자.
+- 편집본 revision과 저장한 revision, 남은 dirty 및 pending 상태.
+- 문서 확정 저장과 자동화 입력 보관, 파일 목록 동기화의 각각 다른 결과.
+- 응답 유실 시 같은 작업의 결과 조회 또는 동일 요청 receipt 재사용.
+
+현재 저장 충돌·onSaved·StorageWarning 기반을 재사용한다. 자동화 입력 보관
+실패 때문에 문서 저장 자체의 성공을 부정하지 않는 0.2.11 정책도 유지한다.
+다만 화면/호스트가 전환 전에 입력 복구와 pending을 확인하는 보호는 별도로 필요하다.
+
+5. 작업 완료의 격차: 표·그림·인쇄 결과를 읽어 검증할 수 없다
+
+공개 readDocument는 paragraphs(id,text), 전체 text, revision, truncated,
+scope:'body-and-tables'를 반환한다. 표를 포함한 원문 읽기로서는 정직한 범위다.
+하지만 표의 행/열/셀 주소/병합 상태, 글자 서식, 그림 크기/대체 텍스트,
+페이지의 실제 배치까지 반환하지 않는다.
+
+실제 두 형식의 표 생성 XML은 표 1개였지만 readDocument 결과는 '항목',
+'결과', 'SDK', '확인' 등 독립 문단이었다. 같은 내용의 평문 삽입은 표 0개다.
+우리 검사 호스트는 공개 exportDocument와 XML 구조를 함께 검사해 구분했다.
+에이전트 브리지만 쓰면 이 구조 검사를 같은 방법으로 수행할 도구가 없다.
+
+최소 확장:
+- paragraph/table/image 등 block kind와 문서 내 안정적인 주소.
+- table의 row/column/셀 text/병합, paragraph의 필요한 서식 범위.
+- 검색 결과가 본문/표의 어느 셀에 있는지, 수정 명령의 허용 범위.
+- 검증 가능한 export/inspect 도구. 전부 읽는 대신 작업에 필요한 범위 조회.
+- scope/truncated와 미지원 영역을 유지하고 불완전한 읽기를 전체 성공으로 취급하지 않기.
+
+구조 쓰기 API를 먼저 무제한 추가하는 것보다 구조 읽기와 결과 검증이 중요하다.
+에이전트가 바꾼 내용을 확인할 수 없으면 명령이 성공해도 업무 성공은 판정할 수 없다.
+
+6. 도구 계약을 에이전트가 이해하기 쉽게 만들기
+
+현재 명령 카탈로그에는 값 스키마·범위·단위와 형식별 상태가 있다. 이 기능을
+사용한다. 그러나 카탈로그와 TypeScript 타입만으로 실제 LLM 도구 등록이
+완료되는 것은 아니다. 각 도구의 JSON 입력, 응답, 오류와 상태 전이가 필요하다.
+
+제안하는 최소 도구 구성 (아직 구현된 API 이름이라는 뜻은 아니다):
+document.context — 대상 문서/권한/세션/버전과 지원 기능.
+document.read — 범위가 명시된 내용/구조 읽기.
+document.replaceText — match/range에 묶인 치환.
+document.applyFormatting — 대상과 원하는 값이 명시된 서식 적용.
+document.insertTable — 대상 앞/뒤/교체와 표 데이터.
+document.createFromTemplate — 새 문서 내용·형식·파일명·저장 위치.
+document.commit — 저장 확정 receipt.
+document.inspect — 작업 요구사항과 결과 비교.
+
+실패 응답은 stable code와 retryable, 단계, 현재 identity, 후속 행동을 가진다.
+한국어 메시지는 사용자 안내에 쓰고 에이전트가 문자열을 파싱해 분기하지 않게 한다.
+SaveConflictError의 기존 구분은 유지하되 세션/선택/버전 충돌을 더 구체화한다.
+
+bold/italic/underline 같은 toggle 명령은 '굵게 켜기' 의도를 반복 적용할 때
+주의해야 한다. 명령 상태 active를 확인하고 desired value를 표현하는 상위
+도구를 제공한다. 동일 expectedRevision의 재호출이 현재 revision 방어로
+거절되는 점은 인정한다. 응답 유실 후 새 revision으로 무작정 재실행하는
+정책을 만들면 toggle/삽입이 뒤집히거나 반복될 수 있어 작업 idempotency가 필요하다.
+이번에 네트워크 응답 유실을 새로 재현했다고 주장하지 않는다.
+
+여러 명령을 한 번에 실행할 때 원자성/부분 완료/Undo 범위를 선언한다.
+기본 엔진의 atomic preset과 커스텀 엔진의 PresetApplicationError.completedCommands
+정책을 호스트/에이전트에도 노출한다. 오류 발생 시 문서가 변경되지 않았다고
+일괄 가정하지 않는다. 지원하지 않는 형식 기능은 계획 전에 제외한다.
+
+7. 실제 실행 주체와 사람의 제어권
+
+현재 React 편집기·DOCX DOM·HWPX iframe은 브라우저 실행 수명을 가진다.
+General 서버의 파일 기반 agent 작업과 동일한 실행기가 아니다. 다음 중 어떤
+흐름을 만들지 정하고, UI의 상태 표시와 종료 정책도 함께 정해야 한다.
+
+브라우저 실행 연결:
+기존 인증 BFF와 owner/workspace/document identity를 사용한다. 열린 편집기,
+명령 수신·응답 통로, 대상/권한 검사, 사람과 에이전트의 lease 전환을 연결한다.
+탭 닫힘/연결 끊김은 결과 불명 상태가 될 수 있으므로 후속 조회/복구가 필요하다.
+
+서버 실행 연결:
+서버가 파일과 실행기를 소유하고 SDK core의 검증/템플릿 계약을 재사용한다.
+React 어댑터를 그대로 Python에서 호출한다고 가정하지 않는다. 별도 엔진
+수명·직렬화·저장 버전 검사·결과 검증을 마련하고 프론트가 같은 결과를 읽게 한다.
+
+두 흐름 모두 '에이전트가 파일을 썼다'와 '열린 사람 편집본을 SDK로 바꿨다'는
+서로 다른 동작이다. 한 쪽에서 저장한 파일 때문에 다른 쪽 미저장 편집본을
+자동 덮어쓰면 안 된다. 기존 lease/마지막 저장/입력 잠금 보호를 유지한다.
+
+사용자 화면에는 제어 주체, 적용 대상, 단계별 변경과 저장 상태를 표시한다.
+승인 정책은 호스트의 업무 정책으로 정하고, 이 리뷰가 새 승인 흐름을 강제하는
+것은 아니다. 현재 사용자에게 추가 권한/확인을 요청하지 않았다.
+
+8. 다음 구현과 평가의 순서
+
+1) 선택 이동 문제를 고치고 대상 지정 명령의 native 회귀를 추가한다.
+2) 최소 도구를 실제 General agent에 등록하고 저장 receipt와 구조 inspect를 연결한다.
+3) '문구 치환+2×2 표 생성+저장+재열기' 하나의 업무를 두 형식에서 통과시킨다.
+4) UI에 대상/변경/저장 확정을 연결한다. 실패 시 같은 편집본에서 복구한다.
+5) 인쇄용 명찰은 내용 생성과 물리 배치를 별도 계약으로 검증한 다음 추가한다.
+
+평가 시나리오:
+- 기본 문구 치환: 중복 단어 가운데 지정한 결과만 수정하고 다른 내용을 보존.
+- 선택 이동: 사람이 다른 문단/셀을 클릭하는 동안 요청이 준비돼도 오적용 없음.
+- 표 생성: 텍스트 내용뿐 아니라 실제 rows/columns/cells와 export XML 확인.
+- 읽기 전용/권한 철회: 원문 bytes와 서버 version 변경 없음.
+- 새 원본/세션 재열기: 이전 세션 target의 명령 거절.
+- 저장 실패/응답 유실: 중복 삽입·중복 파일·성공 오보고 없이 결과 확인/재시도.
+- 문서/로컬 입력 보관 실패 구분: 저장 성공은 유지, 입력 복구 필요는 표시.
+- 원본 구조 보존: 표·그림·머리말/꼬리말·긴 문서에서 변경 밖의 내용 유지.
+- 명찰: 개수/용지/실제 mm 치수/줄바꿈 요구사항으로 성공 판정.
+
+지표는 도구 호출 횟수만 세지 않는다. 업무 성공률, 잘못된 대상 수정,
+저장 결과 검증 누락, 중복 적용, 사용자 개입 횟수와 복구 가능성을 기록한다.
+작은 고정 업무 corpus와 실제 tool trace, 결과 파일/버전/해시를 보관한다.
+이 시나리오는 다음 수용 검사 제안이며 이번에 실제 LLM으로 실행한 결과가 아니다.
+
+9. 이번 결과와 산출물
+
+SDK 단위 283/283, TypeScript 통과. 공개 API와 실제 Chrome 엔진에서
+DOCX/HWPX 선택 이동 문제 및 표 삽입 0개/새 문서 1개 대조를 확인했다.
+DOCX 정상 위치 적용, 읽기 전용 거절, HWPX 오래된 revision 거절도 확인했다.
+DOCX 명찰 3개의 생성 결과는 A4 일반 6문단이었다.
+
+증거: D:\dev\document-studio\.build\uiux-agent-review-0.2.11-20261012
+host/main.tsx: 공개 API 재현 버튼과 XML 검사 코드. 제품 실행 경로에는 포함되지 않는다.
+agent-*-selection-*.json: identity/선택/receipt/원문 결과.
+agent-docx-positive.json: 선택을 유지한 정상 경로.
+agent-bridge-methods.json: 실제 브리지의 9개 메서드.
+*-structure-*.json: 실제 export의 표 개수와 공개 readDocument 결과.
+unit-results.json, source-manifest.json, installed-packages.json, verification-summary.json.
+
+실제 backend 장애를 유발하지 않았고 실제 agent에 메시지를 보내지 않았다.
+이번 리뷰가 변경한 것은 .build 증거와 docs의 리뷰 문서뿐이다.

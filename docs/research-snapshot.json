@@ -1,0 +1,153 @@
+{
+  "observedAt": "2026-10-04T05:36:44.9284463Z",
+  "purpose": "Research metadata only. Observed latest versions are evaluation candidates, not approved dependency pins.",
+  "packages": [
+    {
+      "name": "@rhwp/editor",
+      "observedVersion": "0.8.6",
+      "publishedAt": "2026-09-02T11:24:29.88Z",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/%40rhwp%2Feditor",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/edwardkim/rhwp.git"
+      },
+      "gitHead": "e8800c8def63449808a4092798442652ed460552",
+      "engines": {
+        "node": ">=18.0.0"
+      },
+      "peerDependencies": null,
+      "integrity": "sha512-Hc/rHrQrgZqJ2OSWNsPd/8tKyfnLer8M9r+U81yphJ7O8LaXLuv5A2yUub2fhFnfaYyfl76LfOIMsfcD0/dXgA==",
+      "tarball": "https://registry.npmjs.org/@rhwp/editor/-/editor-0.8.6.tgz"
+    },
+    {
+      "name": "@docx-editor.dev/react",
+      "observedVersion": "2.25.0",
+      "publishedAt": "2026-10-02T12:07:26.883Z",
+      "license": "Apache-2.0",
+      "source": "https://registry.npmjs.org/%40docx-editor.dev%2Freact",
+      "repository": {
+        "url": "git+https://github.com/eigenpal/docx-editor.git",
+        "type": "git",
+        "directory": "packages/react"
+      },
+      "gitHead": "ff8242b025c8487c2309027ac65d7e51a14be7f4",
+      "engines": null,
+      "peerDependencies": {
+        "react": "^18.0.0 || ^19.0.0",
+        "react-dom": "^18.0.0 || ^19.0.0",
+        "@docx-editor.dev/core": "~2.25.0"
+      },
+      "integrity": "sha512-2e9ykYZr2xcFIOXLPQK5sgisfBwJ1FtbKgCTG7y0AFu38/NwdgIeWLV8UXkwQZ0vBCydF7ouJt3RwFcJ9O2Lgw==",
+      "tarball": "https://registry.npmjs.org/@docx-editor.dev/react/-/react-2.25.0.tgz"
+    },
+    {
+      "name": "@docx-editor.dev/core",
+      "observedVersion": "2.25.0",
+      "publishedAt": "2026-10-02T12:11:08.21Z",
+      "license": "Apache-2.0",
+      "source": "https://registry.npmjs.org/%40docx-editor.dev%2Fcore",
+      "repository": {
+        "url": "git+https://github.com/eigenpal/docx-editor.git",
+        "type": "git",
+        "directory": "packages/core"
+      },
+      "gitHead": "ff8242b025c8487c2309027ac65d7e51a14be7f4",
+      "engines": {
+        "node": "^20.16.0 || >=22.3.0"
+      },
+      "peerDependencies": {
+        "yjs": "^13.6.0",
+        "pdf-lib": "^1.17.1"
+      },
+      "integrity": "sha512-8Gh8zz/7yZQz4pTzEKaHEiN14HXxdSWYHq/CwIqYmCbiZ9osHHKdD5NuZKbIdfnQ041X8yPye1NlpbgJ22RT0A==",
+      "tarball": "https://registry.npmjs.org/@docx-editor.dev/core/-/core-2.25.0.tgz"
+    },
+    {
+      "name": "@office-kit/xlsx",
+      "observedVersion": "0.23.4",
+      "publishedAt": "2026-10-02T10:53:26.92Z",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/%40office-kit%2Fxlsx",
+      "repository": {
+        "url": "git+https://github.com/office-kit/xlsx.git",
+        "type": "git"
+      },
+      "gitHead": null,
+      "engines": {
+        "node": ">=22.0.0"
+      },
+      "peerDependencies": null,
+      "integrity": "sha512-/C7gfdkPQcZOUiTvbjB3aPvmMEp4eJ1BWcSHoNjIhfUJh9AVdQ2qjY+ZcGa3k2tzoP3MYE8pORai0JgUBcOLzA==",
+      "tarball": "https://registry.npmjs.org/@office-kit/xlsx/-/xlsx-0.23.4.tgz"
+    },
+    {
+      "name": "pptx-react-viewer",
+      "observedVersion": "4.22.1",
+      "publishedAt": "2026-10-03T10:40:12.079Z",
+      "license": "Apache-2.0",
+      "source": "https://registry.npmjs.org/pptx-react-viewer",
+      "repository": {
+        "url": "git+https://github.com/ChristopherVR/pptx-viewer.git",
+        "type": "git",
+        "directory": "packages/react"
+      },
+      "gitHead": "fe7b4ad40f6f7c975a59e007e393d48b92ddc739",
+      "engines": null,
+      "peerDependencies": {
+        "ai": ">=6 <8",
+        "yjs": "^13.6.32",
+        "jspdf": "^4.2.1",
+        "jszip": "^3.10.1",
+        "react": "^18.2.0 || ^19.0.0",
+        "i18next": "^26.3.6",
+        "react-dom": "^18.2.0 || ^19.0.0",
+        "react-icons": "^5.7.0",
+        "lucide-react": "^1.24.0",
+        "@ai-sdk/react": "^4.0.76",
+        "framer-motion": "^12.42.2 || ^13.1.1",
+        "react-i18next": "^17.0.9",
+        "fast-xml-parser": "^5.10.1"
+      },
+      "integrity": "sha512-4UXfRUZMwe+bKC/renWSOsujLpo3W2CQlGzGIt0vWZoxQpaX/DkTJXPlNquxVn73iMfu7luNMWadWH35n2Oxzw==",
+      "tarball": "https://registry.npmjs.org/pptx-react-viewer/-/pptx-react-viewer-4.22.1.tgz"
+    },
+    {
+      "name": "@univerjs/core",
+      "observedVersion": "1.0.3",
+      "publishedAt": "2026-09-29T08:13:03.004Z",
+      "license": "Apache-2.0",
+      "source": "https://registry.npmjs.org/%40univerjs%2Fcore",
+      "repository": {
+        "url": "https://github.com/dream-num/univer",
+        "type": "git"
+      },
+      "gitHead": null,
+      "engines": null,
+      "peerDependencies": {
+        "rxjs": ">=7.0.0"
+      },
+      "integrity": "sha512-6lOILsG4y3WZtLuvj31C6nXvO0zxpxzmzL0u/4cU3LdHmwJoESVq/dCgMEV6fk/BkZ+Q3QL7MLRUM6I2UiXcOg==",
+      "tarball": "https://registry.npmjs.org/@univerjs/core/-/core-1.0.3.tgz"
+    },
+    {
+      "name": "@fortune-sheet/react",
+      "observedVersion": "1.0.4",
+      "publishedAt": "2025-11-06T11:04:36.256Z",
+      "license": "MIT",
+      "source": "https://registry.npmjs.org/%40fortune-sheet%2Freact",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ruilisi/fortune-sheet.git"
+      },
+      "gitHead": "94346608877db4747406707a177c4b8f3bacdbf9",
+      "engines": null,
+      "peerDependencies": {
+        "react": ">= 18.2",
+        "react-dom": ">= 18.2"
+      },
+      "integrity": "sha512-v+BU5mmp2hhUe4gRF+vOJ3j8zZkzHU0kzhTZzp+Nn00wA/RArMr+CO+SAluKlCPAsTZgPwmgOEK685WPqJ5XNw==",
+      "tarball": "https://registry.npmjs.org/@fortune-sheet/react/-/react-1.0.4.tgz"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "source": "https://raw.githubusercontent.com/edwardkim/rhwp/e8800c8def63449808a4092798442652ed460552/npm/editor/index.d.ts",
+  "scope": "Declarations at the npm gitHead; not a browser runtime test or a tarball-content verification.",
+  "createStudioDeclared": true,
+  "toolbarVisibilityDeclared": true,
+  "commandsContextDeclared": true,
+  "documentChangedEventReasonDeclaration": "reason: 'agent_apply' | 'agent_revert';"
+}

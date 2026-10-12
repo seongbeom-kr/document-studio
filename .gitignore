@@ -1,0 +1,11 @@
+node_modules/
+.cache/
+.build/
+dist/
+test-results/
+playwright-report/
+apps/playground/public/editor-assets/
+*.tsbuildinfo
+.yarn/install-state.gz
+.next/
+examples/nextjs/public/editor-assets/

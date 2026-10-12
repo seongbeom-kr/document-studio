@@ -1,0 +1,50 @@
+General ↔ Document Studio 실행 연결 조사와 다음 구현 계약
+2026-10-12 KST
+
+확인한 실제 레포
+D:\dev\go-agent-platform\go_agent_general_api
+브랜치 dev, HEAD f3da3738f79826c220d723c4515ab952bcccd68c
+이번 SDK 리뷰 수정에서 General 제품 소스나 실행 컨테이너를 변경하지 않았다.
+
+현재 연결과 아직 없는 연결
+프론트의 DocumentStudioPanel은 General의 edit-session/업로드/버전 저장/lease를
+사용한다. 실제 HWPX 저장은 이 경로로 확인했다. General의 LLM 도구가 열린
+브라우저의 createAgentBridge 메서드를 호출하는 transport와 tool trace는 별개다.
+src/go_agent_general에서 document-studio/document_studio/createAgentBridge 검색은
+일치 0개였다. 이것을 기존 파일 도구의 문서 편집 능력이 없다는 주장으로 해석하지 않는다.
+
+직접 확인한 정책
+application/native_session.py: _model_tools는 기본 도구와 capability_runtime의
+도구를 합친다. _execute_tool은 runtime_operations.document_agent_operation을
+통과한 뒤 _execute_tool_unfenced로 간다.
+application/document_editing.py: document_agent_operation은 live lease 또는
+pendingSave가 있으면 대기하고, document epoch가 변경됐으면 거절한다.
+api/file_routes.py: /sessions/{session_id}/files/edit-session은 resolve_owner를
+통과한 client.document_edit를 호출한다.
+Dockerfile은 Python 실행 환경이며 브라우저 SDK 실행 환경을 제공하지 않는다.
+
+따라서 브리지 함수를 도구 목록에만 추가하면 열린 편집기의 lease 때문에
+호출이 대기할 수 있다. Python에서 React/DOM/iframe 어댑터를 import하는
+것으로 해결되지 않는다. 일반 파일 도구의 fence를 제거해서도 안 된다.
+
+다음 구현 범위: 열린 브라우저 편집기로 연결
+1. 기존 인증 BFF를 통해 owner/session/path/lease/SDK sessionId를 연결한
+   일시적 editor connection을 등록한다. 쿠키/토큰을 SDK나 모델에 넘기지 않는다.
+2. connection이 지원하는 read/search/replace/guarded formatting/inspect/commit을
+   JSON 도구 계약으로 공개한다. 현재 선택의 토큰과 revision, 저장 version을
+   명시한다. 비동기 그림 삽입은 현재 SDK의 안전한 지원 범위에서 제외한다.
+3. 일반 agent_operation fence와 구분한 승인된 브라우저 문서 작업 경계를 만든다.
+   해당 connection의 lease와 epoch를 확인하는 제한된 실행 경계이며 기존 파일
+   도구의 fence와 권한 검사는 유지한다. 현재 acquireInputLock는 SDK 명령도
+   막으므로 그대로 agent.execute를 감싸는 방식은 사용하지 않는다.
+4. 현재 프론트의 beforeRequest 저장/lease 이양/닫기와 이 connection의 수명을
+   함께 정의한다. 사용자 제어, 취소, 탭 종료, 권한 철회, 원본 교체 시
+   미확정 작업을 성공 처리하지 않는다. 새 연결에 오래된 요청을 전달하지 않는다.
+5. 요청/응답/commit receipt를 owner/session/operationId로 영속화한다. SDK의
+   메모리 receipt 재사용은 탭 재연결과 서버 재시작까지 보장하지 않는다.
+6. 최소 실제 General 업무를 DOCX/HWPX에서 실행한다: 지정 문구 치환 →
+   생성 문서의 2×2 표 검사 → 저장 version/digest 확인 → 재열기 검사.
+   실제 LLM tool trace와 결과 파일을 보관하고 fixture 성공과 합산하지 않는다.
+
+이 문서는 확인한 구현 경계와 후속 계획이다. transport가 구현되었거나 실제
+General 도구 호출 업무가 완료됐다는 검증 기록이 아니다.

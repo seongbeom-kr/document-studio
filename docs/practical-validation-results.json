@@ -1,0 +1,234 @@
+{
+  "observedAt": "2026-10-05T03:53:21.455Z",
+  "sdkVersion": "0.2.0",
+  "repository": "D:/dev/document-studio",
+  "ownLicense": "Apache-2.0",
+  "results": {
+    "unit": {
+      "passed": 185,
+      "files": 7
+    },
+    "e2e": {
+      "passed": 258,
+      "failed": 0,
+      "skipped": 0,
+      "flaky": 0,
+      "projects": {
+        "chrome": 129,
+        "edge": 129
+      },
+      "durationMs": 365819.83300000004
+    },
+    "consumer": {
+      "passed": true,
+      "startedAt": "2026-10-05T03:46:26.824Z",
+      "completedAt": "2026-10-05T03:47:37.389Z",
+      "consumer": ".cache/package-consumer",
+      "packages": [
+        "core",
+        "react",
+        "engine-docx",
+        "engine-rhwp"
+      ],
+      "framework": "Next.js 16.3.8",
+      "installation": "npm from Yarn-generated tarballs",
+      "sourceAliases": false,
+      "combinations": [
+        {
+          "browser": "chrome",
+          "version": "153.0.8010.54",
+          "format": "docx",
+          "checks": [
+            "production package load",
+            "font size 14pt",
+            "line spacing 150%",
+            "downloaded XML",
+            "source text",
+            "saved bytes and version callback",
+            "own save acknowledgement retains content and formatting",
+            "extended paragraph UI",
+            "markdown workflow and lazy document factories",
+            "dirty draft flush before generated document switch",
+            "generated document download contains a table",
+            "no external requests",
+            "no missing runtime assets",
+            "no page errors"
+          ]
+        },
+        {
+          "browser": "chrome",
+          "version": "153.0.8010.54",
+          "format": "hwpx",
+          "checks": [
+            "production package load",
+            "font size 14pt",
+            "line spacing 150%",
+            "downloaded XML",
+            "source text",
+            "saved bytes and version callback",
+            "own save acknowledgement retains content and formatting",
+            "extended paragraph UI",
+            "markdown workflow and lazy document factories",
+            "dirty draft flush before generated document switch",
+            "generated document download contains a table",
+            "no external requests",
+            "no missing runtime assets",
+            "no page errors"
+          ]
+        },
+        {
+          "browser": "msedge",
+          "version": "154.0.4258.53",
+          "format": "docx",
+          "checks": [
+            "production package load",
+            "font size 14pt",
+            "line spacing 150%",
+            "downloaded XML",
+            "source text",
+            "saved bytes and version callback",
+            "own save acknowledgement retains content and formatting",
+            "extended paragraph UI",
+            "markdown workflow and lazy document factories",
+            "dirty draft flush before generated document switch",
+            "generated document download contains a table",
+            "no external requests",
+            "no missing runtime assets",
+            "no page errors"
+          ]
+        },
+        {
+          "browser": "msedge",
+          "version": "154.0.4258.53",
+          "format": "hwpx",
+          "checks": [
+            "production package load",
+            "font size 14pt",
+            "line spacing 150%",
+            "downloaded XML",
+            "source text",
+            "saved bytes and version callback",
+            "own save acknowledgement retains content and formatting",
+            "extended paragraph UI",
+            "markdown workflow and lazy document factories",
+            "dirty draft flush before generated document switch",
+            "generated document download contains a table",
+            "no external requests",
+            "no missing runtime assets",
+            "no page errors"
+          ]
+        }
+      ]
+    },
+    "cleanInstall": {
+      "passed": true,
+      "directory": ".cache\\clean-install-1791171972583",
+      "completedAt": "2026-10-05T03:46:44.918Z",
+      "scope": "Fresh workspace manifest/lock installation; source build is tested separately."
+    },
+    "word": {
+      "passed": true,
+      "version": "16.0",
+      "scope": "Rich DOCX text, header/footer, table/image, 14pt and 150% line spacing"
+    },
+    "licenses": {
+      "npm": 102,
+      "rust": 393,
+      "gitRust": 1,
+      "inventorySha256": "cdac57cfeb5440224f00394e2000289bbee96b92595d5135f2f48939a3454757"
+    },
+    "security": {
+      "command": "yarn npm audit --all --recursive --environment production --json",
+      "reportedAdvisories": 0,
+      "scope": "Registry report on 2026-10-05, after Next example upgrade to 16.3.8"
+    }
+  },
+  "fixtures": [
+    {
+      "name": "blank.docx",
+      "sha256": "90496a50cb90fa19d8114ce41064acd8377e07c3a353d372c1721523f12b3e4c"
+    },
+    {
+      "name": "blank.hwpx",
+      "sha256": "d26cf75a3ba9ad275fa457b35f1afbd419701ee1d68f66ef37003f7007daf627"
+    },
+    {
+      "name": "long.docx",
+      "sha256": "fc4a87c657a0a4d5046a2b05288f125f7105e9e433d509e5439366014e626ad0"
+    },
+    {
+      "name": "long.hwpx",
+      "sha256": "4d6627dc79a30d975261125662cbe8a17d56b43563ca65d9dbb8b89ebfba916f"
+    },
+    {
+      "name": "nested.docx",
+      "sha256": "1b787b0f75d9e90fdf8d1a2ff74cab609d0e496eec3fec2642bf9809b7137dcf"
+    },
+    {
+      "name": "rich.docx",
+      "sha256": "06559cfe824955cf86b331c33703e499f6c2338b3b51a432f32e30256cb951a5"
+    },
+    {
+      "name": "rich.hwpx",
+      "sha256": "2130534e6c333a6b9356924214802cef3b35ff5927059ee5bd1a4d5318b84759"
+    },
+    {
+      "name": "sample.docx",
+      "sha256": "03349230d1d7ec032b18671dd097466a5cfe1b3c2a56ff0a5eaf84cc7e84e949"
+    },
+    {
+      "name": "sample.hwpx",
+      "sha256": "18a4cf6181fda6a47032f63302c66bf42ef0c01a9cb52494ee4d43cce890c003"
+    },
+    {
+      "name": "unicode.docx",
+      "sha256": "5238312c0f69721ca8dab0c8755b3e6dfd8fb67f5e818f4115fdaa622bc3a44c"
+    },
+    {
+      "name": "unicode.hwpx",
+      "sha256": "d5c6cb830cff23c27523ee1628e57cf79ef516fce5613dffd9e6d64e3ff56f21"
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "@document-studio/core",
+      "version": "0.2.0",
+      "file": ".build/packs/core.tgz",
+      "bytes": 281350,
+      "sha256": "58dbb157a30ba42a7274549f007893a9dbb47a779f4a53ceb003061ba95ab8d0"
+    },
+    {
+      "name": "@document-studio/react",
+      "version": "0.2.0",
+      "file": ".build/packs/react.tgz",
+      "bytes": 282332,
+      "sha256": "2cdf6eea57804a6316cec2006b7f656300eb8bca62b9d691d47fc15ce307453b"
+    },
+    {
+      "name": "@document-studio/engine-docx",
+      "version": "0.2.0",
+      "file": ".build/packs/engine-docx.tgz",
+      "bytes": 270669,
+      "sha256": "d323eeacb0a8430c4689c983dc80f5f35f5ec3fd7f997d961b5d44a26c8ee219"
+    },
+    {
+      "name": "@document-studio/engine-rhwp",
+      "version": "0.2.0",
+      "file": ".build/packs/engine-rhwp.tgz",
+      "bytes": 8137205,
+      "sha256": "d2d535a2c3f3e7e9d623bc553aa052ab644a0a803419cc4836d926d916dfe6c9"
+    }
+  ],
+  "rhwpExtensionSha256": "5c9b4f6be2a8a0c63149bd25abb816daf72d0019586a5e7f89464951687220ef",
+  "notExecuted": [
+    "Native Hancom HWPX Open",
+    "Physical Windows IME",
+    "Firefox/Safari/touch/screen readers",
+    "Every upstream advanced menu",
+    "Real institutional/customer corpus",
+    "Production sandbox BFF/lease/sync",
+    "Remote GitHub CI",
+    "Complete government-office feature parity"
+  ],
+  "published": false
+}

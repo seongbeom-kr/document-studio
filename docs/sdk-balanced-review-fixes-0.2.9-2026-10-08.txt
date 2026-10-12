@@ -1,0 +1,149 @@
+Document Studio 0.2.9 — 0.2.8 균형 리뷰 대응 및 검증
+작업일: 2026-10-08 KST
+SDK: D:\dev\document-studio
+프론트: D:\dev\_worktrees\document-studio-ux-review-fixes
+브랜치: codex/document-studio-ux-review-fixes
+실제 주소: https://sblim.dev.gridone.net/sandbox-agent
+
+대상 리뷰
+docs/sdk-balanced-review-0.2.8-2026-10-08.txt
+docs/sdk-adversarial-review-0.2.8-2026-10-08.txt
+docs/sdk-uiux-review-0.2.8-2026-10-08.txt
+
+변경
+
+1. 새 문서 생성과 편집 lease 충돌 — 프론트 연결 수정
+DocumentEditingSession.withHandoff가 현재 문서 입력 잠금, 최종 저장,
+진행 중 lease 갱신 대기, lease 해제를 완료한 뒤 업로드를 실행한다.
+호스트의 기존 세션 전체 잠금 정책은 수정하지 않았다.
+생성 또는 열기 실패 시 이전 문서의 lease를 재확보한 뒤 입력 잠금을 푼다.
+재확보 실패 시 입력을 잠근 채 명시적 오류와 재시도를 제공한다.
+업로드 완료와 목록 갱신/새 문서 열기를 구분하는 기존 중복 방지 정책을 유지한다.
+
+2. 닫기 확인창 public 쓰기 우회 — SDK 수정
+execute, replace, applyPreset이 공유하는 신규 쓰기 판단에 확인창 상태를 추가했다.
+확인창 표시 즉시 ref를 잠그며 native 입력과 명령 지원 상태에도 반영한다.
+계속 편집/취소 후 다시 명령을 사용할 수 있다.
+이전에 승인되어 실행 중인 작업은 저장/전환에서 끝까지 기다린다.
+
+3. 구조 있는 자동화 미리보기 — SDK 수정
+보고서/명단/명패/명찰/조직 자료/그림 결과는 읽기 전용이며 생성 기준을 표시한다.
+'원본 입력 수정'이 실제 입력란에 포커스를 옮긴다.
+원본 변경 시 미리보기를 무효화하고 다시 생성한 결과로 문서를 만든다.
+평문 결과의 직접 편집 기능은 유지한다. 예제 초기화 전 입력의 복구도 제공한다.
+
+4. 자동화 입력 보관 — SDK와 프론트 연결 수정
+문서 bytes와 별도인 AutomationDraftStore와 browserAutomationDraftStore를 추가했다.
+호스트가 명시적으로 opt-in한다. 샌드박스는 사용자/작업/문서 namespace로 연결했다.
+기능별 원본 입력, 추가 인수, 셀 변환과 열 구분을 IndexedDB에 보관한다.
+조회/쓰기 실패는 표시하고 재시도를 제공하며 손상된 입력은 자동 덮어쓰지 않는다.
+save/flushDraft는 입력 보관을 기다린다. 호스트는 닫기 전 두 API 중 하나를 기다려야 한다.
+기본 메모리 모드에는 닫기 경고와 입력 JSON 다운로드를 제공한다.
+열린 세션에서 저장소 객체/namespace를 임의 변경하지 않는 호스트 계약을 README에 기록했다.
+로컬 브라우저 보관이며 서버 동기화나 다른 기기 복구 기능은 아니다.
+
+5. 키보드 도구 탭 — SDK 수정
+선택 탭만 tabindex=0, 방향키 순환과 Home/End 이동, 자동 선택/포커스를 제공한다.
+aria-controls, tabpanel, aria-labelledby로 관계를 연결한다.
+Escape로 도구를 닫으면 열기 버튼으로 포커스를 돌린다.
+
+6. 좁은 화면 — SDK 수정
+'도구 크게 보기'로 편집 작업 영역 전체에 긴 입력 공간을 제공한다.
+문서 엔진을 제거하지 않고 입력을 잠가 편집본을 유지한다.
+Escape로 함께 보기로 돌아오며 입력값을 유지한다.
+
+추가로 발견한 문제
+
+HWPX 생성기는 insertParagraph가 지정 index 앞에 삽입한다는 native 계약을 잘못 사용했다.
+제목과 본문이 합쳐지고 앞에 빈 문단이 생기는 문제를 다음 index 삽입으로 수정했다.
+실제 WASM 생성/재열기에서 제목, 본문, 표, 후속 문단 순서와 한 페이지 배치를 검사한다.
+
+입력 보관을 기다리는 동안 이전 명령이 실패하면 대기 집합에서 먼저 제거될 수 있었다.
+저장/초안 전환 시작 시 승인된 작업들의 Promise를 고정해 실패도 반드시 전달하도록 했다.
+기존 프론트의 느린 명령 실패 검사를 유지하고 SDK 브라우저 회귀 검사도 추가했다.
+
+실제 인증 브라우저에서 수행한 것
+
+다른 리뷰 세션과 별개인 새 Chrome 탭 및 테스트 작업을 생성했다.
+작업: SDK 0.2.8 실제 통합 테스트 2026-10-08
+session: work_2cb305f4b0473890a3aa
+자체 제작 sdk-live-A.docx와 sdk-live-B.hwpx만 업로드/편집했다.
+
+두 형식 모두 한글 입력, 14pt/150% 서식, 실제 서버 저장, 다운로드, 재열기를 수행했다.
+다운로드 ZIP에서 입력/서식과 기존 표/그림/본문 보존 및 미디어 byte 일치를 확인했다.
+HWPX 입력 직후 파일 목록 전환의 확인창, 계속 편집, 저장하고 이동, 재다운로드도 수행했다.
+수정 전 신규 생성 HTTP 409를 직접 재현했다.
+프론트 handoff 수정 후 HWPX 보고서-1eae3e27.hwpx가 실제 신규 저장/열기에 성공했다.
+이 파일의 제목/본문/표 내용과 서버 digest를 다운로드 bytes로 대조했다.
+이때 첫 화면의 공백을 추가 분석하여 위 HWPX 문단 생성 버그를 발견했다.
+위 실제 생성 성공은 최종 0.2.9 전체 수용 시험 완료와 구분한다.
+
+직접 검증 자료: .build/live-ui-0.2.8-20261008
+최종 0.2.9 회귀/패키지/설치 자료: .build/fixes-0.2.9
+
+실제 통합 검증의 제한
+
+최종 패키지 반영 중 platform-core 10.30.1.207:10000 연결 timeout이 발생했다.
+샌드박스 health 503, 양쪽 앱 SSE snapshot/heartbeat timeout도 함께 확인했다.
+이 상태에서 편집 권한을 얻지 못해 최종 실제 DOCX 생성 및 HWPX 첫 화면/입력 재복구
+검사를 완료로 집계하지 않는다. 백엔드 장애를 정상 UI로 숨기거나 설정을 우회하지 않았다.
+별도 실제 화면에서 일시적 500 문구도 한 번 관찰했으며 후속 저장은 성공했다.
+동일 세션 서버 로그에서 그 500의 원인은 특정하지 못했다.
+물리 Windows IME, 실제 한컴/Word 호환성과 모든 업무 문서 호환성을 보장하지 않는다.
+
+최종 독립 검사 결과
+
+- SDK 단위: 272 통과, 0 실패.
+- Chrome E2E: 257 통과, 0 실패/재시도/건너뜀.
+- Edge E2E: 257 통과, 0 실패/재시도/건너뜀.
+- 입력 revision 반영 후 검색/빈 문자열 치환: 두 형식 합계 20회 반복 통과.
+- 프론트 전체 단위/컴포넌트: 607 통과, 0 실패.
+- SDK 및 프론트 타입 검사, 프론트 lint, 양쪽 프로덕션 빌드: 통과.
+- 별도 npm tarball 소비 앱 Next.js 16.3.8 빌드 및 Chrome/Edge × 두 형식: 4 통과.
+- 배포 라이선스 gate: npm 102개, 고정 Rust registry crate 393개 통과. 자체 Apache-2.0 유지.
+- 프론트 madge: 순환 참조 0. 기존 모듈 해석 경고 236개는 남아 있다.
+- 설치된 네 패키지 0.2.9의 dist 89개 파일 모두 SDK 빌드와 byte 단위 일치.
+- SDK 49개, 빌드/런타임 지원 19개, 테스트 37개, 프론트 10개 파일의 검증 해시 불일치 0.
+
+초기 실패와 처리
+
+공통 쓰기 차단의 오류 문구 변경 때문에 기존 저장 중 보호 검사 2건이 실패했다.
+기존 '저장 중' 안내를 유지했고 최종 전체 검사에서 다시 통과했다.
+프론트의 실제 SDK 사용 경계 검사에는 jsdom IndexedDB가 없어 저장소 대역을 연결했다.
+실제 IndexedDB 보관·닫기·새로고침·다른 owner 분리는 두 브라우저 SDK 검사에서 수행했다.
+그 과정에서 발견한 이전 명령 실패 누락은 제품 코드에서 수정했으며 실패 보호 검사를 유지했다.
+네이티브 입력 직후 검색 검사 1건은 revision이 반영되기 전에 호출했다.
+입력 반영을 기다리도록 검사만 보완했고 20회 반복 및 최종 전체 검사에서 통과했다.
+무관한 일정 대화상자 검사 1건의 시간 초과는 단독 재검과 최종 전체 607개 재검에서 통과했다.
+초기 실패를 최종 통과 결과에 섞어 합산하지 않았다.
+
+최종 실행 명령
+
+SDK 루트:
+yarn typecheck
+yarn test --reporter=json --outputFile=.build/fixes-0.2.9/unit.json
+yarn build
+yarn verify:packages
+$env:DOCUMENT_STUDIO_TEST_PORT='4182'
+$env:DOCUMENT_STUDIO_TEST_SERVER='bundle'
+node node_modules/@playwright/test/cli.js test --project=chrome --workers=3
+node node_modules/@playwright/test/cli.js test --project=edge --workers=3
+
+프론트 worktree 루트:
+yarn workspace @apps/sandbox-agent typecheck
+yarn workspace @apps/sandbox-agent lint
+yarn workspace @apps/sandbox-agent build
+yarn workspace @apps/sandbox-agent madge
+apps/sandbox-agent에서:
+node ../../node_modules/vitest/vitest.mjs run --maxWorkers=1 --reporter=json
+
+최종 상태
+
+코드와 설치 tarball은 0.2.9로 반영했다. 프론트 HEAD는 636c146e8이며 로컬 변경 상태다.
+독립 검사는 모두 통과했지만 최종 실제 샌드박스 수용 검사는 완료하지 못했다.
+백엔드가 계속 연결되지 않아 샌드박스·settings 런처도 bootstrap 대기 만료로 종료됐다.
+설정 URL이나 인증을 우회하지 않았다. 백엔드 복구 후 두 앱 재시작과 실제 생성/복구 검사가 남는다.
+실행/상태 근거: .build/fixes-0.2.9/summary.json, backend-outage.json.
+검증 화면: .build/fixes-0.2.9/docx-embedded-properties.png, hwpx-embedded-properties.png.
+검증 화면은 독립 SDK fixture 화면이며 실제 서버 수용 완료의 근거로 사용하지 않는다.
+Git commit, push, npm publish, 원격 배포는 수행하지 않았다.

@@ -1,0 +1,110 @@
+Document Studio 0.2.10 — 0.2.9 균형 리뷰 대응
+작업일: 2026-10-08 KST
+SDK: D:\dev\document-studio
+프론트: D:\dev\_worktrees\document-studio-ux-review-fixes
+브랜치: codex/document-studio-ux-review-fixes
+
+확인한 리뷰
+sdk-balanced-review-0.2.9-2026-10-08.txt
+sdk-adversarial-review-0.2.9-2026-10-08.txt
+sdk-uiux-review-0.2.9-2026-10-08.txt
+
+판정과 수정 범위
+
+새 P2 1건(자동화 초안 읽기/쓰기 길이 계약 불일치)을 SDK에서 수정했다.
+프론트의 파일 저장/lease 로직을 새로 변경하는 수정은 아니다.
+소비 프론트에는 네 SDK tarball과 설치 checksum, 화면의 SDK 버전 표시를 0.2.10으로 갱신한다.
+이전 0.2.8/0.2.9 리뷰와 검토 사본은 변경하지 않는다.
+
+보관 계약
+
+AUTOMATION_FIELD_LIMIT=1,000,000이며 JavaScript 문자열/브라우저 입력의 UTF-16 길이 기준이다.
+원본 입력과 추가 입력에 동일하게 적용한다. 이모지 등은 UTF-16 단위로 세므로 화면 표시 글자 수와 다를 수 있다.
+validateAutomationDraftState를 reader, session flush, browser store writer에 공유한다.
+public export로 호스트의 사전 검사에도 사용할 수 있다.
+
+AutomationSession.put은 초과 값을 화면에서 수정/다운로드할 수 있도록 메모리에 유지한다.
+pending=true와 구체적인 길이 오류를 표시하며 자동 보관을 예약하지 않는다.
+flush는 storage.put 전에 거절하므로 기존 정상 보관 자료를 덮어쓰지 않는다.
+수정 후 정상 길이가 되면 기존의 직렬화된 write/revision 경로로 다시 보관한다.
+이미 진행 중이던 정상 쓰기는 완료할 수 있지만 그 뒤 생긴 초과 입력은 보관하지 않는다.
+browserAutomationDraftStore.put도 검증하고 호출 시점의 값을 고정한다.
+DB를 여는 동안 호출자가 원래 객체를 변경해도 검증 값과 실제 보관 값이 달라지지 않는다.
+
+화면
+
+원본/추가 입력의 현재 길이와 한도, 초과 오류, 보관하지 못한 상태를 표시한다.
+입력란을 조용히 잘라내는 maxlength 제한으로 처리하지 않는다.
+'모든 자동화 입력 내려받기'는 현재 세션의 다른 기능과 초과 입력까지 JSON에 담는다.
+수정과 재보관은 원래 입력란에서 가능하다.
+
+기존 0.2.9의 큰 보관 자료
+
+초기 읽기는 엄격한 계약으로 검사하고 실패 자료를 자동 덮어쓰기하지 않는다.
+'원본 보관자료 내려받기'로 오류 항목을 포함한 기존 JSON을 보관할 수 있다.
+version/기능/필드 형태는 유효하고 길이만 초과한 경우 '보관자료를 편집해 복구'를 제공한다.
+모든 기능의 입력을 그대로 불러오므로 정상 기능도 사용할 수 있고, 큰 입력은 줄이거나 다운로드할 수 있다.
+한도를 맞추기 전에는 원래 저장소를 변경하지 않으며, 수정 후 재보관/재열기에서 정상 기능도 유지한다.
+형식 자체가 잘못된 자료는 원본 다운로드와 기존의 명시적 폐기 경로를 제공한다.
+읽기 전용 문서에서도 별도의 로컬 입력 복구/다운로드는 허용하며 본문 쓰기는 계속 거절한다.
+
+검사 범위
+
+단위: 정확한 1,000,000/1,000,001 길이, 추가 입력, 한글/이모지, 잘못된 형태,
+이전 정상 자료 보존, 진행 중 정상 쓰기 이후 초과 입력, 기존 큰 자료의 복구와 다른 기능 보존.
+
+실제 Chrome/Edge IndexedDB: 100만 자 보관·닫기·재열기, 100만 1자 거절,
+현재 입력과 원본 자료 JSON 다운로드의 값 전체 일치, 수정 후 재보관,
+두 기능을 포함한 기존 초과 기록의 원본 유지·복구, 읽기 전용 본문의 쓰기 거절.
+DOCX/HWPX 실제 엔진을 사용한 독립 SDK host에서 수행한다.
+추가 회귀: 20종 자동화, 생성·재시도, 명단·명패·명찰·조직 자료, 키보드,
+도구 확대, 미리보기, preset, 유니코드, 표·그림, 저장/초안 전환 경계.
+
+최종 검사 결과
+
+- SDK 단위: 283 통과 / 0 실패.
+- 관련 Chrome 브라우저 회귀: 85 통과 / 0 실패·재시도·건너뜀.
+- 관련 Edge 브라우저 회귀: 85 통과 / 0 실패·재시도·건너뜀.
+- 프론트 전체 단위/컴포넌트: 607 통과 / 0 실패.
+- SDK/프론트 TypeScript, 프론트 lint, 양쪽 프로덕션 빌드: 통과.
+- 배포 tarball 독립 npm 소비 앱 Next.js 빌드 및 Chrome/Edge × DOCX/HWPX: 4 통과.
+- 배포 라이선스 gate: npm 102개, 고정 registry Rust crate 393개 통과. 자체 Apache-2.0 유지.
+- 프론트 madge 순환 참조 0. 기존 모듈 해석 경고 236개는 유지된다.
+- 프론트에 설치한 네 패키지는 0.2.10이며 dist 90개 파일 모두 SDK 빌드와 byte 단위 일치.
+
+0.2.10의 브라우저 검사는 이번 변경에 관련된 5개 spec의 85개를 브라우저별로 실행했다.
+이전 0.2.9 전체 514개 결과를 이번 실행 숫자에 합산하지 않았다.
+읽기 전용 검사는 본문 쓰기 금지와 별도 로컬 입력 복구 허용을 구분했다.
+
+SDK 실행
+yarn typecheck
+yarn test --reporter=json --outputFile=.build/fixes-0.2.10/unit.json
+yarn build
+yarn verify:packages
+$env:DOCUMENT_STUDIO_TEST_PORT='4182'
+$env:DOCUMENT_STUDIO_TEST_SERVER='bundle'
+node node_modules/@playwright/test/cli.js test tests/e2e/automation-size.spec.ts tests/e2e/balanced-review.spec.ts tests/e2e/usability-0.2.6.spec.ts tests/e2e/ux-review-0.2.7.spec.ts tests/e2e/practical-editor.spec.ts --project=chrome --workers=3
+같은 spec 목록으로 --project=edge --workers=3 실행.
+
+프론트 worktree 실행
+yarn workspace @apps/sandbox-agent typecheck
+yarn workspace @apps/sandbox-agent lint
+yarn workspace @apps/sandbox-agent build
+yarn workspace @apps/sandbox-agent madge
+apps/sandbox-agent에서 node ../../node_modules/vitest/vitest.mjs run --maxWorkers=2 --reporter=json
+
+검증 요약: .build/fixes-0.2.10/summary.json
+실제 IndexedDB 경계 화면: .build/fixes-0.2.10/docx-overflow.png, hwpx-overflow.png
+설치 파일 대조: .build/fixes-0.2.10/installed-packages.json
+소스/테스트 해시: .build/fixes-0.2.10/source-manifest.json
+
+남은 실제 환경 검증
+
+platform-core 10.30.1.207:10000 연결 시간 초과가 계속된다.
+실제 샌드박스의 생성/실패 복구/재열기 및 좁은 파일 패널 수용 검사는 완료하지 못했다.
+독립 SDK host와 실제 IndexedDB의 성공을 인증·BFF·lease·실제 업로드 성공으로 집계하지 않는다.
+문서 저장과 선택적인 입력 보관 실패를 별도 결과로 전달하는 가용성 정책,
+표/명찰/카드의 시각 배치 미리보기는 이번 새 P2와 구분되는 후속 설계 항목이다.
+
+산출물: .build/fixes-0.2.10
+Git commit, push, npm publish, 원격 배포는 수행하지 않았다.

@@ -1,0 +1,165 @@
+Document Studio SDK 0.2.9 적대적 코드 재검토
+검토일: 2026-10-08 KST
+SDK: D:\dev\document-studio
+소비 앱: D:\dev\_worktrees\document-studio-ux-review-fixes
+이전 기준: sdk-adversarial-review-0.2.8-2026-10-08.txt
+동등한 비중의 UX 리뷰: sdk-uiux-review-0.2.9-2026-10-08.txt
+
+판정
+
+0.2.9의 공통 쓰기 가드, 새 문서 생성 순서, 자동화 초안 저장을 검토했다.
+이전 닫기 확인창의 public 쓰기 허용 문제는 같은 재현 시험이 통과해 해결을 확인했다.
+새 문서의 lease release를 업로드 앞으로 옮기고 실패 시 재확보하는 변경도 확인했다.
+다만 실제 개발자 샌드박스가 실행되지 않아 최종 서버 생성 수용 판정은 보류한다.
+
+새로 확인한 결함은 P2 1건이다.
+자동화 입력은 1,000,001자를 저장 성공으로 처리하지만, 같은 자료를 다시 불러올 때
+자체 검증에서 거절한다. 저장과 읽기의 값 계약이 일치하지 않는다.
+
+1. P2 저장 성공으로 표시한 자동화 초안이 다음 열기에서 손상 자료로 거절됨
+
+재현
+
+실제 AutomationSession 클래스와 AutomationDraftStore 계약을 사용하는 경계 시험을 작성했다.
+store 구현은 structuredClone으로 값을 보관하는 Map 대역이다.
+
+1) session.start()로 정상 시작한다.
+2) 마크다운 보고서 입력에 ASCII 1,000,001자를 넣는다.
+3) flush()를 호출한다.
+4) store.put이 한 번 호출되고 session 상태가 ready=true, pending=false, error=''가 된다.
+5) 세션을 종료하고 같은 store/key로 새 AutomationSession을 만든다.
+6) 새 start()가 '자동화 초안 값이 올바르지 않습니다.'로 실패한다.
+
+대조 시험
+같은 경로에서 1,000,000자는 저장·재열기 모두 성공했다.
+따라서 무작위 저장소 고장이나 코드 로딩 실패와 구분되는 정확한 크기 경계다.
+신규 시험 2개 중 대조 1개 통과, 계약 검증 1개 실패.
+
+코드
+
+D:\dev\document-studio\packages\react\src\automation-session.ts:90
+읽기에서는 input/argument/delimiter 문자열의 length <= 1_000_000을 요구한다.
+
+같은 파일 195행의 put은 값 길이를 검증하지 않고 메모리에 수락한다.
+149행의 flush 저장도 읽기와 같은 검증 없이 store.put을 호출한 뒤 storedRevision을 갱신한다.
+browserAutomationDraftStore.put도 전달받은 상태를 IndexedDB에 기록하는 저장소이며
+이 값 계약의 검증을 대신하지 않는다.
+
+UI 연결
+
+실제 독립 SDK 화면에서 자동화 원본 textarea의 maxLength는 -1이었다.
+report-automation.tsx의 원본 textarea에도 최대 길이 제한이 없다(579행 주변).
+사용자의 붙여넣기가 세션의 put과 자동 보관으로 이어지므로 private API만 잘못 호출하는
+상황으로 한정되지 않는다.
+
+사용자 영향
+
+큰 원고나 표 데이터를 붙여 넣으면 현재 세션에서는 보관 완료로 보일 수 있지만,
+다음 열기에 해당 초안의 복구가 막힌다.
+읽기 검증은 drafts 전체를 검사하므로 한 기능의 긴 입력이 같은 기록에 있는 다른 기능의
+정상 입력 복구까지 막을 수 있다.
+자료를 자동 삭제하는 것은 아니며 원본 상태는 저장소에 남는다.
+그러나 일반 UI에서 복구되지 않는 문제이며, 이를 영구 데이터 삭제라고 표현하지 않는다.
+
+SDK의 save/flushDraft는 automationSession.flush를 기다린다.
+복구 오류가 나면 기본 문서 저장/전환도 이 의존성 때문에 실패할 수 있어,
+단순한 글자 수 안내 문제보다 영향이 넓다.
+이 추가 영향은 코드 경로 확인이며 대용량 실제 서버 문서 저장을 재현한 결과는 아니다.
+
+검증 한계
+
+1,000,001자 경계의 직접 재현은 store 대역을 사용한 클래스 시험이다.
+Chrome IndexedDB에 대용량 기록을 넣는 시험이나 실제 서버 업로드 시험은 수행하지 않았다.
+실제 IndexedDB는 일반 크기의 입력을 보관·닫기·재열기하는 경로를 별도로 검증했다.
+이 결함은 storage가 성공한 값이 스스로의 reader에서 거절된다는 계약 불일치에 관한 것이다.
+
+수정 방향
+
+- 읽기와 쓰기에 같은 AutomationDraftState 검증기를 적용한다.
+- 저장할 수 없는 입력이면 저장 완료로 표시하거나 기존 정상 초안을 덮어쓰지 않는다.
+- 입력 한도와 현재 길이를 화면에 알려 주고, 초과 입력을 조용히 잘라내지 않는다.
+- 현재 입력을 수정하거나 내려받을 수 있도록 유지한다.
+- 손상 기록을 버리는 경로만 제공하기보다 원본 자료의 안전한 다운로드/개별 복구를 검토한다.
+
+완료 기준
+
+1,000,000자와 1,000,001자 각각에 대해 writer/reader 계약이 일치해야 한다.
+초과 값을 거절하는 정책이라면 쓰기 전에 명시적으로 거절하고 이전 정상 초안은 보존한다.
+허용하는 정책이라면 다음 열기에서 같은 값이 복구되어야 한다.
+둘 이상의 기능을 보관한 기록에서 한 입력의 오류가 정상 자료의 복구 경로를 없애지 않아야 한다.
+
+증거
+.build/sdk-balanced-review-0.2.9-20261008/draft-size-current.test.tsx
+.build/sdk-balanced-review-0.2.9-20261008/draft-size-results.json
+
+2. 이전 P2 닫기 확인창의 신규 쓰기 잠금: 해결 확인
+
+document-editor.tsx의 mutationBlockReason/assertNewMutation이 readonly, inputLocks,
+modalBlocked, busy를 공통으로 검사한다.
+execute/replace/applyPreset이 이 가드를 사용하고 command capability에도 반영한다.
+닫기 버튼에서는 확인창 상태를 ref에도 즉시 반영한다.
+
+0.2.8에서 실패했던 같은 controlled-engine 컴포넌트 시험을 0.2.9 사본으로 재실행했다.
+확인창 중 새 execute를 거절하는 시험과 명시적 입력 잠금/해제 대조 시험이 모두 통과했다.
+이 결과를 native Word/한컴 프로그램 시험으로 확대하지 않는다.
+
+3. 이전 P1 생성/lease 충돌: 코드 수정 확인, 최종 실환경 판정 대기
+
+DocumentStudioPanel.createDocument는 withHandoff 안에서 신규 업로드를 실행한다.
+DocumentEditSession은 마지막 저장과 native/SDK 입력 잠금, 진행 중 갱신 대기,
+lease release를 완료한 뒤 withHandoff의 작업을 실행한다.
+작업 실패 시 기존 lease를 재확보한 다음 입력 잠금을 해제하고,
+재확보 실패 시 잠금을 유지하며 재시도를 제공한다.
+이전처럼 일반 complete를 lease release보다 먼저 호출하는 순서는 제거됐다.
+
+이번에 프론트 panel/handoff/edit-session 집중 시험 59개를 직접 실행해 모두 통과했다.
+하지만 이것은 실제 서버와의 수용 시험은 아니다.
+수정 담당 기록에는 중간 수정본의 실제 HWPX 생성 성공이 있지만 최종 0.2.9 전체 수용과
+구분돼 있으며, 본 리뷰가 직접 수행한 실환경 성공으로 합산하지 않았다.
+
+2026-10-08 12:02 KST 재확인
+- platform-core 10.30.1.207:10000/health: 연결 시간 초과.
+- localhost 10129 sandbox-agent health: 연결 거부.
+- localhost 10001 settings health: 연결 거부.
+- 개발자 프록시 브라우저 탐색에서도 ERR_BLOCKED_BY_CLIENT가 관찰됨.
+클라이언트 차단의 정확한 원인을 추측하거나 인증/보호를 우회하지 않았다.
+실제 샌드박스가 동작하는 상태에서 두 형식의 생성·실패 복구·재열기를 다시 검증해야 한다.
+
+4. 새 저장 기능과 전환 코드에서 확인한 방어
+
+- 자동화 입력 저장소는 opt-in이고 문서 bytes와 분리돼 있다.
+- 샌드박스는 owner/workspace/document 범위를 키에 연결한다.
+- 입력 보관은 직렬화된 write 체인과 revision으로 관리하고 실패 시 pending을 유지한다.
+- 초기 읽기 실패/손상 자료는 자동 덮어쓰기하지 않는다.
+- 이전 비동기 작업의 실패도 저장 대기에서 놓치지 않도록 선행 Promise를 고정한다.
+- 새 문서 업로드 완료 응답 유실과 실제 파일 저장/후속 열기를 구분하는 재시도 상태가 남아 있다.
+
+가용성 설계 검토 사항
+문서 저장과 자동화 입력 저장이 한 Promise의 성공 조건으로 묶여 있다.
+입력 유실 방지는 필요하지만 선택 기능의 저장소 장애가 일반 문서 저장에도 영향을 준다.
+문서 저장 완료와 자동화 입력 보관 실패를 분리해 전달하면서, 입력이 남은 상태의 전환은
+보호하는 API/호스트 계약을 검토할 가치가 있다. 이 정책 자체를 별도의 새 결함으로 집계하지 않았다.
+
+5. 직접 실행한 검사와 자료
+
+SDK 단위: 272/272, 19개 파일.
+기존 재현 및 모달 경계: 12/12, 3개 파일.
+신규 입력 크기 경계: 1/2, 1개 파일. 실패 1개는 위 P2 재현.
+프론트 집중 시험: 59/59, 3개 파일.
+SDK TypeScript: 통과.
+
+개발자가 실행한 전체 브라우저 514개, 프론트 전체 607개, 패키지 소비 시험은 읽었지만
+이번 직접 실행 숫자로 합산하지 않았다.
+SDK 검토 사본 73개 파일과 manifest를 보관했으며 재확인 시 원본 소스와 차이가 없었다.
+제품 소스나 서버 정책은 수정하지 않았다.
+
+증거 폴더
+D:\dev\document-studio\.build\sdk-balanced-review-0.2.9-20261008
+manifest.json, frontend-manifest.json
+unit-results.json, results.json, draft-size-results.json, frontend-focused-results.json
+backend-health.json
+snapshot/, front/, host/
+
+독립 화면은 검토용 사본과 실제 DOCX/RHWP 엔진을 사용하는 임시 host다.
+저장/새 문서 열기는 메모리 host이고 자동화 초안은 실제 브라우저 IndexedDB를 사용한다.
+이를 샌드박스의 인증·BFF·lease·업로드 검증으로 표현하지 않는다.

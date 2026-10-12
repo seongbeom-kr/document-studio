@@ -1,0 +1,120 @@
+Document Studio 코드리뷰 및 브라우저 테스트 기록
+검토일: 2026-10-04
+레포: D:\dev\document-studio
+테스트 주소: http://127.0.0.1:4173
+
+기본 편집과 내보내기는 작동하지만 수정이 필요한 문제 4건을 확인했다.
+특히 문서 전환 과정의 입력 유실 문제 2건은 우선 수정이 필요하다.
+이번 작업에서는 앱 소스를 수정하지 않고 리뷰와 재현 시험을 수행했다.
+
+1. [P1] 문서 전환 시 최근 입력 유실
+
+위치: D:\dev\document-studio\apps\playground\src\main.tsx:290-294
+관련 코드: D:\dev\document-studio\packages\react\src\document-editor.tsx:335-372
+
+초안 저장이 3초 주기로만 실행되는데, 문서 전환은 최신 초안을 저장하지
+않고 현재 편집기를 종료한다. 주기적 초안 저장 전에 전환하면 최근 입력이
+복구되지 않는다.
+
+재현: 문서에 입력 → 다른 문서 선택 → '문서 전환' 클릭 → 이전 문서 재열기.
+입력 시작부터 전환까지 241~303ms인 시험에서 입력 문장이 사라졌다.
+DOCX·HWPX 모두 Chrome·Edge에서 재현했다.
+
+수정 방향: 문서 전환 전에 최신 초안을 내보내고 저장 완료를 기다린다.
+저장 실패 시 현재 문서를 유지하고 오류를 표시한다.
+
+2. [P1] 파일 읽기 중 편집하면 미저장 확인 우회
+
+위치: D:\dev\document-studio\apps\playground\src\main.tsx:118-120
+관련 코드: 같은 파일의 choose()와 open(), 33-64행.
+
+비동기 파일 읽기가 이전 렌더의 dirty 값을 참조한다. 파일을 읽는 동안
+현재 문서에 변경사항이 생겨도, 읽기 완료 후 이전 dirty=false 상태로
+전환을 판단해 확인창 없이 새 문서로 교체한다.
+
+재현: File.arrayBuffer()를 1.5초 지연 → 새 파일 열기 시작 → 현재 문서 편집.
+미저장 표시가 나타난 뒤에도 확인창 없이 새 문서가 열렸다.
+DOCX·HWPX 모두 Chrome·Edge에서 재현했다. 파일 읽기 지연은 시험에서 주입했다.
+
+수정 방향: 실제 전환 직전에 현재 문서와 최신 편집 상태를 다시 확인한다.
+이전 렌더의 상태를 비동기 완료 시점의 판단에 사용하지 않는다.
+
+3. [P2] 저장 후 재열기하면 최초 원본으로 복귀
+
+위치: D:\dev\document-studio\apps\playground\src\main.tsx:213-220
+
+저장·다운로드가 끝나도 작업실 문서 목록의 bytes는 최초 원본으로 남는다.
+저장 시 복구 초안도 정리되므로, 다른 문서를 열었다가 돌아오면 편집 내용과
+서식이 최초 원본으로 되돌아간다.
+
+재현: 문서 편집 → '저장하고 다운로드' → 다른 문서 열기 → 이전 문서 재열기.
+다운로드 파일에는 최신 내용이 있었지만, 작업실에서 다시 내보낸 파일에는
+최초 원본 내용이 있었다. DOCX·HWPX 모두 Chrome·Edge에서 재현했다.
+이미 다운로드한 파일의 내용이 사라지는 문제는 아니다.
+
+수정 방향: 저장 완료 시 작업실의 문서 데이터도 최신 편집본으로 갱신한다.
+문서 ID, 저장 버전, 편집본의 보관·재열기 정책을 함께 정리한다.
+
+4. [P2] 샌드박스 동기화 경고 이후 저장 재시도 차단
+
+위치: D:\dev\document-studio\examples\sandbox-agent\storage.ts:53-56
+
+서버 파일 저장이 성공해도 sandboxSyncWarning이 있으면 새 digest를
+반환하지 않고 예외를 던진다. 편집기는 이전 저장 버전을 계속 사용한다.
+다시 저장하면 서버의 새 digest와 이전 expectedVersion이 달라 충돌한다.
+
+모의 호스트 결과: 서버 저장 완료 → 동기화 경고로 첫 호출 실패 → 같은
+expectedVersion으로 재시도 → SaveConflictError. 업로드는 1회만 실행됐다.
+운영 샌드박스 서버에서 재현한 결과는 아니다.
+
+수정 방향: 서버 저장 완료 버전을 반영하고 샌드박스 동기화 경고를 별도로
+처리한다. 동기화 재시도와 문서 저장 재시도를 구분한다.
+
+검증 결과
+
+- TypeScript 타입 검사: 통과.
+- 기존 단위 테스트: 44개 통과.
+- 기존 Chrome·Edge E2E: 136개 통과, 브라우저별 68개.
+- 프로덕션 빌드: 통과.
+- 별도 npm 소비 앱에 SDK tarball 설치 및 Next.js 빌드: 통과.
+- 소비 앱 브라우저 검사: 4개 통과, Chrome·Edge × DOCX·HWPX.
+- 추가 브라우저 검사: 14개 중 2개 통과, 12개 실패.
+  실패 12개는 위 1~3번 문제를 두 형식과 두 브라우저에서 재현한 결과다.
+  통과 2개는 같은 버전의 DOCX 원본 교체 후 dirty 상태를 확인한 검사다.
+- 샌드박스 저장 예제: 모의 호스트에서 4번 문제 확인.
+
+브라우저 검사는 한글 입력, 기본 서식, 글자 크기와 행간, undo·redo,
+저장·재열기, 표·그림 보존, 저장 실패·충돌·초안 복구, 에이전트 명령을
+포함한다. 직접 브라우저 조작에서도 DOCX·HWPX 입력과 공통 서식을 확인했다.
+
+검증 한계
+
+- 자체 생성 fixture 문서를 사용했다. 실제 업무 문서 전체의 호환성을 보장하지 않는다.
+- 실제 한컴 한글 프로그램에서 HWPX를 여는 검사는 이번에 수행하지 않았다.
+- 물리 Windows IME 입력 대신 기존 브라우저 CDP 조합 입력 검사를 실행했다.
+- 운영 샌드박스 BFF·lease·동기화 통합은 검증하지 않았다.
+
+재현 명령 (D:\dev\document-studio에서 실행)
+
+yarn typecheck
+yarn test
+yarn test:e2e
+yarn build
+yarn verify:packages
+yarn playwright test -c .build/review-tests/playwright.config.ts
+node .build/review-tests/storage-repro.mjs
+
+추가 브라우저 검사는 현재 발견된 문제를 검출하므로 실패 종료가 예상된다.
+
+관련 산출물
+
+재현 테스트: D:\dev\document-studio\.build\review-tests\review.spec.ts
+검증 요약: D:\dev\document-studio\.build\review-evidence\review-summary.json
+Playwright 보고서: D:\dev\document-studio\.build\review-report\index.html
+상세 브라우저 결과: D:\dev\document-studio\.build\review-evidence\browser-results.json
+샌드박스 결과: D:\dev\document-studio\.build\review-evidence\sandbox-storage-result.json
+저장 직후 화면: D:\dev\document-studio\.build\review-evidence\docx-saved-before-switch.png
+재열기 후 화면: D:\dev\document-studio\.build\review-evidence\docx-reopened-after-switch.png
+
+.build 아래 산출물은 Git에서 제외된 로컬 검증 자료다.
+이 텍스트 기록은 docs 아래에 별도로 보관한다.
