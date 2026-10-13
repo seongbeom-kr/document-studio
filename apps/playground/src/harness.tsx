@@ -150,6 +150,7 @@ declare global {
       stateEvents: EditorSnapshot[];
       failSavedCallback: boolean;
       failCreatedCallback: boolean;
+      creationEnabled: boolean;
       createdIds: string[];
       creationsCompleted: number;
       pauseNextCreation: boolean;
@@ -393,6 +394,7 @@ function Harness() {
       stateEvents: [],
       failSavedCallback: false,
       failCreatedCallback: false,
+      creationEnabled: true,
       createdIds: [],
       creationsCompleted: 0,
       pauseNextCreation: false,
@@ -496,14 +498,18 @@ function Harness() {
               throw new Error("테스트 파일 목록 갱신 실패");
           }}
           onClose={() => setClosed(true)}
-          onCreateDocument={async (document) => {
-            window.documentStudioTest.createdIds.push(document.id);
-            if (window.documentStudioTest.failCreatedCallback)
-              throw new Error("테스트 새 문서 업로드 실패");
-            // A successful host transition must preserve the source fields before replacing its document.
-            await editor.current?.flushDraft();
-            setDocument(document);
-          }}
+          onCreateDocument={
+            window.documentStudioTest.creationEnabled
+              ? async (document) => {
+                  window.documentStudioTest.createdIds.push(document.id);
+                  if (window.documentStudioTest.failCreatedCallback)
+                    throw new Error("테스트 새 문서 업로드 실패");
+                  // A successful host transition must preserve the source fields before replacing its document.
+                  await editor.current?.flushDraft();
+                  setDocument(document);
+                }
+              : undefined
+          }
         />
       ) : (
         <p>SDK 테스트 준비</p>

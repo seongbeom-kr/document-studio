@@ -396,12 +396,19 @@ test("DOCX native export and public agent.inspect preserve nested table ownershi
   }
 });
 
-async function openAutomation(page: Page, format: Format) {
+async function openAutomation(
+  page: Page,
+  format: Format,
+  persistAutomation = false,
+) {
   await page.goto("/harness.html");
   await page.waitForFunction(() => window.documentStudioTest);
   await page.evaluate(
-    (format) => window.documentStudioTest.load(format, `blank.${format}`),
-    format,
+    ({ format, persistAutomation }) => {
+      window.documentStudioTest.persistAutomation = persistAutomation;
+      return window.documentStudioTest.load(format, `blank.${format}`);
+    },
+    { format, persistAutomation },
   );
   await expect
     .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
@@ -560,4 +567,93 @@ for (const format of ["docx", "hwpx"] as const) {
       await expect(result).toHaveValue("계산 결과 보정");
     });
   }
+  test(`${format}: automation next actions follow result type and the host's document creation availability`, async ({
+    page,
+  }) => {
+    await openAutomation(page, format, true);
+    const select = page.getByLabel("자동화 기능", { exact: true });
+    const create = page.getByRole("button", {
+      name: "구조를 유지해 새 문서 만들기",
+      exact: true,
+    });
+    await page.evaluate(() => {
+      window.documentStudioTest.creationEnabled = false;
+      window.documentStudioTest.rerender();
+    });
+    for (const utility of ["차트", "조직도 그림"]) {
+      await select.selectOption(utility);
+      await page
+        .getByRole("button", { name: "결과 미리보기", exact: true })
+        .click();
+      await expect(
+        page.getByAltText("업무 자동화 그림 미리보기"),
+      ).toBeVisible();
+      await expect(create).toHaveCount(0);
+      await expect(
+        page.getByRole("button", {
+          name: "그림을 선택 위치에 삽입",
+          exact: true,
+        }),
+      ).toBeEnabled();
+      await expect(
+        page.getByText(
+          "미리보기를 만든 뒤 현재 문서에 그림으로 삽입할 수 있습니다.",
+          { exact: false },
+        ),
+      ).toBeVisible();
+      await expect(
+        page.getByText("새 문서는 원본 입력으로 만듭니다.", { exact: false }),
+      ).toHaveCount(0);
+    }
+    await select.selectOption("금액 한글화");
+    await page
+      .getByRole("button", { name: "결과 미리보기", exact: true })
+      .click();
+    await expect(create).toHaveCount(0);
+    await expect(
+      page.getByLabel("업무 자동화 결과", { exact: true }),
+    ).toBeEditable();
+    await expect(
+      page.getByRole("button", {
+        name: "텍스트로 삽입 · 표/서식 제외",
+        exact: true,
+      }),
+    ).toBeEnabled();
+    await select.selectOption("마크다운 보고서");
+    await page
+      .getByLabel("보고서 마크다운", { exact: true })
+      .fill("# 생성 지원 확인\n| A | B |\n|---|---|\n| 1 | 2 |");
+    await page
+      .getByRole("button", { name: "결과 미리보기", exact: true })
+      .click();
+    await expect(create).toBeDisabled();
+    await expect(
+      page.getByText("이 앱에서는 새 문서 생성을 지원하지 않습니다.", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    const oldSession = await page.evaluate(
+      () => window.documentStudioTest.state()!.sessionId,
+    );
+    await page.evaluate(() => {
+      window.documentStudioTest.creationEnabled = true;
+      window.documentStudioTest.rerender();
+    });
+    await expect(create).toBeEnabled();
+    await create.click();
+    await expect
+      .poll(() =>
+        page.evaluate((old) => {
+          const state = window.documentStudioTest.state();
+          return state?.ready && state.sessionId !== old;
+        }, oldSession),
+      )
+      .toBe(true);
+    const result = await page.evaluate(() => {
+      const agent = window.documentStudioTest.agent;
+      return agent.inspect({ documentId: agent.getState().documentId });
+    });
+    expect(result.tables).toHaveLength(1);
+    expect(result.tables[0]).toMatchObject({ rows: 2, columns: 2 });
+  });
 }

@@ -4,7 +4,7 @@
 
 RHWP와 EigenPal DOCX Editor를 형식별 엔진으로 연결하고 공통 편집 UI, 서식 명령, 저장 연결과 초안 복구를 제공합니다. 파일 목록·라우팅·인증은 소비 앱이 담당합니다. `apps/playground`는 개발·회귀 테스트를 위한 비공개 예제 workspace입니다.
 
-현재 0.2.13의 지원 형식은 HWPX·DOCX입니다. 패키지 이름은 가칭이며 GitHub와 npm에는 아직 공개하지 않았습니다. 로컬 workspace와 배포용 tarball로 사용할 수 있습니다. 기능별 범위는 [지원표](docs/feature-support.md), 테스트 근거는 [확장 검증 기록](docs/practical-validation.md)에 있습니다.
+현재 0.2.14의 지원 형식은 HWPX·DOCX입니다. 패키지 이름은 가칭이며 GitHub와 npm에는 아직 공개하지 않았습니다. 로컬 workspace와 배포용 tarball로 사용할 수 있습니다. 기능별 범위는 [지원표](docs/feature-support.md), 테스트 근거는 [확장 검증 기록](docs/practical-validation.md)에 있습니다.
 
 ## 라이브러리 빌드
 

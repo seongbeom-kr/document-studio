@@ -176,6 +176,18 @@ export function ReportAutomation(props: Props) {
     "차트",
     "조직도 그림",
   ].includes(utility);
+  const graphicResult = utility === "차트" || utility === "조직도 그림";
+  const documentResult = structuredResult && !graphicResult;
+  const canCreateDocument = Boolean(
+    props.createDocument && props.onCreateDocument,
+  );
+  const resultGuidance = graphicResult
+    ? "미리보기를 만든 뒤 현재 문서에 그림으로 삽입할 수 있습니다. 텍스트 결과도 별도로 삽입할 수 있습니다."
+    : documentResult
+      ? canCreateDocument
+        ? "결과를 확인한 뒤 구조를 유지해 새 문서를 만들거나 표·서식을 제외한 텍스트로 현재 문서에 삽입할 수 있습니다."
+        : "이 앱에서는 새 문서 생성을 지원하지 않습니다. 미리보기 결과를 표·서식을 제외한 텍스트로 현재 문서에 삽입할 수 있습니다."
+      : "결과 텍스트를 확인·수정한 뒤 현재 문서에 삽입할 수 있습니다.";
   const form = OFFICE_AUTOMATION_FORMS.find((item) => item.name === utility)!;
   const cellArguments: Partial<
     Record<
@@ -783,7 +795,8 @@ export function ReportAutomation(props: Props) {
       {structuredResult && textResult}
       {structuredResult && (
         <p className="ds-automation-help">
-          새 문서는 원본 입력으로 만듭니다. 결과 미리보기는 읽기 전용입니다.
+          {graphicResult ? "그림" : "문서"} 미리보기는 원본 입력으로 만듭니다.
+          결과 미리보기는 읽기 전용입니다.
           <button
             type="button"
             className="ds-button"
@@ -882,42 +895,41 @@ export function ReportAutomation(props: Props) {
         >
           텍스트로 삽입 · 표/서식 제외
         </button>
-        <button
-          type="button"
-          className="ds-button"
-          disabled={
-            !template ||
-            !fileName.trim() ||
-            !props.createDocument ||
-            !props.onCreateDocument
-          }
-          onClick={() => {
-            void run(async () => {
-              const generation = permission.current;
-              const document =
-                generated.current?.template === template
-                  ? generated.current.document
-                  : await props.createDocument!({ ...template!, fileName });
-              if (
-                !alive.current ||
-                generation !== permission.current ||
-                latest.current.disabled ||
-                !latest.current.onCreateDocument
-              )
-                return;
-              generated.current = { template: template!, document };
-              await latest.current.onCreateDocument(document);
-            });
-          }}
-        >
-          구조를 유지해 새 문서 만들기
-        </button>
+        {documentResult && (
+          <button
+            type="button"
+            className="ds-button"
+            disabled={
+              !template ||
+              !fileName.trim() ||
+              !props.createDocument ||
+              !props.onCreateDocument
+            }
+            onClick={() => {
+              void run(async () => {
+                const generation = permission.current;
+                const document =
+                  generated.current?.template === template
+                    ? generated.current.document
+                    : await props.createDocument!({ ...template!, fileName });
+                if (
+                  !alive.current ||
+                  generation !== permission.current ||
+                  latest.current.disabled ||
+                  !latest.current.onCreateDocument
+                )
+                  return;
+                generated.current = { template: template!, document };
+                await latest.current.onCreateDocument(document);
+              });
+            }}
+          >
+            구조를 유지해 새 문서 만들기
+          </button>
+        )}
         <span className="ds-automation-help">
           미리보기는 문서를 바꾸지 않습니다. 입력은 현재 편집 세션에서 기능별로
-          유지됩니다.
-          {props.createDocument && props.onCreateDocument
-            ? " 결과를 확인한 뒤 선택 위치에 넣거나 새 문서로 만드세요."
-            : " 이 앱에서는 새 문서 저장을 연결하지 않았습니다. 결과를 선택 위치에 넣을 수 있습니다."}
+          유지됩니다. {resultGuidance}
         </span>
       </div>
       {message && (

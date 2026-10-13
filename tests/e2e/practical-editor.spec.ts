@@ -74,6 +74,18 @@ for (const format of ["docx", "hwpx"] as const)
       await expect(
         page.getByAltText("업무 자동화 그림 미리보기"),
       ).toBeVisible();
+      await expect(
+        page.getByRole("button", {
+          name: "구조를 유지해 새 문서 만들기",
+          exact: true,
+        }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByText(
+          "미리보기를 만든 뒤 현재 문서에 그림으로 삽입할 수 있습니다.",
+          { exact: false },
+        ),
+      ).toBeVisible();
       await page
         .getByRole("button", { name: "그림을 선택 위치에 삽입", exact: true })
         .click();
