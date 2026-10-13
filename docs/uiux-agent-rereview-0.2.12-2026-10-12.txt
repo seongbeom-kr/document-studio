@@ -1,0 +1,151 @@
+Document Studio 0.2.12 — UI/UX·에이전트 SDK 재리뷰
+2026-10-12, Asia/Seoul
+SDK: D:\dev\document-studio
+SDK 커밋: 9c3fb8404163ec39a551249d61e2cb5968db28c9
+반영 프론트: D:\dev\_worktrees\document-studio-0.2.11
+프론트 HEAD: 3d1da27ec8f310bdc2b4da8989a4eaf4bbe62995 + 미커밋 통합 변경
+실제 개발 샌드박스: https://sblim.dev.gridone.net/sandbox-agent
+
+1. 판정
+
+0.2.11에서 재현한 선택 위치 오적용 P1은 이번 검사 범위에서 해결됐다.
+DOCX와 HWPX 모두 다른 문단 및 같은 문단의 다른 문자 범위로 선택만 이동하면
+오래된 요청이 SelectionConflict로 거절됐다. 원문과 revision 0이 유지됐다.
+선택을 유지한 정상 요청은 의도한 첫 문장만 수정했다.
+
+삽입/생성의 차이, 명찰 내용 초안의 범위, 적용 대상, 기능 묶음/검색,
+입력 글자 크기와 파일명 안내도 개선됐다. commit/inspect가 추가돼 SDK의
+에이전트 사용 계약은 이전보다 구체적이다. 그러나 실제 General 에이전트가
+열린 SDK를 호출하는 연결과 tool trace는 아직 없다. 인쇄용 명찰 배치와
+좁은 화면에서 채팅·문서를 함께 대조하는 경험도 완료되지 않았다.
+
+새로 확인한 문제는 P2 1건과 P3 UI/UX 2건이다.
+- P2: inspect가 중첩 표의 병합 속성을 바깥 셀에서 읽어 열 수를 잘못 반환한다.
+- P3: 화면 표시 이름의 '내용 초안'을 기능 검색이 검색하지 못한다.
+- P3: 텍스트 결과를 접어도 빈 결과 열이 남고 구조 미리보기가 아래로 밀린다.
+
+기존 P1을 그대로 남은 문제라고 반복하지 않는다. SDK 보호 기능의 개선,
+새 검증 API의 오류, 아직 구현하지 않은 최종 에이전트 연결을 구분한다.
+
+2. 이전 리뷰 항목의 재판정
+
+F1 선택 위치 보호 — 수정 확인.
+expectedSelectionKey가 필수이며 DOCX 문자 offset과 HWPX 선택 양 끝을 기록한다.
+다른 문단/같은 문단 범위 변경의 거절 및 정상 적용을 실제 엔진에서 확인했다.
+모든 병합 셀/그림/비직사각형 선택/실제 네트워크 경합까지 검증한 뜻은 아니다.
+
+F2 표 미리보기와 삽입 차이 — UI 설명 수정 확인.
+'텍스트로 삽입 · 표/서식 제외'와 '구조를 유지해 새 문서 만들기'로 구분한다.
+평문 결과는 접힌 details다. 제목 기반 파일명과 형식/저장 위치를 표시한다.
+이번에도 두 형식의 생성 문서에 실제 2×2 표와 셀 4개가 들어감을 확인했다.
+구조를 기존 문서에 삽입하는 기능까지 구현된 것은 아니다.
+
+F3 명찰/회의명패 — 범위 설명 수정, 인쇄 기능은 남음.
+'명찰 내용 초안', '회의명패 내용 초안'으로 표시한다. 카드 mm 크기/격자/
+재단선/접힘선이 있는 인쇄 산출물은 여전히 후속 과제다. 이 제한을 숨기던
+표시 문제와 실제 인쇄 템플릿 미구현을 같은 완료 상태로 세지 않는다.
+
+F4 좁은 화면 대조 — 부분 개선.
+적용 대상과 도구 크기 24~48% 조절이 추가됐다. 실제 편집 패널 폭 약 1016px에서
+34%→48%를 바꾸면 native 문서 높이가 511.5→403 CSS px로 줄어 도구 영역이
+늘어났다. 설정은 34%로 복원했다. 확대 시 적용 대상 표시도 유지됐다.
+채팅 변경 링크/문서 작업 모드/모바일 전체는 완성되지 않았다.
+
+F5 저장 확정 — SDK API 추가와 기본 검증 확인, General 연결은 남음.
+commit은 저장 version/savedRevision/digest/destination/warnings/입력 보관 상태를
+반환했다. 메모리 저장소의 실제 제출 bytes 해시와 digest가 일치했다.
+DOCX 저장 실패를 주입하면 오류가 나고, 같은 operationId 재시도는 성공했다.
+성공 receipt의 재호출은 저장 호출 수를 늘리지 않았다. 서버 재시작/탭 재연결
+이후의 영속 idempotency와 실제 General tool 실행의 증거는 아니다.
+
+F6 구조 조회 — API 추가와 단순 표 확인, 새 P2 발견.
+두 형식의 단순 표에서 rows=2, columns=2, 셀 위치/텍스트가 맞았다.
+그러나 중첩 표에서 아래 오류가 나타나므로 구조 검증 전체를 완료로 판정하지 않는다.
+
+3. 신규 P2: 중첩 표의 속성이 바깥 표로 새어 나온다
+
+관련 코드: packages/core/src/inspect.ts:69-74
+all(cell, 'gridSpan')은 현재 셀의 속성뿐 아니라 하위 표의 셀 속성까지 검색한다.
+
+자체 DOCX 재현 문서:
+- 바깥 표: 1행×1열, 셀 columnSpan=1.
+- 바깥 셀 안의 중첩 표: 2행×2열, 첫 행은 두 열을 병합한 columnSpan=2.
+
+실제 DOCX 엔진으로 문서를 열고 공개 agent.inspect를 호출했다. 같은 내보낸
+XML의 직속 tblGrid/tcPr를 별도 검사해 대조했다.
+XML: 바깥 gridColumns=1, 바깥 셀 span=1.
+inspect: 바깥 columns=2, 바깥 셀 columnSpan=2.
+안쪽 표는 rows=2, columns=2로 맞았다. 문서는 정상으로 열리고 내용을 보존했다.
+
+영향: 파일을 손상시키는 쓰기 버그가 아니라 에이전트의 결과 검증을 오염시키는
+읽기 버그다. 1열 표를 2열로 잘못 확인하거나 틀린 열 기준으로 후속 작업을
+계획할 수 있다. limitations에는 중첩 표 미지원이 명시돼 있지 않다.
+
+수정: DOCX는 현재 셀의 직속 tcPr에서 gridSpan/vMerge를 읽고, HWPX도 현재
+tc가 소유한 cellSpan/cellAddr만 읽는다. 하위 tbl의 속성을 현재 셀의 속성으로
+상속하지 않는다. 중첩 표 자체는 별도 표로 유지한다. 지원하지 않는 구조는
+틀린 수치를 반환하는 대신 명시적으로 제한을 알린다.
+회귀: 바깥 1열/안쪽 2열 병합, 바깥 자체 병합, 여러 중첩 깊이, 텍스트·셀 주소.
+이번 실제 재현은 DOCX이며 HWPX의 모든 중첩 형태를 재현했다고 주장하지 않는다.
+
+4. 신규 P3 UI/UX 두 건
+
+검색 이름 불일치:
+실제 화면에 '명찰 내용 초안'과 '회의명패 내용 초안'이 표시된다. '내용 초안'으로
+검색하면 현재 선택된 마크다운 보고서만 남는다. 내부 이름에만 includes를
+적용하기 때문이다(report-automation.tsx:453). 표시 이름과 검색어를 같은
+기준으로 비교하고, 검색 결과 0개와 현재 선택 유지의 이유를 안내해야 한다.
+
+접힌 결과의 빈 열:
+실제 확대 화면에서 input과 접힌 details가 1fr/1fr grid를 유지한다.
+컨테이너 폭 969.25px 중 입력 폭은 478.625px이고, 접힌 결과도 같은 폭과
+355px 높이를 차지했다. 구조 미리보기 시작은 y=966.17px, 화면 높이는 1100px였다.
+결과 텍스트를 접어도 공간을 회수하지 못하고 주요 미리보기가 아래로 밀린다.
+structured 결과는 입력+구조를 주 화면으로 놓고, 평문 disclosure는 한 줄이나
+별도 탭으로 옮긴다. 두 열을 쓸 경우 비어 있는 결과보다 구조 미리보기를 배치한다.
+
+5. 에이전트 사용 목적에 대한 판단
+
+다음 단계의 중심은 도구를 더 추가하는 것이 아니라 실제 General 연결이다.
+읽기→대상 고정→수정→commit→inspect→서버 재열기의 한 업무를 두 형식에서
+실행하고 tool trace/저장 version/파일 해시/최종 문서를 함께 확인해야 한다.
+이미 있는 lease를 무조건 해제하거나 일반 파일 도구의 fence를 제거해서 연결하면
+안 된다. 브라우저 실행 경계와 서버 파일 작업 경계를 구분한다.
+
+이번 source 검색에서 소비 프론트 production TS/TSX와 General Python의
+createAgentBridge/선택 토큰 transport 등록은 확인되지 않았다. 기존 에이전트가
+파일을 편집할 수 없다는 뜻이 아니라, 열린 SDK를 실제로 사용한 증거가 없다는 뜻이다.
+commit의 digest는 SDK가 제출한 bytes의 해시이며 서버 파일 재조회 증명이 아니다.
+
+6. 이번 검증과 한계
+
+직접 실행:
+- SDK 단위 287/287, yarn typecheck 통과.
+- Chrome 실제 인증 샌드박스의 0.2.12 표시, HWPX 100% 배율/원본 92자/미리보기.
+- 독립 실제 DOCX/HWPX 엔진의 선택 보호, 정상 적용, commit와 단순 구조 검사.
+- DOCX 중첩 표 오보고, 실제 UI 검색과 접힌 결과 레이아웃.
+- SDK/프론트 네 패키지 0.2.12 및 dist/index.js의 SHA-256 일치.
+- SDK 소스·extension 49개 시작/종료 해시 변경 0개.
+
+개발 세션의 프론트 610/브라우저 568/소비 앱 4개 결과는 이번에 재실행한 숫자와
+합산하지 않는다. 실제 LLM 호출, 실제 서버 저장/새 파일 업로드/장애 주입,
+물리 IME/Word/한컴/인쇄는 이번에 실행하지 않았다.
+실제 샌드박스의 이번 확정 DOM 크기는 2195×1100 CSS px다. viewport override
+요청이 의도한 실제 탭에 적용됐다는 확인은 얻지 못해 1366×768 재통과를 주장하지
+않는다. 실제 편집 패널 폭 약 1016px에서의 도구 조절 결과만 이번 수치로 쓴다.
+
+제품 소스·실제 문서 bytes·채팅은 수정하지 않았다. 테스트 전용 .build 호스트,
+자체 DOCX fixture와 증거, 리뷰 docs만 작성했다. 임시 서버/탭은 종료하고
+도구 크기 34%, 기능 검색 빈 값, viewport override 해제를 확인/수행했다.
+
+7. 문서와 증거
+
+UI 상세: D:\dev\document-studio\docs\uiux-rereview-0.2.12-2026-10-12.txt
+SDK 상세: D:\dev\document-studio\docs\agent-sdk-rereview-0.2.12-2026-10-12.txt
+증거: D:\dev\document-studio\.build\uiux-agent-rereview-0.2.12-20261012
+docx-nested-inspection.json / fixtures/nested.docx / create-nested.mjs: P2 재현.
+{docx,hwpx}-paragraph-after-rejected.json / *-same-paragraph-range.json: 이전 P1 수정.
+*-stable-edit.json / *-commit.json / docx-commit-replay.json: 정상 적용·저장 확인.
+{docx,hwpx}-created-inspect.json: 단순 표의 실제 구조.
+live-collapsed-result-layout.json / live-tool-size.json / 04-live-final-preview.png: UI 근거.
+unit-results.json / source-manifest.json / installed-packages.json / verification-summary.json.

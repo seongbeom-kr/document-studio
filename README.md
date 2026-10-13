@@ -4,7 +4,7 @@
 
 RHWP와 EigenPal DOCX Editor를 형식별 엔진으로 연결하고 공통 편집 UI, 서식 명령, 저장 연결과 초안 복구를 제공합니다. 파일 목록·라우팅·인증은 소비 앱이 담당합니다. `apps/playground`는 개발·회귀 테스트를 위한 비공개 예제 workspace입니다.
 
-현재 0.2.12의 지원 형식은 HWPX·DOCX입니다. 패키지 이름은 가칭이며 GitHub와 npm에는 아직 공개하지 않았습니다. 로컬 workspace와 배포용 tarball로 사용할 수 있습니다. 기능별 범위는 [지원표](docs/feature-support.md), 테스트 근거는 [확장 검증 기록](docs/practical-validation.md)에 있습니다.
+현재 0.2.13의 지원 형식은 HWPX·DOCX입니다. 패키지 이름은 가칭이며 GitHub와 npm에는 아직 공개하지 않았습니다. 로컬 workspace와 배포용 tarball로 사용할 수 있습니다. 기능별 범위는 [지원표](docs/feature-support.md), 테스트 근거는 [확장 검증 기록](docs/practical-validation.md)에 있습니다.
 
 ## 라이브러리 빌드
 
@@ -191,5 +191,7 @@ HWP·PPTX·XLSX 편집과 정확한 HWPX 혼합 서식 집계는 후속 범위�
 0.2.12의 `agent.execute`/`agent.applyPreset`은 `expectedSelectionKey`도 필수입니다.
 `select` 완료 후 `getState()`에서 전체 범위 토큰을 다시 가져오세요. 문서 revision만으로 선택 위치를 보장하지 않습니다.
 `agent.inspect(target)`는 내보낸 문서의 본문 표/셀/그림/용지 치수를 조회합니다. 주소는 해당 snapshot에서만 유효하며 실제 인쇄 배치와 글자 서식 검증은 포함하지 않습니다.
+
+0.2.13부터 중첩 표의 속성과 셀 주소는 각 표에 독립적으로 반환합니다. 바깥 셀 텍스트에는 중첩 표의 텍스트를 중복해서 넣지 않습니다. 현재 셀의 텍스트 run을 연결하며, 중첩 표 내용은 별도 표의 셀에서 확인하세요. DOCX 세로 병합은 원본 merge 상태를 반환하고 전체 rowSpan 추론은 제공하지 않습니다.
 `agent.commit({...target, operationId})`은 저장 version, SHA-256, 저장 revision, 저장 위치 종류와 로컬 입력 상태를 반환합니다. 같은 요청 ID는 이 브리지 수명 안에서 동일 receipt를 재사용합니다. 탭 재연결까지 보장하려면 호스트가 receipt를 영속화해야 합니다. 비동기 에이전트 그림 삽입은 안전한 권한/범위 계약을 제공할 때까지 거절됩니다.
 실제 General 에이전트의 인증된 명령 transport와 실행 trace는 아직 별도 통합 과제입니다. 위 API 제공과 LLM의 실제 업무 완료를 구분합니다.

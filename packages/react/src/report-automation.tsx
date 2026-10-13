@@ -105,6 +105,16 @@ export function ReportAutomation(props: Props) {
   ];
   const utilityLabel = (name: string) =>
     name === "명찰" || name === "회의명패" ? `${name} 내용 초안` : name;
+  const searchQuery = filter.trim().toLocaleLowerCase("ko-KR");
+  const matchesSearch = (name: string) =>
+    [
+      name,
+      utilityLabel(name),
+      groups.find((group) => group.names.some((value) => value === name))
+        ?.label ?? "",
+    ].some((value) => value.toLocaleLowerCase("ko-KR").includes(searchQuery));
+  const matchingUtilities = UTILITIES.filter(matchesSearch);
+  const keepsCurrentSelection = !matchingUtilities.includes(utility);
   const generated = useRef<{
     template: DocumentTemplate;
     document: EditorDocument;
@@ -425,6 +435,24 @@ export function ReportAutomation(props: Props) {
       setFileName(`${stem}.${props.format ?? "docx"}`);
     }
   };
+  const textResult = (
+    <details open={!structuredResult} className="ds-text-result">
+      <summary>텍스트 결과{structuredResult ? " · 표·서식 제외" : ""}</summary>
+      <label>
+        결과
+        <textarea
+          aria-label="업무 자동화 결과"
+          readOnly={structuredResult}
+          value={output}
+          onChange={(e) => {
+            setOutput(e.target.value);
+            setTemplate(null);
+            setGraphic("");
+          }}
+        />
+      </label>
+    </details>
+  );
   return (
     <fieldset className="ds-tools-panel" disabled={props.disabled || working}>
       <legend>업무 자동화</legend>
@@ -446,19 +474,23 @@ export function ReportAutomation(props: Props) {
               loadDraft(e.target.value as typeof utility);
             }}
           >
-            {groups.map((group) => (
-              <optgroup label={group.label} key={group.label}>
-                {group.names
-                  .filter(
-                    (name) => name === utility || name.includes(filter.trim()),
-                  )
-                  .map((name) => (
+            {keepsCurrentSelection && (
+              <optgroup label="현재 선택 · 입력 유지">
+                <option value={utility}>{utilityLabel(utility)}</option>
+              </optgroup>
+            )}
+            {groups.map((group) => {
+              const names = group.names.filter(matchesSearch);
+              return names.length ? (
+                <optgroup label={group.label} key={group.label}>
+                  {names.map((name) => (
                     <option key={name} value={name}>
                       {utilityLabel(name)}
                     </option>
                   ))}
-              </optgroup>
-            ))}
+                </optgroup>
+              ) : null;
+            })}
           </select>
         </label>
         <button
@@ -615,6 +647,14 @@ export function ReportAutomation(props: Props) {
           결과 미리보기
         </button>
       </div>
+      {searchQuery && (
+        <p role="status" className="ds-automation-help">
+          {matchingUtilities.length
+            ? `검색 결과 ${matchingUtilities.length}개.`
+            : "검색 결과가 없습니다."}
+          {keepsCurrentSelection && " 현재 선택과 입력을 유지합니다."}
+        </p>
+      )}
       {recent.length > 1 && (
         <div className="ds-tools-row" aria-label="최근 사용 기능">
           최근 사용:{" "}
@@ -701,7 +741,9 @@ export function ReportAutomation(props: Props) {
           {validationError}
         </p>
       )}
-      <div className="ds-automation-data">
+      <div
+        className={`ds-automation-data${structuredResult ? " ds-automation-structured" : ""}`}
+      >
         <label>
           {form.inputLabel}
           <textarea
@@ -718,25 +760,27 @@ export function ReportAutomation(props: Props) {
             }}
           />
         </label>
-        <details open={!structuredResult} className="ds-text-result">
-          <summary>
-            텍스트 결과{structuredResult ? " · 표·서식 제외" : ""}
-          </summary>
-          <label>
-            결과
-            <textarea
-              aria-label="업무 자동화 결과"
-              readOnly={structuredResult}
-              value={output}
-              onChange={(e) => {
-                setOutput(e.target.value);
-                setTemplate(null);
-                setGraphic("");
-              }}
-            />
-          </label>
-        </details>
+        {structuredResult ? (
+          <div className="ds-automation-preview">
+            {template ? (
+              <TemplatePreview template={template} utility={utility} />
+            ) : graphic ? (
+              <img
+                alt="업무 자동화 그림 미리보기"
+                src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(graphic)}`}
+              />
+            ) : (
+              <p className="ds-automation-help">
+                원본을 입력하고 결과 미리보기를 누르면 이곳에 구조·그림을
+                표시합니다.
+              </p>
+            )}
+          </div>
+        ) : (
+          textResult
+        )}
       </div>
+      {structuredResult && textResult}
       {structuredResult && (
         <p className="ds-automation-help">
           새 문서는 원본 입력으로 만듭니다. 결과 미리보기는 읽기 전용입니다.
@@ -749,7 +793,6 @@ export function ReportAutomation(props: Props) {
           </button>
         </p>
       )}
-      {template && <TemplatePreview template={template} utility={utility} />}
       {template && (
         <div className="ds-tools-row">
           <label className="ds-field">
@@ -770,18 +813,6 @@ export function ReportAutomation(props: Props) {
             번호를 붙여 보관합니다.
           </span>
         </div>
-      )}
-      {graphic && (
-        <img
-          alt="업무 자동화 그림 미리보기"
-          src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(graphic)}`}
-          style={{
-            maxWidth: "100%",
-            height: 120,
-            objectFit: "contain",
-            background: "white",
-          }}
-        />
       )}
       <div className="ds-tools-row ds-automation-actions">
         {graphic && (

@@ -41,9 +41,37 @@ export function inspectExport(snapshot: ExportSnapshot) {
     )?.value;
   const direct = (node: Element, name: string) =>
     Array.from(node.children).filter((child) => child.localName === name);
+  const count = (value: string | undefined, fallback: number, minimum = 0) => {
+    if (value === undefined) return fallback;
+    const parsed = Number(value);
+    if (!Number.isSafeInteger(parsed) || parsed < minimum)
+      throw new Error("문서의 표 크기·셀 주소·병합 정보를 읽지 못했습니다.");
+    return parsed;
+  };
   const bounded = (value: string) => {
     if (value.length > 2000) truncated = true;
     return value.slice(0, 2000);
+  };
+  // A nested table has its own address and text; do not duplicate it in its parent cell.
+  const cellText = (cell: Element) => {
+    const pending = Array.from(cell.children).reverse();
+    let text = "";
+    while (pending.length) {
+      const node = pending.pop()!;
+      if (node.localName === "tbl") continue;
+      if (node.localName === "t") {
+        const value = node.textContent ?? "";
+        if (text.length + value.length > 2000) {
+          truncated = true;
+          return (text + value).slice(0, 2000);
+        }
+        text += value;
+      } else {
+        for (let index = node.children.length - 1; index >= 0; index--)
+          pending.push(node.children[index]!);
+      }
+    }
+    return text;
   };
   for (const [part, bytes] of Object.entries(parts).sort(([a], [b]) =>
     a.localeCompare(b, undefined, { numeric: true }),
@@ -62,45 +90,69 @@ export function inspectExport(snapshot: ExportSnapshot) {
       }
       const rows = direct(table, "tr");
       const cells: (typeof tables)[number]["cells"] = [];
-      let columns = 0;
+      const grid = direct(table, "tblGrid")[0];
+      let columns = count(
+        attr(table, "colCnt"),
+        grid ? direct(grid, "gridCol").length : 0,
+      );
+      let rowCount = count(attr(table, "rowCnt"), rows.length);
       rows.forEach((row, rowIndex) => {
-        let column = 0;
+        const rowProperties = direct(row, "trPr")[0];
+        let column = count(
+          attr(rowProperties && direct(rowProperties, "gridBefore")[0], "val"),
+          0,
+        );
         for (const cell of direct(row, "tc")) {
-          const span = all(cell, "cellSpan")[0];
-          const columnSpan = Number(
-            attr(all(cell, "gridSpan")[0], "val") ?? attr(span, "colSpan") ?? 1,
+          const properties = direct(cell, "tcPr")[0];
+          const span = direct(cell, "cellSpan")[0];
+          const columnSpan = count(
+            attr(properties && direct(properties, "gridSpan")[0], "val") ??
+              attr(span, "colSpan"),
+            1,
+            1,
           );
-          const merge = all(cell, "vMerge")[0];
-          const address = all(cell, "cellAddr")[0];
+          const merge = properties && direct(properties, "vMerge")[0];
+          const address = direct(cell, "cellAddr")[0];
+          const cellRow = count(attr(address, "rowAddr"), rowIndex);
+          const cellColumn = count(attr(address, "colAddr"), column);
+          const rowSpan =
+            snapshot.format === "hwpx"
+              ? count(attr(span, "rowSpan"), 1, 1)
+              : merge
+                ? null
+                : 1;
           if (cells.length < 2000)
             cells.push({
-              row: Number(attr(address, "rowAddr") ?? rowIndex),
-              column: Number(attr(address, "colAddr") ?? column),
+              row: cellRow,
+              column: cellColumn,
               columnSpan,
-              rowSpan:
-                snapshot.format === "hwpx"
-                  ? Number(attr(span, "rowSpan") ?? 1)
-                  : merge
-                    ? null
-                    : 1,
+              rowSpan,
               ...(merge
                 ? { verticalMerge: attr(merge, "val") ?? "continue" }
                 : {}),
-              text: bounded(
-                all(cell, "t")
-                  .map((text) => text.textContent ?? "")
-                  .join(""),
-              ),
+              text: cellText(cell),
             });
           else truncated = true;
-          column += columnSpan;
+          column = cellColumn + columnSpan;
+          columns = Math.max(columns, column);
+          rowCount = Math.max(rowCount, cellRow + (rowSpan ?? 1));
         }
-        columns = Math.max(columns, column);
+        columns = Math.max(
+          columns,
+          column +
+            count(
+              attr(
+                rowProperties && direct(rowProperties, "gridAfter")[0],
+                "val",
+              ),
+              0,
+            ),
+        );
       });
       tables.push({
         address: `${part}#table:${index}`,
-        rows: Number(attr(table, "rowCnt") ?? rows.length),
-        columns: Number(attr(table, "colCnt") ?? columns),
+        rows: rowCount,
+        columns,
         cells,
       });
     });
@@ -164,6 +216,7 @@ export function inspectExport(snapshot: ExportSnapshot) {
       "머리말·꼬리말·각주 구조와 글자 서식은 제외",
       "실제 페이지 배치·인쇄 결과는 검증하지 않음",
       "DOCX 세로 병합은 원본 merge 상태로 반환; rowSpan은 미확정",
+      "셀 텍스트는 해당 셀의 텍스트만 연결하며 중첩 표 텍스트는 별도 표에 반환",
       "주소는 이 내보내기 snapshot에서만 유효",
     ],
   };

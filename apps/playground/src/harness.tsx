@@ -4,6 +4,7 @@ import {
   SaveConflictError,
   browserDraftStore,
   draftKey,
+  inspectExport,
   type EditorCommand,
   type EditorDocument,
   type EditorSnapshot,
@@ -94,6 +95,10 @@ declare global {
         options?: { expectedRevision?: string },
       ): Promise<void>;
       export(): Promise<number[]>;
+      inspectBytes(
+        bytes: number[],
+        format: "docx" | "hwpx",
+      ): ReturnType<typeof inspectExport>;
       save(options?: { onlyIfDirty?: boolean }): Promise<void>;
       flushAutomationDraft(): Promise<void>;
       acquireInputLock(): Promise<void>;
@@ -248,6 +253,12 @@ function Harness() {
   useEffect(() => {
     window.documentStudioTest = {
       agent: createAgentBridge(() => editor.current),
+      inspectBytes: (bytes, format) =>
+        inspectExport({
+          bytes: new Uint8Array(bytes),
+          format,
+          revision: "fixture",
+        }),
       state: () => editor.current?.getState(),
       execute: async (command, options) => {
         if (!editor.current) throw new Error("Missing editor");

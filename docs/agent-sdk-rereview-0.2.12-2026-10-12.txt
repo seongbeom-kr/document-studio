@@ -1,0 +1,148 @@
+Document Studio 0.2.12 — 에이전트 SDK 재리뷰
+2026-10-12 KST
+대상: D:\dev\document-studio, 커밋 9c3fb8404163ec39a551249d61e2cb5968db28c9
+소비 프론트: D:\dev\_worktrees\document-studio-0.2.11
+
+1. 이전 P1의 수정 확인
+
+execute/applyPreset은 expectedSelectionKey를 요구한다. DOCX는 public surface의
+story scope와 anchor/head 문자 offset, drawing intent를 기록한다. HWPX는
+캐럿·선택 양 끝/셀/그림 상태를 기록한다. React 경계와 native 실행 경계에
+토큰 검사가 있고 guarded 명령 중에는 입력과 새 SDK 명령이 잠긴다.
+
+이번 직접 검사:
+- DOCX/HWPX 두 문장의 첫 문장을 select하고 요청 identity/토큰을 보관했다.
+- 두 번째 문장으로 select만 옮겼다. 본문 revision은 0으로 같았다.
+- 보관한 요청은 '선택 범위가 변경됐습니다'로 거절됐다.
+- 공개 readDocument에서 두 문장이 모두 그대로이고 revision 0임을 확인했다.
+- 같은 첫 문단의 offset 0~4에서 0~7로 선택을 바꾼 요청도 두 형식에서 거절됐다.
+- 전체 첫 문장 선택을 유지한 요청은 첫 문장만 [[AGENT-INSERT]]로 바꾸고
+  두 번째 문장을 보존했다. DOCX revision 1, HWPX revision 2로 바뀌었다.
+
+따라서 0.2.11의 재현 가능한 P1을 닫는다. 모든 선택 유형/병합 셀/비직사각형
+범위/실제 네트워크 지연 중 권한 철회까지 이번에 다시 검사한 것은 아니다.
+0.2.12의 전체 회귀 실행 기록은 개발 세션의 기록으로 따로 구분한다.
+
+2. commit API — 기본 계약 검증 결과
+
+브리지 메서드는 9개에서 inspect/commit을 포함한 11개가 됐다.
+commit은 documentId/sessionId/version/revision과 operationId를 받아 저장한다.
+receipt는 savedRevision, version, digest, destination, warnings, automationDraft를
+포함한다. 같은 ID와 동일 요청은 브리지 수명 안에서 이전 receipt를 재사용한다.
+
+직접 확인:
+DOCX의 테스트 전용 storage.save 실패를 주입했다. commit은 오류를 반환했고
+성공 receipt를 만들지 않았다. 같은 operationId로 재시도하면 저장에 성공했다.
+저장소 호출은 실패 1회+성공 1회, 총 2회였다. 성공 요청을 다시 호출해도 2회로
+유지됐다. 실제 제출 bytes의 SHA-256과 receipt.digest가 일치했고 dirty=false였다.
+HWPX 정상 commit도 제출 bytes와 digest가 일치하고 dirty=false였다.
+
+해석의 한계:
+storage는 별도 호스트의 메모리 저장소다. 실제 General 서버의 저장/장애를
+검증한 것이 아니다. SHA-256은 제출한 bytes이며 서버가 확정 보관한 파일을
+다시 읽은 증거는 아니다. operationId 보관은 Map/브리지 수명에 한정되고
+탭 재연결/서버 재시작 이후 영속성은 호스트 책임이다. 편집 자체의 응답 유실
+재시도까지 idempotent가 된 것도 아니다. 기존 요청 fingerprint가 달라지면
+같은 작업 ID를 재사용하면 안 된다.
+
+현재 source의 명시적 한도는 128개 commit 기록이다. 장시간 작업의 기록 보관과
+브리지 교체는 호스트 연결 시 정의할 사항이며 이번에 한도 초과를 새로 재현하지 않았다.
+
+3. inspect API — 기본 표는 맞지만 중첩 표는 잘못된 정보를 준다
+
+기본 2×2 표를 두 형식에서 새 문서로 만들었다. rows=2, columns=2, 각 셀의
+row/column/span/text가 실제 export와 맞았다. pages는 용지 mm 치수이며
+native 쪽 나눔이나 실제 인쇄 결과를 보증하는 값으로 표시하지 않는다.
+
+새 P2 재현 fixture:
+외부 표 1행×1열, cell.columnSpan=1.
+외부 셀 안에 내부 표 2행×2열. 내부 첫 행의 셀은 columnSpan=2.
+자체 docx 라이브러리로 생성한 fixture이며 사용자 문서가 아니다.
+DOCX native 엔진으로 열고 agent.inspect 후 같은 상태의 공개 exportDocument
+XML을 직속 속성 기준으로 대조했다.
+
+native XML:
+table 0 tblGrid:1열, 1행, 직접 tcPr span 없음→1.
+table 1 tblGrid:2열, 2행, 첫 행 직접 tcPr gridSpan=2.
+
+agent.inspect:
+table 0 rows=1, columns=2, cell(0,0).columnSpan=2.
+table 1 rows=2, columns=2, 내부 셀 정보는 정상.
+
+원인: packages/core/src/inspect.ts:69-74.
+all(cell,'gridSpan')은 descendant 검색으로 내부 tcPr까지 포함한다.
+바깥 셀의 속성이 없으면 내부 병합을 바깥 속성으로 가져오고 columns의 합계도
+그 값을 사용한다. cellSpan/vMerge/cellAddr도 같은 descendant 조회 패턴을 쓴다.
+이번 실증은 DOCX gridSpan이며 다른 형식의 모든 오보고를 검증한 것은 아니다.
+
+영향: 에이전트가 구조 검증으로 업무 완료를 판정하거나 후속 열/셀 계획을
+만들 때 틀린 기준을 사용한다. bytes를 손상시키는 쓰기 버그와는 구분된다.
+limitations에는 실제 배치/머리말/글자 서식/세로 병합 제약이 있으나 중첩 표
+미지원은 없다. 따라서 맞지 않는 columns/span을 정상 구조로 반환하면 안 된다.
+
+수정 제안:
+- DOCX는 현재 tc의 직접 tcPr와 직접 gridSpan/vMerge만 읽는다.
+- HWPX도 현재 tc 소유의 cellSpan/cellAddr를 읽으며 하위 tbl은 넘지 않는다.
+- 중첩 표는 별도 address로 검사한다. 부모 셀 텍스트의 child table 포함 정책도
+  정의해 중복 텍스트를 계획에 두 번 사용하지 않게 한다.
+- tblGrid/row별 위치/병합 정보를 일관되게 계산한다.
+- 미지원 구조는 limitations/truncated 또는 명확한 오류로 알린다.
+
+필요한 회귀: 부모 1열/자식 2열 병합, 부모 자체 span, 여러 깊이, 부모와 자식의
+세로 병합/주소 분리. 일반 2×2 표의 정상 결과도 대조로 유지한다.
+
+4. 실제 에이전트 연결은 아직 미완료
+
+소비 프론트 production TS/TSX에서 createAgentBridge/expectedSelectionKey/
+agent.inspect/commit transport 등록을 검색했으나 확인하지 못했다.
+General Python에서도 document-studio/document_studio/createAgentBridge 토큰의
+연결이 확인되지 않았다. General HEAD는 f3da3738f79826c220d723c4515ab952bcccd68c다.
+기존 문서 저장·파일 도구·document_agent_operation lease fence는 존재한다.
+
+이는 기존 agent의 파일 편집 능력을 부정하지 않는다. 프론트 SDK를 실제로
+호출한 연결과 tool trace가 아직 확인되지 않았다는 판단이다.
+README와 general-sdk-integration-boundary 문서도 transport를 후속 과제로 구분한다.
+
+연결 시 우선 정의할 것:
+- owner/workspace/path/lease/SDK sessionId에 묶인 실행 connection.
+- 기존 인증 BFF와 도구 요청/응답. 모델에 브라우저/인증 토큰을 주지 않기.
+- 사람 선택 보호와 제어권 표시, 탭 종료/재열기/권한 철회 시 요청 무효화.
+- 일반 파일 작업의 fence를 제거하지 않고 승인된 SDK 작업 경계를 구분하기.
+- 작업 기록과 commit receipt의 영속성, 서버 결과 확인과 재연결 복구.
+
+React/DOM/iframe 어댑터를 Python 프로세스가 바로 import한다고 가정하면 안 된다.
+서버 전용 실행기를 만들면 공통 core의 검증 계약을 재사용하되 실행 수명과
+파일 버전 경계를 별도로 정의한다. 기존 acquireInputLock는 SDK 명령도 막으므로
+이를 단순히 agent.execute 바깥에 감싸는 연결을 만들지 않는다.
+
+5. 다음 수용 검사의 최소 업무
+
+실제 General 에이전트의 문구 치환→올바른 범위 서식→표 생성/검사→commit→
+서버 재열기 업무를 DOCX/HWPX에서 실행한다. 다음을 함께 기록한다.
+- 실제 LLM tool trace와 요청 identity/선택 토큰.
+- 수정 전후 본문, 변경 밖의 표·그림·머리말 보존.
+- 저장 version/savedRevision/제출 digest와 서버에서 다시 읽은 digest.
+- 도구 오류와 복구, 원문 유지/부분 적용 여부.
+- 최종 사용자가 변경과 저장 완료를 확인할 수 있는 UI.
+
+현재 에이전트의 비동기 insertImage는 안전한 범위 보장을 제공하지 못해 명시적으로
+거절한다. 사람의 그림 삽입이 사라진 것은 아니다. 사진/차트 삽입 업무를 지원한다는
+수용 목표를 잡을 때는 이 제한을 계획에 포함해야 한다.
+명찰은 내용 초안 범위다. 인쇄용 mm 크기/격자/재단선 업무는 별도로 검증한다.
+
+6. 검증 근거와 한계
+
+이번 실행: SDK 단위 287/287, 타입 검사 통과, 위 공개 API의 실제 Chrome 엔진
+검증. 앞선 브라우저 568/프론트 610 검사는 개발 세션 결과이며 합산하지 않는다.
+실제 서버 write, actual LLM 요청, 네트워크/lease 장애, Word/한컴/IME는 미실행이다.
+
+증거: D:\dev\document-studio\.build\uiux-agent-rereview-0.2.12-20261012
+docx-nested-inspection.json, fixtures/nested.docx, create-nested.mjs: P2 근거.
+{docx,hwpx}-paragraph-after-rejected.json, *-same-paragraph-range.json: 수정 확인.
+*-stable-edit.json, *-commit.json, docx-commit-replay.json: 정상 경로/해시/재시도.
+{docx,hwpx}-created-inspect.json: 단순 표 정상 결과.
+host/main.tsx: 공개 API 검증 버튼. 제품 실행 경로에 포함되지 않는다.
+unit-results.json/source-manifest.json/installed-packages.json/verification-summary.json.
+
+SDK 소스·extension 49개는 리뷰 중 변경되지 않았다. 리뷰는 제품 코드 수정 없이
+.build 증거와 docs 문서만 작성했다. 다른 세션과 실제 agent에 메시지를 보내지 않았다.
