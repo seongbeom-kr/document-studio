@@ -471,9 +471,15 @@ for (const format of ["docx", "hwpx"] as const) {
     }) => {
       await page.setViewportSize({ width, height: 900 });
       await openAutomation(page, format);
-      await page
-        .getByRole("button", { name: "도구 크게 보기", exact: true })
-        .click();
+      // A short dock now expands automatically when automation opens.
+      if (
+        (await page
+          .locator(".ds-editing-tools")
+          .getAttribute("data-expanded")) !== "true"
+      )
+        await page
+          .getByRole("button", { name: "도구 크게 보기", exact: true })
+          .click();
       const select = page.getByLabel("자동화 기능", { exact: true });
       await select.selectOption("마크다운 보고서");
       await page
@@ -628,6 +634,9 @@ for (const format of ["docx", "hwpx"] as const) {
       .click();
     await expect(create).toBeDisabled();
     await expect(
+      page.getByLabel("새 문서 파일명", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
       page.getByText("이 앱에서는 새 문서 생성을 지원하지 않습니다.", {
         exact: false,
       }),
@@ -640,6 +649,9 @@ for (const format of ["docx", "hwpx"] as const) {
       window.documentStudioTest.rerender();
     });
     await expect(create).toBeEnabled();
+    await expect(
+      page.getByLabel("새 문서 파일명", { exact: true }),
+    ).toHaveValue(/\.\w+$/);
     await create.click();
     await expect
       .poll(() =>

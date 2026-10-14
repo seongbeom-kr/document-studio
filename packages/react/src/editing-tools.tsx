@@ -78,6 +78,30 @@ export function EditingTools(props: Props) {
     setLocalTab(value);
     props.onTabChange?.(value);
   };
+  const toolsElement = useRef<HTMLDivElement>(null);
+  const contentElement = useRef<HTMLDivElement>(null);
+  const expanded = useRef(Boolean(props.expanded));
+  expanded.current = Boolean(props.expanded);
+  useEffect(() => {
+    if (tab !== "업무 자동화" || !props.onExpandedChange) return;
+    const area = toolsElement.current?.parentElement;
+    if (!area) return;
+    const ensureInputSpace = () => {
+      // Measure the form body after the host's header, target and tabs consume space.
+      // Observe the host area only: returning to the dock is an explicit user choice
+      // and must not immediately trigger another automatic expansion.
+      const height = contentElement.current?.getBoundingClientRect().height;
+      if (!expanded.current && height !== undefined && height < 360) {
+        expanded.current = true;
+        props.onExpandedChange?.(true);
+      }
+    };
+    ensureInputSpace();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(ensureInputSpace);
+    observer.observe(area);
+    return () => observer.disconnect();
+  }, [tab, props.documentKey, props.onExpandedChange]);
   const statusId = useId();
   const tabId = useId();
   const tabButtons = useRef(new Map<string, HTMLButtonElement>());
@@ -376,6 +400,7 @@ export function EditingTools(props: Props) {
   };
   return (
     <div
+      ref={toolsElement}
       className="ds-editing-tools"
       data-document-properties
       role="region"
@@ -501,6 +526,7 @@ export function EditingTools(props: Props) {
       ))}
       <div
         className="ds-tools-content"
+        ref={contentElement}
         id={`${tabId}-panel-${TABS.indexOf(tab)}`}
         role="tabpanel"
         aria-labelledby={`${tabId}-tab-${TABS.indexOf(tab)}`}

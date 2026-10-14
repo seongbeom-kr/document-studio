@@ -18,6 +18,7 @@ for (const channel of process.env.CI ? [undefined] : ["chrome", "msedge"]) {
   const browser = await chromium.launch({ channel, headless: true });
   try {
     for (const format of ["docx", "hwpx"]) {
+      console.log(`Consumer verification: ${channel ?? "chromium"}/${format}`);
       const page = await browser.newPage({
         viewport: { width: 1440, height: 1000 },
       });
@@ -45,9 +46,32 @@ for (const channel of process.env.CI ? [undefined] : ["chrome", "msedge"]) {
       await page
         .getByLabel("문서 파일")
         .setInputFiles(`fixtures/sample.${format}`);
-      await expect(
-        page.getByRole("button", { name: "굵게", exact: true }),
-      ).toBeEnabled();
+      const loadingStarted = Date.now();
+      try {
+        await expect(
+          page.getByRole("button", { name: "굵게", exact: true }),
+        ).toBeEnabled({ timeout: 30000 });
+      } catch (error) {
+        await page.screenshot({ path: ".build/consumer-startup-failure.png" });
+        await writeFile(
+          ".build/consumer-startup-failure.json",
+          JSON.stringify(
+            {
+              channel,
+              format,
+              elapsedMs: Date.now() - loadingStarted,
+              errors,
+              failedAssets,
+              external,
+              body: await page.locator("body").innerText(),
+            },
+            null,
+            2,
+          ),
+        );
+        throw error;
+      }
+      console.log(`Consumer editor ready in ${Date.now() - loadingStarted}ms`);
       if (format === "docx")
         await page
           .getByRole("textbox", { name: "Document content", exact: true })
@@ -151,10 +175,16 @@ for (const channel of process.env.CI ? [undefined] : ["chrome", "msedge"]) {
           .getByRole("button", { name: "결과 미리보기", exact: true })
           .click();
         await page
-          .getByRole("button", { name: "구조를 유지해 새 문서 만들기", exact: true })
+          .getByRole("button", {
+            name: "구조를 유지해 새 문서 만들기",
+            exact: true,
+          })
           .click();
         await expect(
-          page.getByRole("heading", { name: `패키지 생성 보고서.${format}`, exact: true }),
+          page.getByRole("heading", {
+            name: `패키지 생성 보고서.${format}`,
+            exact: true,
+          }),
         ).toBeVisible();
         await expect(
           page.getByRole("button", { name: "굵게", exact: true }),
@@ -232,14 +262,12 @@ for (const channel of process.env.CI ? [undefined] : ["chrome", "msedge"]) {
             ],
           }),
         );
-        await page
-          .getByLabel("문서 파일")
-          .setInputFiles({
-            name: "consumer-inline.docx",
-            mimeType:
-              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            buffer: artifact,
-          });
+        await page.getByLabel("문서 파일").setInputFiles({
+          name: "consumer-inline.docx",
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          buffer: artifact,
+        });
         const img = page.locator(".ds-editor-body img").first();
         await expect(img).toBeVisible();
         const boxes = await page.evaluate(() => {

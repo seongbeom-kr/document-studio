@@ -697,6 +697,50 @@ export function ReportAutomation(props: Props) {
       <p id={helpId} className="ds-automation-help">
         {form.help}
       </p>
+      {validationError && (
+        <p role="alert" className="ds-automation-help">
+          {validationError}
+        </p>
+      )}
+      <div
+        className={`ds-automation-data${structuredResult ? " ds-automation-structured" : ""}`}
+      >
+        <label>
+          {form.inputLabel}
+          <textarea
+            ref={inputRef}
+            aria-label={form.inputLabel}
+            aria-describedby={`${helpId} ${sizeId}`}
+            aria-invalid={!!validationError || inputTooLong}
+            data-automation-input
+            placeholder={form.example}
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              invalidate();
+            }}
+          />
+        </label>
+        {structuredResult ? (
+          <div className="ds-automation-preview">
+            {template ? (
+              <TemplatePreview template={template} utility={utility} />
+            ) : graphic ? (
+              <img
+                alt="업무 자동화 그림 미리보기"
+                src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(graphic)}`}
+              />
+            ) : (
+              <p className="ds-automation-help">
+                원본을 입력하고 결과 미리보기를 누르면 이곳에 구조·그림을
+                표시합니다.
+              </p>
+            )}
+          </div>
+        ) : (
+          textResult
+        )}
+      </div>
       <p className="ds-automation-help" role="status">
         {draftStatus.storage === "local"
           ? draftStatus.error
@@ -748,50 +792,6 @@ export function ReportAutomation(props: Props) {
       >
         모든 자동화 입력 내려받기
       </button>
-      {validationError && (
-        <p role="alert" className="ds-automation-help">
-          {validationError}
-        </p>
-      )}
-      <div
-        className={`ds-automation-data${structuredResult ? " ds-automation-structured" : ""}`}
-      >
-        <label>
-          {form.inputLabel}
-          <textarea
-            ref={inputRef}
-            aria-label={form.inputLabel}
-            aria-describedby={`${helpId} ${sizeId}`}
-            aria-invalid={!!validationError || inputTooLong}
-            data-automation-input
-            placeholder={form.example}
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              invalidate();
-            }}
-          />
-        </label>
-        {structuredResult ? (
-          <div className="ds-automation-preview">
-            {template ? (
-              <TemplatePreview template={template} utility={utility} />
-            ) : graphic ? (
-              <img
-                alt="업무 자동화 그림 미리보기"
-                src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(graphic)}`}
-              />
-            ) : (
-              <p className="ds-automation-help">
-                원본을 입력하고 결과 미리보기를 누르면 이곳에 구조·그림을
-                표시합니다.
-              </p>
-            )}
-          </div>
-        ) : (
-          textResult
-        )}
-      </div>
       {structuredResult && textResult}
       {structuredResult && (
         <p className="ds-automation-help">
@@ -806,7 +806,7 @@ export function ReportAutomation(props: Props) {
           </button>
         </p>
       )}
-      {template && (
+      {template && canCreateDocument && (
         <div className="ds-tools-row">
           <label className="ds-field">
             새 문서 파일명
@@ -827,7 +827,10 @@ export function ReportAutomation(props: Props) {
           </span>
         </div>
       )}
-      <div className="ds-tools-row ds-automation-actions">
+      <div
+        className="ds-tools-row ds-automation-actions"
+        data-has-result={Boolean(output)}
+      >
         {graphic && (
           <button
             type="button"

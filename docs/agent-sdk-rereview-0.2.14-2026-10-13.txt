@@ -1,0 +1,124 @@
+Document Studio 0.2.14 — 에이전트 SDK 상세 재리뷰
+2026-10-13, Asia/Seoul
+SDK: D:\dev\document-studio
+커밋: 1cee9de1aabaec41677d925670fabc6785c5bce8
+소비 프론트: D:\dev\_worktrees\document-studio-0.2.11
+General: D:\dev\go-agent-platform\go_agent_general_api (HEAD f3da373)
+실제 개발 샌드박스: https://sblim.dev.gridone.net/sandbox-agent
+
+1. SDK 판정
+
+이번 변경은 React 자동화 결과 안내와 생성 버튼의 노출 조건이다.
+core와 두 엔진의 src 및 agent-bridge.ts는 0.2.13 대비 변경이 없었다.
+공개 브리지와 실제 엔진에서 선택 보호·정상 수정·commit을 다시 확인했다.
+이번 범위에서 새 P1/P2 결함은 발견하지 못했다.
+
+그림·문서 생성 안내의 수정이 기존 명령 기능을 깨뜨렸다는 증거도 없었다.
+두 형식 모두 그림 삽입과 지원 전환 후 문서 생성을 실제 수행했다.
+다만 실제 LLM 에이전트가 SDK를 호출한 시험은 아니다. 최종 목적에 대한
+큰 미완료 항목은 General 도구 transport와 서버 재열기까지의 업무 확정이다.
+
+2. 버전·설치·직접 테스트
+
+SDK 단위 287/287 및 yarn typecheck를 이번에 직접 재실행해 통과했다.
+소비 프론트 설치 core/react/engine-docx/engine-rhwp는 모두 0.2.14다.
+dist SHA-256 비교: core 19, react 22, engine-docx 22, engine-rhwp 32,
+총 95개 중 불일치 0개. 폴더 이름 0.2.11과 실제 설치 버전은 구분한다.
+SDK 소스/extension manifest 49개의 시작·종료 해시가 일치했다.
+
+개발 세션의 관련 브라우저 48개, 프론트 610개, 외부 소비 앱 4개는 별도
+검증 기록이다. 이번에 그 시험을 재실행한 것으로 표시하지 않고 숫자도 합산하지 않는다.
+
+3. 오래된 선택 요청 거절
+
+자체 두 문단 문서를 실제 DOCX/HWPX 엔진에서 만들고 공개 createAgentBridge를
+사용했다. 첫 문단 '첫 번째 대상 문장입니다.'를 선택한 상태로 요청을 고정하고,
+두 번째 '두 번째 대상 문장입니다.'로 선택을 이동했다.
+오래된 expectedSelectionKey를 포함한 execute는 두 형식 모두 거절됐다.
+사용자 오류 안내: '선택 범위가 변경됐습니다. 적용 대상을 다시 확인해 주세요.'
+
+HWPX의 캡처 키는 sectionIndex 0 / paragraphIndex 0의 0–14 범위였고,
+실행 시 키는 paragraphIndex 1의 0–14 범위였다. 같은 revision처럼 보이는
+경우에도 대상 선택 변경을 놓치지 않는 보호가 유지됐다.
+
+정상 요청에서는 첫 문단을 다시 선택해 새 키로 execute를 실행했다.
+첫 문장만 [[AGENT-INSERT]]가 됐고 두 번째 문장은 보존됐다.
+이 결과는 문단 이동 재현에 대한 확인이다. 같은 문단의 모든 문자 범위,
+표/그림 객체의 모든 선택, 모든 lease 경쟁 조건을 새로 검사한 것은 아니다.
+
+4. commit digest와 저장 상태
+
+정상 수정 후 공개 commit을 실행했다. 두 형식 모두 receipt.digest가
+메모리 storage에 전달된 실제 bytes의 SHA-256과 일치했다.
+commit 이후 dirty=false였다. 성공 receipt와 실제 저장 payload를 비교했다.
+
+이번 storage는 자체 메모리 저장소다. 실제 서버 응답, 파일 충돌, 서버
+버전 수락, 저장본 재다운로드까지 검증한 결과로 확대하지 않는다.
+후속 차트 삽입 후에는 호스트 save로 메모리 저장을 다시 확인했다.
+
+5. 그림 삽입과 템플릿 생성
+
+호스트 생성 지원을 꺼도 DOCX/HWPX의 차트·조직도 그림 미리보기와
+그림 삽입 버튼은 활성 상태였고 새 문서 생성 버튼은 없었다.
+각 형식에 기본 차트 그림을 실제 삽입했다.
+DOCX는 word/document.xml의 drawing, HWPX는 Contents/section XML의
+pic 개수로 각각 그림 객체 1개를 확인했다.
+모든 외부 Office 렌더러에서 그림 품질·페이지 배치까지 검증한 것은 아니다.
+
+Markdown의 자체 2×2 표로 생성 지원 꺼짐→켜짐을 검사했다.
+미지원 안내·비활성 버튼에서 입력을 유지한 채 활성 버튼으로 바뀌었고,
+생성된 DOCX/HWPX는 각각 2행×2열의 셀 4개를 inspect로 반환했다.
+셀 text는 항목/결과/SDK/확인이었으며 span은 모두 1이었다.
+DOCX는 같은 내보낸 XML의 직접 tblGrid/tr/tcPr도 비교했다.
+
+6. 비동기 변경 중 export 보호를 직접 관찰
+
+HWPX 그림 삽입 버튼을 누른 직후 자체 host에서 export 기반 검사 버튼을
+눌렀다. export 도중 엔진 revision이 바뀌어 다음 오류가 반환됐다.
+'문서를 내보내는 동안 revision이 변경됐습니다. 다시 내보내 주세요.'
+삽입이 끝난 뒤 같은 검사를 다시 요청하자 그림 1개를 확인했고 저장도 성공했다.
+
+이것은 변경 중인 bytes와 revision을 성공으로 섞어 반환하지 않는 보호다.
+이번 안내 수정의 결함으로 분류하지 않는다. 실제 에이전트 transport에서
+명령 완료와 revision 확정을 기다리고, 오류 종류별로 재조회/재시도를 해야
+한다는 직접 근거다. UI click 완료를 비동기 문서 명령 완료로 간주하면 안 된다.
+
+완료 시점이 불명확한 execute를 무조건 반복해 그림을 중복 삽입하는 흐름은
+피해야 한다. commit receipt와 안정된 inspect 결과를 기준으로 업무 완료를
+판단하고, 실제 서버 재열기까지 필요한 경우 해당 결과도 도구 결과에 포함한다.
+
+7. 실제 General 연결에 대한 근거와 다음 기준
+
+소비 프론트 production TS/TSX에서 createAgentBridge/expectedSelectionKey의
+참조를 검색한 결과 0개였다. DocumentStudioPanel에는 DocumentEditor와
+storage 연결이 있지만 공개 에이전트 브리지 등록은 확인하지 못했다.
+General production Python의 document_studio/document-studio 관련 검색에서도
+SDK 등록을 확인하지 못했다. 검색 부재만으로 모든 다른 파일 에이전트
+능력을 부정하지 않는다. 실제 열린 SDK의 tool trace가 없다는 제한이다.
+
+다음 검증은 아래의 하나의 업무를 끝까지 수행해야 한다.
+1) LLM이 열린 document/session/lease를 확인하고 inspect로 대상을 찾는다.
+2) revision/선택 토큰을 포함해 한 문단 또는 한 셀만 수정한다.
+3) 선택 충돌 시 대상을 재확인하고 revision 충돌 시 안정된 버전을 재조회한다.
+4) commit receipt의 버전·digest를 실제 서버 저장 결과와 연결한다.
+5) 서버 파일을 다시 열어 목표 수정과 보존돼야 할 내용이 맞는지 검사한다.
+6) 채팅에 대상 파일·변경 위치·완료 상태·실패 시 다음 행동을 보여준다.
+
+LLM이 SDK 도구를 어떤 순서와 인자로 호출했는지 trace를 보관해야 한다.
+수동 브리지 호출, 단위 통과, 문서 생성 UI 성공을 그 시험의 대체 증거로
+사용하지 않는다. 기존 SDK 계약을 실제 업무로 연결하는 작업이 우선이다.
+
+8. 범위와 산출물
+
+실제 샌드박스의 문서 bytes·채팅·서버 파일을 변경하지 않았다.
+독립 호스트의 합성 문서와 메모리 storage에서 테스트했고 검증 탭/서버를 종료했다.
+제품 소스·커밋·푸시·배포는 변경하지 않았다. 물리 IME, 외부 Office 전체
+호환성, 운영 장애, LLM 호출 및 서버 재열기는 미검증이다.
+이전 중첩 표 재현은 변경 없는 core 코드와 0.2.13 결과를 참고했다.
+
+증거 폴더:
+D:\dev\document-studio\.build\uiux-agent-rereview-0.2.14-20261013
+*-stale-selection.json / *-stable-edit.json / *-commit.json
+*-chart-insert.json / *-creation-toggle.json / *-created-inspect.json
+hwpx-export-during-insert.json / integration-search.json
+unit-results.json / installed-packages.json / source-manifest.json / verification-summary.json

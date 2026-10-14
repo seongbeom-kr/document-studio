@@ -1,0 +1,112 @@
+Document Studio 0.2.15 — 0.2.14 재리뷰 대응
+2026-10-14, Asia/Seoul
+
+검토한 입력
+docs/uiux-agent-rereview-0.2.14-2026-10-13.txt
+docs/uiux-rereview-0.2.14-2026-10-13.txt
+docs/agent-sdk-rereview-0.2.14-2026-10-13.txt
+
+판정과 변경
+리뷰에서 이전 차트 안내 문제는 종료됐고 새 P1/P2는 없었다.
+남은 P3는 작은 호스트에서 비율로 나눈 도구 본문이 42px까지 줄어드는 문제다.
+
+SDK EditingTools가 업무 자동화 탭을 열 때 실제 폼 본문 높이를 측정한다.
+본문이 360px 미만이면 기존 넓게 보기 상태로 전환한다. 호스트 영역의
+크기 변경도 검사한다. 충분한 공간에서는 기존 문서/도구 배치를 유지한다.
+사용자가 문서와 함께 보기로 돌아간 뒤 일반 재렌더링으로 다시 펼치지 않는다.
+네이티브 편집기를 재마운트하지 않으며 문서 배율은 100%를 유지한다.
+
+원본 입력 앞의 보관 상태·입력 길이·내려받기 항목은 원본 아래로 옮겼다.
+결과가 없을 때 비활성 적용 버튼 영역을 sticky로 고정하지 않는다.
+생성 미지원 호스트에는 새 문서 파일명과 저장 위치 입력을 숨긴다.
+생성 지원을 켜면 원본을 유지한 채 파일명 입력과 생성 버튼을 사용할 수 있다.
+
+테스트
+- SDK 단위 287/287, 타입 검사, 네 패키지 빌드 통과.
+- 관련 Chrome·Edge 브라우저 162/162, skipped/flaky/unexpected 각각 0.
+  전체 E2E를 이번에 재실행한 것은 아니다.
+- 새 화면 검사 16개는 위 162개에 포함된다. 1366×900, 1366×768, 480×900,
+  넓은 화면에서 작은 화면으로 변경, 기본 34/사용자 설정 48, 수동 복귀,
+  재렌더링, 원본 입력 유지, native DOM·revision·선택 토큰·dirty·배율을 검사했다.
+  리뷰의 1023×646 호스트 영역과 더 낮은 1023×514 영역도 직접 지정했다.
+  스크롤 0에서 기능 선택·미리보기 버튼과 80px 이상의 원본 입력을 확인하고,
+  elementFromPoint로 원본 입력이 다른 요소에 가려지지 않는지도 검사했다.
+- 자동화 입력 크기/IndexedDB, 초안과 닫기, 생성 지원 전환, 구조 미리보기,
+  키보드 탭·Escape, 기존 속성 편집, 읽기 전용/저장 중 입력 보호도 포함했다.
+- 외부 npm 소비 앱: 네 SDK tarball 설치, Next.js 16.3.8 빌드,
+  Chrome·Edge × DOCX·HWPX 4/4 통과. 소스 alias로 우회하지 않았다.
+- 샌드박스 단위 610/610, settings 단위 205/205 통과.
+  두 앱의 타입 검사, lint --no-fix, production 빌드 통과.
+- madge: 242개 파일, 순환 0개, 기존 해석 경고 236개.
+  knip는 --no-exit-code 진단으로 실행했으며 미사용 항목이 남는다.
+- 라이선스 검사: npm 102개, 고정 Rust registry crate 393개 통과.
+  자체 라이선스 Apache-2.0 유지. 새 런타임 의존성은 추가하지 않았다.
+- 최종 소스 manifest 134개 해시 일치. 프론트 설치 dist 95개 일치,
+  public RHWP extension도 원본 빌드와 일치.
+
+초기 실패와 최종 실행을 구분한다.
+첫 화면 검사에서는 작은 창의 입력 노출 부족과 테스트의 재열기 탭 가정을
+발견했다. 입력 앞 항목/sticky 배치를 보완했고 재열기 후 자동화 탭을 다시
+선택하도록 시험을 고쳤다. 보호 기능을 해제하거나 가용 높이 기준을 낮추지 않았다.
+외부 소비 앱 첫 실행은 엔진 준비의 기본 expect 5초 조건에서 실패했다.
+해당 준비 단계만 기존 page timeout과 같은 30초로 맞추고 실패 화면/로그와
+준비 시간 기록을 추가했다. 재실행의 네 엔진 준비 시간은 885~2014ms였다.
+프론트 첫 단위 실행은 종료코드 1과 596개만 기록했고 한 파일 14개가 빠졌다.
+그 파일 단독 14개와 전체 610개를 다시 실행해 정상 종료를 확인했다.
+프론트 버전 표시 파일의 CRLF lint 오류도 LF로 고친 뒤 lint가 통과했다.
+각 초기 기록은 삭제하지 않고 별도 파일로 보관한다.
+
+실제 프론트 적용
+SDK: D:\dev\document-studio, main, 로컬 저장소, remote 없음.
+프론트: D:\dev\_worktrees\document-studio-0.2.11
+브랜치: codex/document-studio-0.2.15
+최신 origin/dev 기준: ec65adffe5c560d0bfd4fefe4bd1410fc6ed69ec
+기존 통합 변경의 브랜치 전환 전후 patch SHA는 같다.
+사용자의 D:\dev\front\automation-platform 작업 트리는 변경하지 않았다.
+프론트 네 패키지는 0.2.15다. 작업 트리 폴더 이름과 실제 SDK 버전은 다르다.
+프론트 커밋·푸시, npm/GitHub 공개, 원격 배포는 수행하지 않는다.
+
+실제 브라우저 결과
+https://sblim.dev.gridone.net/sandbox-agent
+새 검증 탭에서 sdk-live-A.docx와 sdk-live-B.hwpx를 열었다.
+1366×900, 기본 도구 크기 34에서 자동화 탭이 넓게 열렸다.
+현재 기본 파일 drawer의 폼 본문은 두 형식 모두 약 493.83px,
+원본 textarea는 270px가 보였다. 내부 scrollTop은 0이고 기능 선택·미리보기
+버튼과 원본 입력이 가려지지 않았다. 문서 배율은 모두 100%였다.
+이 측정은 현재 기본 drawer의 실제 배치다. 리뷰의 1023px 폭 호스트는
+위 E2E에서 별도로 같은 영역 치수를 지정해 확인했다.
+HWPX 원본 Markdown 92자와 DOCX 원본 76자를 변경하지 않았다.
+HWPX 표 미리보기를 만들고 문서와 함께 보기로 돌아간 뒤 입력 보존을 확인했다.
+실제 파일에 삽입·새 파일 생성·문서 업로드·LLM 메시지 전송은 하지 않았다.
+두 편집을 종료했고 최종 파일 목록의 DOCX r5 / HWPX r7과 SHA는 시작과 같다.
+viewport 임시 설정을 해제했다. 샌드박스와 settings는 함께 실행 중이다.
+settings/profile의 실제 프로필 화면과 서비스 응답 200도 확인했다.
+
+추가 확인: DOCX 서버 PDF 미리보기는 아직 실패한다
+SDK native DOCX 편집은 정상으로 열렸지만 파일 미리보기로 돌아가면
+files/preview?path=sdk-live-A.docx가 422를 반환한다. 재시도에서도 같았다.
+이는 이번 자동화 탭 변경의 회귀로 확인한 결과가 아니다.
+다운로드한 원본 SHA는 6703b076908563f61d3e34d53c18121e36b7b7579bfe8e80ffced0d624d1181b다.
+ZIP CRC는 정상이며, 관측한 로컬 preview 이미지의 격리 컨테이너에서
+LibreOffice 24.2.7.2로 같은 파일의 96,135-byte PDF 변환이 통과했다.
+오래된 10월 8일 원본도 변환됐다. 따라서 파일 손상이나 암호화로 단정하지 않는다.
+실제 요청을 처리한 worker와 실패 원인은 아직 특정하지 못했다.
+운영 변환 경로를 수정하거나 오류를 숨기지 않았고 General/preview 서비스를
+재시작하지 않았다. 이 서버 미리보기 경로를 정상 검증했다고 표시하지 않는다.
+
+남은 범위
+General LLM → 열린 SDK transport → 선택/revision 확인 → commit → 서버 재열기의
+실제 tool trace는 아직 없다. 명찰/회의명패 인쇄 치수·격자·재단/접힘선도 미구현이다.
+실제 Word·한컴 전체 호환성, 물리 IME, 인쇄, 전체 접근성/모바일 업무 완료,
+운영 장애 시험을 이번 결과로 보장하지 않는다. 서버 PDF 미리보기의 422도 남는다.
+
+산출물
+.build/fixes-0.2.15/summary.json / source-manifest.json / installed-packages.json
+e2e-results.json / e2e.log / unit-results.json / frontend-unit.json / settings-unit.json
+packages-initial.log / packages-final.log / consumer-browser.json
+live-hwpx.json / live-docx.json / live-settings.json / live-files-after.json
+live-hwpx-default.jpg / live-hwpx-preview.jpg / live-docx-default.jpg
+live-docx-preview-error.jpg / docx-preview-boundary.json / preview-probe-result.json
+초기 화면 결과: workspace-initial.json / workspace-e2e.log
+프론트 초기/최종 검사: apps/sandbox-agent/.build/dev-runtime/*0.2.15*
+.build 산출물은 Git에서 제외된 로컬 검증 자료다.

@@ -206,9 +206,14 @@ for (const format of ["docx", "hwpx"] as const) {
       .selectOption("마크다운 보고서");
     const input = page.getByLabel("보고서 마크다운", { exact: true });
     await input.fill("# 넓은 작업 공간\n보존할 입력");
-    await page
-      .getByRole("button", { name: "도구 크게 보기", exact: true })
-      .click();
+    if (
+      (await page
+        .locator(".ds-editing-tools")
+        .getAttribute("data-expanded")) !== "true"
+    )
+      await page
+        .getByRole("button", { name: "도구 크게 보기", exact: true })
+        .click();
     const tools = page.locator('.ds-editing-tools[data-expanded="true"]');
     await expect(tools).toBeVisible();
     expect((await tools.boundingBox())!.height).toBeGreaterThan(400);
