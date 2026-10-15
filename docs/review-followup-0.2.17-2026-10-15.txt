@@ -1,0 +1,98 @@
+Document Studio 0.2.17 통합 리뷰 후속 수정
+2026-10-15 / Asia/Seoul
+
+입력: uiux-agent-rereview-0.2.17-2026-10-15.txt 및 UI/UX·SDK 상세 리뷰.
+SDK 기준: 9f15568, 제품 소스는 0520af7과 동일.
+소비 프론트: D:\dev\_worktrees\document-studio-0.2.11
+브랜치: codex/document-studio-0.2.17
+
+1. 판정
+
+기존 HWPX 초기 무한 대기 P2는 독립 리뷰에서 종료 판정됐다.
+새 SDK P0/P1/P2 결함은 이번 리뷰에 없다. SDK 런타임과 0.2.17 버전은 유지한다.
+신규 P3는 소비 앱의 전체 실행 오류 안내이며 프론트에서 수정한다.
+실제 General 에이전트 편집·서버 저장 성공은 여전히 미검증이며,
+실패 안내 수정이 이 연결을 완성한 것으로 해석되어서는 안 된다.
+
+2. P3 수정
+
+- 일반 오류에서 무조건 '도구 결과를 확인'하라는 문구를 제거한다.
+- 알려진 모델 연결/빈 응답/도구 호출 한도만 안전한 범주로 표시한다.
+  미확인 오류의 실패 단계·파일 변경 여부는 추측하지 않는다.
+- lastError와 일치하는 오류 기록의 명시적 turnId에 연결된 결과만 안내한다.
+  이전 실행 결과, 새 activeTurnId, 검색 중인 과거 대화를 현재 실패에 섞지 않는다.
+- 결과가 있으면 실제 결과 영역을 펼쳐 이동하며, 원래 요청도 찾아갈 수 있다.
+- 지원용 정보는 작업·실행·오류 기록 식별자와 시각, 안전한 분류만 포함한다.
+  원본 예외·토큰·URL·요청 본문을 복사하지 않는다. 클립보드 실패도 표시한다.
+- 요청과 저장된 파일 참조를 입력창으로 복원하고 자동 재전송하지 않는다.
+  작성 중인 입력·첨부를 덮어쓰지 않고 진행/대기/종료 상태에서는 복원을 막는다.
+  참조가 손상되면 첨부를 누락시킨 재전송 대신 원래 요청 확인을 안내한다.
+- 문서 저장 후 에이전트에게 넘기는 확인창에 현재 선택 범위가 전달되지 않는다는
+  제한과 요청에 대상 파일·수정 내용을 지정하라는 설명을 추가한다.
+
+3. 최종 목표와 후속 개발 순서
+
+목표: 여러 프론트 앱에 삽입할 수 있고 사람과 에이전트가 같은 편집·편의기능을
+사용하는 오픈소스 문서 편집기 SDK. HWPX·DOCX 우선순위와 Apache-2.0 유지.
+
+SDK 책임: 문서 열기, 상태·대상 지정, 편집·편의작업, 결과 검증,
+내보내기·저장 계약, 초안 복구와 입력 보호.
+소비 앱 책임: 사용자 인증·권한, 저장소, LLM/MCP transport, 편집권 정책과 앱 화면.
+
+1) React에 종속되지 않는 공통 editor session/controller 계약을 정리한다.
+   이 단계부터 한 실제 호스트에서 한 문장 수정→서버 저장→재열기를 증명한다.
+   파일 기반 서버 작업과 열린 SDK 세션 조작의 수명·편집권을 구분한다.
+2) 기존 엔진 구현을 재사용하는 DOM mount/update/destroy 진입점을 추가한다.
+   React/Vue/일반 JS가 같은 handle 계약을 사용한다. 소비 앱이 React를 직접
+   작성할 필요가 없다는 의미이며 엔진 내부 React를 모두 다시 작성할 필요는 없다.
+3) 기본 UI를 유지하면서 toolbar/panel 구성·교체 계약을 제공한다.
+4) 편의기능의 입력 검증·결과 생성·대상 적용을 공통 작업 API로 올린다.
+   listAutomationForms 조회와 실제 작업 실행은 구분한다.
+5) React와 Vue 등 두 소비 앱에서 사람→에이전트→저장·재열기를 검증한다.
+   실제 호스트의 최소 에이전트 경로는 마지막까지 미루지 않고 각 단계에서 유지한다.
+
+실제 에이전트 완료 근거에는 documentId/sessionId/version/revision/selectionKey,
+적용 명령, commit operationId/receipt/digest, 서버에서 재열어 확인한 결과가 필요하다.
+메모리 저장소의 SDK 테스트와 실제 LLM·서버 통합 성공을 같은 것으로 표시하지 않는다.
+
+4. 남은 사항
+
+- 실제 첫 HWPX 연결이 지연되는 근본 원인은 미확정이다. 복구 동작은 검증됐다.
+- General의 실제 실행 실패 원인과 SDK transport 구현·검증은 별도 통합 작업이다.
+- 범용 DOM API, UI slot, 공통 편의작업 dispatcher는 이번 P3 수정에 포함하지 않는다.
+- 로딩 중 취소/원본·결과 확대 전환/저장 상태 시각화는 후속 UX 제안으로 유지한다.
+
+5. 검증 결과
+
+- 신규 회귀 테스트 21개 추가. 프론트 전체 단위 테스트 635/635 통과, 실패/skip 0.
+- 초기 집중 시험 90/90 통과. 이후 과거 실패 기록 재사용 방지 1개를 추가했고
+  최종 전체 635개에 포함했다. 두 수치를 별개의 고유 시험 수로 합산하지 않는다.
+- 프론트 typecheck, ESLint --no-fix --max-warnings 0, production build 통과.
+- madge: 284파일, 순환 의존성 0. resolution warning 237개는 별도 한계다.
+- knip: 기존 --no-exit-code 진단 실행. unused finding이 남아 있어 clean 판정이 아니다.
+- 문서 저장·편집권/lease 보호 관련 기존 회귀도 프론트 전체 시험에 포함됐다.
+- SDK 제품 소스/패키지/정적 자산을 바꾸지 않아 SDK 전체 E2E는 재실행하지 않았다.
+- 실제 인증 사이트 브라우저와 General LLM 실행은 이번에 재검증하지 않았다.
+  이 세션의 기존 실제 사이트 접근 승인 거부가 해제되지 않은 상태다.
+  DOM 단위 시험을 실제 브라우저·LLM·서버 commit 성공으로 표시하지 않는다.
+- 생산 빌드 전 이 작업의 샌드박스/settings 프로세스만 종료했다. 검증 후
+  2026-10-15 15:55:11 KST에 두 앱을 다시 실행했고 Ready/Bootstrap과
+  포트 10129·10001 listener를 확인했다. 백엔드 컨테이너·런타임 설정은 변경하지 않았다.
+
+증거: .build/review-followup-0.2.17/
+frontend-unit.json/log, typecheck.log, lint.log, build.log, madge.log, knip.log,
+source-manifest.json, summary.json.
+코드/테스트 6개 파일의 검증 후 hash 일치를 확인했다.
+
+6. 반영 범위
+
+프론트의 아래 파일을 로컬 worktree에 반영했다.
+- lib/work-agent/tool-presentation.ts
+- lib/work-agent/turn-failure.ts (신규)
+- app/_components/workspace/turn-error-notice.tsx
+- app/_components/workspace/turn-error-notice.test.tsx (신규)
+- app/_components/workspace/conversation-panel.tsx
+- app/_components/workspace/file-preview-panel.tsx
+
+기존 프론트 통합 변경을 보존했다. SDK 저장소에는 리뷰/후속 계획 문서만
+로컬 커밋하며, 프론트 커밋 및 원격 push는 수행하지 않는다.

@@ -1,0 +1,164 @@
+Document Studio 0.2.17 — 적대적 SDK·실제 에이전트 상세 재리뷰
+2026-10-15 / 검증 시작 HEAD 0520af7308f802f2f215890194f9a2153a34de34
+진행 중 문서 커밋 9f1556880e5d15a8d2ce644f8b9141ec176ba1cc, 제품 소스 동일.
+SDK: D:\dev\document-studio
+통합: D:\dev\document-studio\docs\uiux-agent-rereview-0.2.17-2026-10-15.txt
+증거: D:\dev\document-studio\.build\uiux-agent-rereview-0.2.17-20261015
+
+1. SDK 코드 판정
+
+이전 P2는 적절한 경계에서 수정됐다. 첫 iframe load를 포함한 전체 초기화에
+deadline을 걸고 의존성의 취소/정리를 실제로 번들해, 타이머만 앞에서 끝나고
+뒤의 편집기가 살아나는 문제를 피하려는 구현이다. 공개 실패 상태와 재시도 API도
+추가됐다. 검사한 변경에서 새 P0/P1/P2 코드 결함은 확인하지 못했다.
+
+핵심 검토 파일:
+packages/engine-rhwp/src/index.tsx — 전체 타이머, dispose, failInitialization, abort.
+scripts/rhwp-lifecycle-patch.mjs — 고정 소스 해시, load/error/abort 및 transport 정리.
+scripts/build.mjs — RHWP 패치를 배포 번들에 포함하고 근거 JSON 생성.
+packages/core/src/initialization.ts — 단계·실패 코드·retryable 계약.
+packages/react/src/document-editor.tsx — 실패 보존, mount guard, 재시도와 종료 준비.
+packages/react/src/agent-bridge.ts — 준비 실패 전달, 실패 대상 검증 후 재시도.
+
+공개 제한 시간 옵션 이름은 initializationTimeoutMs다.
+기본 30,000ms, 허용 범위는 1,000~120,000ms 정수다. 검증 worker는 이 엔진
+부팅 타이머와 별도다. 이 전체를 '모든 파일 검증까지 무조건 30초 안에 끝남'으로
+설명하면 부정확하다. 파일 검증과 native 부팅의 상태를 나누어 해석해야 한다.
+
+2. 무응답 → 실패 → 재시도를 배포본으로 검증
+
+자체 Vite 호스트는 SDK dist를 직접 로드했다. 소비 프론트의 설치 dist와 동일한
+97개 파일 해시를 별도로 확인했다. upstream node_modules 수정이나 테스트용
+fake 엔진으로 성공을 만든 것이 아니다. 네트워크 지연은 자체 로컬 URL에만 주입했다.
+
+provenance 경로는 정상 유지하고 iframe HTML만 응답하지 않게 했다.
+브라우저 시계 가속 없이 기본 설정을 시험해 새 문서 요청 후 약 31.8초 관찰에서
+실패를 확인했다. 저장된 41.5초 스냅샷의 공개 상태:
+ready=false; initialization.status=failed;
+error.code=engine-initialization-timeout; error.retryable=true; iframeCount=0.
+두 시각은 관찰/기록 시점이며 정확한 타이머 발화 시각은 아니다.
+
+실패한 세션의 flushDraft가 완료됐다. 문서 내보내기나 서버 업로드로 성공을
+꾸미지 않고 종료 준비가 가능한 경로다. 기존 복구 초안 보존의 전체 조합은
+이번 수동 시험에서 새로 전부 재실행하지 않았고 기존 단위 테스트를 함께 참고했다.
+
+지연 해제 뒤 agent.retryInitialization에 현재 documentId/expectedSessionId/
+expectedVersion을 전달했다. 즉시 조회가 failed→loading/connecting으로 바뀌고
+sessionId도 바뀌었다. 이후 ready가 됐다. 같은 이전 실패 sessionId의 재시도는
+SaveConflictError 메시지로 차단됐다. 재시도 직후의 상태 동기화도 직접 확인했다.
+
+실제 사이트에서는 sdk-live-B.hwpx가 첫 연결에서 시간 초과, 사용자 재시도 후
+정상 준비를 보였다. 따라서 실패·복구 계약은 실제 환경에서도 동작했다.
+최초 연결 지연의 원인을 이 SDK 수정만으로 설명하거나 제거했다고 단정하지 않는다.
+
+3. 복구 뒤에도 대상 보호와 저장이 유지되는가
+
+공개 createAgentBridge를 호출하는 검증 버튼으로 조작했다. 브라우저 evaluate는
+읽기 전용 DOM 측정에만 사용했고, 내부 SDK 상태를 조작하지 않았다.
+
+DOCX/HWPX 모두 첫 문장을 검색·선택하고 요청 기준을 고정한 뒤 자동화 입력,
+미리보기, 키보드 보정과 화면 크기 변경을 거쳤다. documentId/sessionId/version/
+revision/selectionKey, dirty=false, 문서 zoom=1은 유지됐다.
+
+HWPX에서 두 번째 문장으로 범위를 바꾼 뒤 이전 첫 문장 토큰으로 실행하자
+선택 변경 오류가 나왔다. 다시 첫 문장을 선택해 현재 guard로 실행하면 성공했다.
+두 형식의 정상 insertText는 첫 문장만 [[AGENT-INSERT]]로 교체하고 두 번째
+문장 '두 번째 대상 문장입니다.'를 그대로 보존했다.
+
+commit receipt의 digest는 실제 DocumentStorage가 받은 메모리 bytes의 SHA-256과
+일치했고 dirty=false였다. HWPX는 저장소 실패를 한 번 주입해 오류를 확인한 뒤
+같은 commit 요청을 재시도해 성공했다. 완료된 요청을 다시 호출해도 저장소 호출
+누계는 2에서 증가하지 않았다. 이 2는 실패 1회와 성공 1회다.
+
+두 형식 모두 저장 bytes를 새 documentId/key로 다시 열었다. 새 sessionId와
+revision=0을 확인하고, 새 엔진이 파싱한 본문에서 첫 문장 수정·둘째 문장 보존을
+확인했다. 기존 세션에서 readDocument만 다시 부른 것과 구분된다.
+초기 동일 identity의 호스트 갱신 결과는 실제 재마운트 증거로 채택하지 않았다.
+최종 증거는 docx-reopened-*와 hwpx-fresh-reopened-*이다.
+
+이 시험은 메모리 저장소에 한정된다. 실제 서버 bytes 재열기나 General LLM
+선택 능력의 성공으로 바꾸어 해석하지 않는다.
+
+4. 실제 에이전트 시험 — 이번에는 요청까지 실행했다
+
+실제 개발 샌드박스에서 별도 작업을 만들었다.
+작업명: SDK 0.2.17 실제 에이전트 검증 2026-10-15
+General sessionId: work_458a659c2a5becd9b11b
+합성 파일: review-0217.docx / review-0217.hwpx. 기존 사용자 파일은 대상에서 제외했다.
+
+DOCX를 실제 편집기에 열고 첫 문장을 선택했다. 에이전트에게 SDK getState→
+search/select→guard 포함 execute→commit→재읽기로 첫 문장만 바꾸라고 요청했다.
+SDK 도구가 없으면 수정하지 말고 막힌 단계를 보고하도록 했고, Python/셸/ZIP
+직접 수정이나 문서 재생성 우회도 금지했다. 요청 전문은 actual-agent-prompt.txt다.
+
+실제 화면은 저장/편집 종료 확인을 요구했다. 승인 후 미리보기로 전환됐고,
+BFF POST .../message-queue가 202로 접수됐다. 이후 작업은 약 15:30 KST에
+일시정지와 일반 오류로 끝났다. LLM 응답이나 SDK 도구 결과는 얻지 못했다.
+이 결과를 SDK 호출의 성공이나 SDK 자체가 오류를 냈다는 증거로 삼지 않는다.
+실제 에이전트 런타임 실패 원인은 이 리뷰 범위에서 특정하지 못했다.
+
+종료 시 두 합성 파일은 모두 r1이며 원본 해시를 유지했다.
+DOCX: f3cfe7ef11635b51edafac1928314ab33fd1e87842c39d35ba0f23ff03912998
+HWPX: 2efc431ed05c65b602a73f749abb2e48739c5eaa40989f16daf9c4f9dfaf4b35
+따라서 실제 서버 편집·commit·재열기 성공 trace는 여전히 없다.
+
+5. 에이전트 통합의 남은 구조적 공백
+
+현재 sandbox-agent 제품 TS/TSX에서 createAgentBridge/expectedSelectionKey 참조는
+0이었다. DocumentStudioPanel은 편집 ref, 입력 잠금, 저장과 handoff 검사를
+연결한다. document-edit-session.tsx의 handoff는 잠금→저장→lease 반환을 수행하고
+화면은 미리보기로 바뀐다. 이 흐름에 열린 SDK 명령 transport가 연결됐다는
+근거는 찾지 못했다. SDK API가 있다는 사실과 실제 LLM 도구로 제공되는 것은 다르다.
+
+이것은 기존에 남아 있던 통합 미완료의 재확인이며 0.2.17에 새로 들어온 회귀가 아니다.
+참조 검색과 한 번의 실행 실패만으로 서버의 모든 문서 편집 기능이 없다고
+단정하지 않는다. 실제 화면의 MCP 카탈로그에는 code_edit/code_explorer/
+skill-management가 보였고 SDK 연결 도구는 확인되지 않았다. 설정은 변경하지 않았다.
+
+다음 구현·완료 기준:
+- 파일 기반 서버 편집과 열린 SDK 편집의 실행 모델·권한·세션 수명을 구분한다.
+- 인증된 transport가 정확한 열린 문서/세션을 찾고 공개 bridge에만 명령을 위임한다.
+- 매 변경에 documentId/sessionId/version/revision/selectionKey를 검증한다.
+- 사용자 선택 이동·문서 교체·초기화 재시도·읽기 전용 변경 시 늦은 요청을 거절한다.
+- commit의 operationId/receipt/digest를 서버 저장 결과와 연결하고 실제 재열기로 확인한다.
+- 실제 LLM 도구 trace로 정상/대상 변경/로딩 실패/저장 재시도를 각 형식에서 남긴다.
+기존 편집권·입력 잠금을 해제하거나 일반 파일 도구를 SDK 호출로 포장하는 것은
+이 공백의 해결로 보지 않는다.
+
+사용성 제안: 재시도 호출 뒤 getState로 다시 준비를 기다려야 함을 도구 스키마와
+예제에 명시한다. 오류 code/retryable, 새 대상 identity, commit 결과를 일관된
+구조로 제공하면 에이전트가 한글 메시지 문자열을 추측해 분기하는 부담이 줄어든다.
+이번 void retry API 자체를 데이터 손상 결함으로 판정한 것은 아니다.
+
+6. 검사 결과·제한·보존
+
+직접 실행한 단위 305/305, 타입 검사 통과. 설치 네 패키지 0.2.17,
+dist 97개 해시 일치. 소스/설정 manifest 73개 해시 전후 동일.
+SDK/프론트 production 빌드와 전체 Chrome/Edge 묶음을 이번에 재실행하지 않았다.
+개발자 기록의 전체 650 통과/4 실패와 최종 관련 90 통과를 구분해 참고했다.
+
+기존 작업 공간 다섯 원본의 해시/리비전은 유지됐다. 별도 검증 작업과 합성 파일
+둘, 시험 요청 하나는 서버에 남긴다. 실제 파일 내용 편집은 성공하지 않았고
+검증용 SDK 수정은 메모리 호스트에서만 수행했다. 제품 수정·커밋·푸시는 하지 않았다.
+직접 실행한 4188 검증 서버/탭/viewport override를 정리했고 기존 서비스는 유지했다.
+
+7. 최종 목표에 맞춘 추가 판단
+
+사용자가 새로 제시한 세션 01a13d13-cf4b-7d33-bc69-33c474a0aee9를 직접 읽었다.
+SDK가 프레임워크마다 재구현 없이 쓰이고, 사람·에이전트에게 같은 편집·편의기능을
+제공한다는 방향은 적절하다. 인증·저장소·LLM 연결을 소비 앱에 두는 원칙도 유지한다.
+
+현재 core는 React 의존이 없지만 편집기·엔진 View와 createAgentBridge의 handle
+계약은 React 컴포넌트 주변에 있다. 범용 DOM mount/destroy API와 UI 교체 slot이
+공개 진입점에 없으므로 '어떤 프론트든 바로 사용'은 아직 완료 기준을 통과하지 않았다.
+내부 React를 재사용하면서 외부 DOM controller를 제공하는 방식으로 확장할 수 있다.
+
+편의 계산 함수는 core에 있으므로 전부 UI에만 묶인 것은 아니다. 다만
+ReportAutomation.generate의 기능별 입력 해석·결과 조합과 현재 문서/새 문서 적용을
+사람과 에이전트가 같은 작업 API로 실행하도록 묶는 단계는 남는다.
+listAutomationForms가 입력 계약을 알려 주는 것과 실행까지 제공하는 것은 구분해야 한다.
+
+이번 실제 샌드박스 실패는 이 호스트의 통합 성공 증거가 없다는 판정이다.
+SDK가 LLM이나 인증 서비스를 직접 소유해야 한다는 지적은 아니다. 실제 LLM을
+연결한 최소 소비 앱 경로를 초기에 하나 만들고, 범용 임베드/UI 구성/공통 편의작업
+API를 발전시키는 동안 동일한 성공·실패 회귀를 유지하는 편이 좋다.
