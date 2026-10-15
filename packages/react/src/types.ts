@@ -4,6 +4,7 @@ import type {
   EditorDocument,
   EditorSession,
   DocumentTemplate,
+  EngineInitializationPhase,
 } from "@document-studio/core";
 export interface EngineViewProps {
   /** Includes readonly permissions, modal dialogs, and serialization/host transitions. */
@@ -11,6 +12,7 @@ export interface EngineViewProps {
   document: EditorDocument;
   onReady(session: EditorSession): void;
   onError(error: Error): void;
+  onInitializationPhase?(phase: EngineInitializationPhase): void;
   onSaveRequest(): void;
   onFindRequest?(): void;
   advancedTools?: boolean;

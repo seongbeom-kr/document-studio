@@ -132,7 +132,29 @@ for (const format of ["docx", "hwpx"] as const) {
           )
           .toBe(1);
         // Let the actual DOCX/HWPX factory complete; no host callback may escape its old scope.
-        if (scenario !== "read-only-restored")
+        if (scenario === "document-change") {
+          await expect
+            .poll(() =>
+              page.evaluate((format) => {
+                const state = window.documentStudioTest.state();
+                return (
+                  state?.ready && state.documentId === `test:blank.${format}`
+                );
+              }, format),
+            )
+            .toBe(true);
+          // A fresh document starts with the numeric utility, which has no
+          // structural creation action. The old preview must not survive.
+          await expect(
+            page.getByLabel("자동화 기능", { exact: true }),
+          ).toHaveValue("금액 한글화");
+          await expect(
+            page.getByRole("button", {
+              name: "구조를 유지해 새 문서 만들기",
+              exact: true,
+            }),
+          ).toHaveCount(0);
+        } else if (scenario !== "read-only-restored")
           await expect(
             page.getByRole("button", {
               name: "구조를 유지해 새 문서 만들기",

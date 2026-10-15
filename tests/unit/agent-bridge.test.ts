@@ -60,6 +60,85 @@ function fixture() {
   };
 }
 describe("agent document targeting", () => {
+  it("exposes initialization failure and retries only the matching failed session", () => {
+    const test = fixture();
+    test.snapshot.ready = false;
+    test.snapshot.initialization = {
+      status: "failed",
+      error: {
+        code: "engine-initialization-timeout",
+        message: "연결 시간 초과",
+        retryable: true,
+      },
+    };
+    test.handle.retryInitialization = vi.fn();
+    const state = test.agent.getState();
+    expect(state.initialization?.status).toBe("failed");
+    const request = {
+      documentId: state.documentId,
+      expectedSessionId: state.sessionId,
+      expectedVersion: state.version,
+    };
+    expect(() =>
+      test.agent.retryInitialization({
+        ...request,
+        expectedSessionId: "old-session",
+      }),
+    ).toThrow("세션");
+    expect(() =>
+      test.agent.retryInitialization({ ...request, documentId: "other" }),
+    ).toThrow("문서");
+    expect(() =>
+      test.agent.retryInitialization({
+        ...request,
+        expectedVersion: "old-version",
+      }),
+    ).toThrow("버전");
+    expect(() =>
+      test.agent.retryInitialization({ ...request, expectedSessionId: "" }),
+    ).toThrow("expectedSessionId");
+    expect(test.handle.retryInitialization).not.toHaveBeenCalled();
+    test.agent.retryInitialization(request);
+    expect(test.handle.retryInitialization).toHaveBeenCalledTimes(1);
+  });
+  it("does not retry a ready, pending, non-retryable or unsupported initialization", () => {
+    const test = fixture();
+    test.handle.retryInitialization = vi.fn();
+    const state = test.agent.getState();
+    const request = {
+      documentId: state.documentId,
+      expectedSessionId: state.sessionId,
+    };
+    for (const initialization of [
+      { status: "ready" },
+      { status: "loading", phase: "connecting" },
+      {
+        status: "failed",
+        error: {
+          code: "engine-initialization-failed",
+          message: "invalid source",
+          retryable: false,
+        },
+      },
+    ] as const) {
+      test.snapshot.initialization = initialization;
+      expect(() => test.agent.retryInitialization(request)).toThrow(
+        "재시도 가능한",
+      );
+    }
+    test.snapshot.initialization = {
+      status: "failed",
+      error: {
+        code: "engine-initialization-failed",
+        message: "failed",
+        retryable: true,
+      },
+    };
+    test.handle.retryInitialization = undefined;
+    expect(() => test.agent.retryInitialization(request)).toThrow(
+      "재시도 가능한",
+    );
+  });
   it("reports a native selection without a complete guard as unavailable to agent commands", () => {
     const test = fixture();
     test.snapshot.selectionGuardedCommands = false;

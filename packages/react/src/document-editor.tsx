@@ -17,6 +17,9 @@ import {
   SaveConflictError,
   SelectionConflictError,
   PresetApplicationError,
+  EngineInitializationError,
+  type EngineInitializationPhase,
+  type EngineInitializationState,
   type CommandId,
   type DocumentDraft,
   type DocumentStorage,
@@ -83,6 +86,8 @@ export interface DocumentEditorHandle {
   flushDraft(): Promise<void>;
   /** Retry automation storage independently, without exporting or uploading document bytes. */
   flushAutomationDraft(): Promise<void>;
+  /** Retry only a failed initial engine boot; never replace a ready editing session. */
+  retryInitialization?(): void;
   /** Drain pending commands before checking dirty; clean sessions can skip uploading. */
   save(options?: { onlyIfDirty?: boolean }): Promise<void>;
   /** Confirmed document save, separate from local input persistence and host refresh warnings. */
@@ -202,6 +207,17 @@ export const DocumentEditor = forwardRef<
   const [loadAttempt, setLoadAttempt] = useState(0);
   const sessionId = useRef(crypto.randomUUID());
   const engineMountId = useRef(crypto.randomUUID());
+  const readyMount = useRef<string | null>(null);
+  const engineFailure = useRef<EngineInitializationError | null>(null);
+  const [initializationError, setInitializationError] =
+    useState<EngineInitializationError | null>(null);
+  const [initializationPhase, setInitializationPhase] =
+    useState<EngineInitializationPhase>("validating");
+  const initializationPhaseRef = useRef(initializationPhase);
+  const updateInitializationPhase = (phase: EngineInitializationPhase) => {
+    initializationPhaseRef.current = phase;
+    setInitializationPhase(phase);
+  };
   const [notice, setNotice] = useState("");
   const [saveWarnings, setSaveWarnings] = useState<readonly StorageWarning[]>(
     [],
@@ -265,6 +281,7 @@ export const DocumentEditor = forwardRef<
     if (reason) throw new Error(reason);
   };
   const inputBlocked =
+    !session ||
     busy ||
     toolsExpanded ||
     inputLockCount > 0 ||
@@ -272,6 +289,7 @@ export const DocumentEditor = forwardRef<
     Boolean(props.readOnly);
   const syncInputBlock = useCallback(async () => {
     const blocked =
+      !session ||
       busyRef.current ||
       expandedTools.current ||
       inputLocks.current.size > 0 ||
@@ -349,8 +367,31 @@ export const DocumentEditor = forwardRef<
           ) as EditorSnapshot["commands"],
         }
       : state;
+  const initializationState = (ready: boolean): EngineInitializationState =>
+    ready
+      ? { status: "ready" }
+      : engineFailure.current
+        ? {
+            status: "failed",
+            error: {
+              code: engineFailure.current.code,
+              message: engineFailure.current.message,
+              retryable: true,
+            },
+          }
+        : !document && error && !offer
+          ? {
+              status: "failed",
+              error: {
+                code: "engine-initialization-failed",
+                message: error,
+                retryable: false,
+              },
+            }
+          : { status: "loading", phase: initializationPhaseRef.current };
   const snapshot = {
     ...readOnlySnapshot(effectiveSnapshot(nativeSnapshot)),
+    initialization: initializationState(nativeSnapshot.ready),
     busy: busy || pendingCommands > 0,
     saving,
     pendingCommands,
@@ -359,6 +400,9 @@ export const DocumentEditor = forwardRef<
   const liveSnapshot = () =>
     readOnlySnapshot({
       ...effectiveSnapshot(session?.getSnapshot() ?? snapshotRef.current),
+      initialization: initializationState(
+        session?.getSnapshot().ready ?? false,
+      ),
       busy: busyRef.current || commandTasks.current.size > 0,
       saving,
       pendingCommands: commandTasks.current.size,
@@ -394,6 +438,10 @@ export const DocumentEditor = forwardRef<
     if (editingSource.current !== value) {
       sessionId.current = crypto.randomUUID();
       engineMountId.current = crypto.randomUUID();
+      readyMount.current = null;
+      engineFailure.current = null;
+      setInitializationError(null);
+      updateInitializationPhase(value ? "connecting" : "validating");
     }
     editingSource.current = value;
     setDocument(value);
@@ -632,6 +680,26 @@ export const DocumentEditor = forwardRef<
     (cause: Error) => setError(cause.message),
     [],
   );
+  const retryInitialization = () => {
+    if (
+      !engineFailure.current ||
+      !document ||
+      readyMount.current ||
+      inputMismatch ||
+      sourceBlocked ||
+      busyRef.current
+    )
+      throw new Error("실패한 편집기 초기화만 다시 시도할 수 있습니다.");
+    if (automationSession.getSnapshot().pending)
+      throw new Error("자동화 입력을 보관한 뒤 다시 시도해 주세요.");
+    engineFailure.current = null;
+    engineMountId.current = crypto.randomUUID();
+    sessionId.current = crypto.randomUUID();
+    setInitializationError(null);
+    updateInitializationPhase("connecting");
+    setError("");
+    setSession(null);
+  };
   useLayoutEffect(() => {
     void syncInputBlock().catch(reportError);
   }, [inputBlocked, session, syncInputBlock, reportError]);
@@ -1007,8 +1075,26 @@ export const DocumentEditor = forwardRef<
     return exported;
   }, [session, document]);
   const flushDraft = useCallback(async () => {
-    if (!session || !document || !session.getSnapshot().ready)
-      throw new Error("편집기를 준비하는 중입니다. 문서를 전환할 수 없습니다.");
+    if (!session || !document || !session.getSnapshot().ready) {
+      // A never-ready mount cannot accept native edits. Existing recovery bytes
+      // remain in their store; closing must neither export nor delete them.
+      if (readyMount.current || busyRef.current || commandTasks.current.size)
+        throw new Error(
+          "편집기를 준비하는 중입니다. 문서를 전환할 수 없습니다.",
+        );
+      const identity = engineMountId.current;
+      await automationSession.flush();
+      if (
+        identity !== engineMountId.current ||
+        readyMount.current ||
+        busyRef.current ||
+        automationSession.getSnapshot().pending
+      )
+        throw new Error(
+          "편집 상태가 변경됐습니다. 다시 확인한 뒤 문서를 전환해 주세요.",
+        );
+      return;
+    }
     if (busyRef.current)
       throw new Error("저장을 완료한 뒤 문서를 전환해 주세요.");
     busyRef.current = true;
@@ -1311,6 +1397,7 @@ export const DocumentEditor = forwardRef<
       exportDocument,
       flushDraft,
       flushAutomationDraft: () => automationSession.flush(),
+      retryInitialization,
       save,
       commit: async (options) => {
         const identity = sessionId.current;
@@ -1352,6 +1439,11 @@ export const DocumentEditor = forwardRef<
       busy,
       saving,
       pendingCommands,
+      initializationError,
+      initializationPhase,
+      error,
+      sourceBlocked,
+      inputMismatch,
     ],
   );
   useEffect(() => {
@@ -1545,6 +1637,27 @@ export const DocumentEditor = forwardRef<
     item.formats.includes(displayed.format),
   );
   const View = engine?.View;
+  const mountId = engineMountId.current;
+  const reportEngineError = useCallback(
+    (cause: Error) => {
+      if (engineMountId.current !== mountId) return;
+      if (readyMount.current !== mountId) {
+        if (engineFailure.current) return;
+        const failure =
+          cause instanceof EngineInitializationError
+            ? cause
+            : new EngineInitializationError(
+                "편집기를 준비하지 못했습니다. 다시 시도해 주세요.",
+                "engine-initialization-failed",
+                { cause },
+              );
+        engineFailure.current = failure;
+        setInitializationError(failure);
+        setError(failure.message);
+      } else reportError(cause);
+    },
+    [mountId, reportError],
+  );
   return (
     <section
       className="ds-editor"
@@ -1597,7 +1710,9 @@ export const DocumentEditor = forwardRef<
                     ? "저장하지 않은 변경사항"
                     : snapshot.ready
                       ? "문서 변경사항 저장됨"
-                      : "문서 준비 중"}
+                      : initializationError
+                        ? "문서 준비 실패"
+                        : "문서 준비 중"}
               </span>
               {(automationStatus.pending ||
                 !automationStatus.ready ||
@@ -1798,6 +1913,21 @@ export const DocumentEditor = forwardRef<
       {error && (
         <div className="ds-notice ds-error" role="alert">
           <span>{error}</span>
+          {initializationError && (
+            <button
+              type="button"
+              className="ds-button"
+              onClick={() => {
+                try {
+                  retryInitialization();
+                } catch (cause) {
+                  reportError(cause as Error);
+                }
+              }}
+            >
+              편집기 다시 시도
+            </button>
+          )}
           {recoveryUnavailable && (
             <button
               type="button"
@@ -1810,7 +1940,7 @@ export const DocumentEditor = forwardRef<
           <button
             type="button"
             aria-label="오류 메시지 닫기"
-            disabled={recoveryUnavailable}
+            disabled={recoveryUnavailable || Boolean(initializationError)}
             onClick={() => setError("")}
           >
             ×
@@ -1842,26 +1972,48 @@ export const DocumentEditor = forwardRef<
         </div>
       )}
       <div className="ds-work-area">
-        <div className="ds-editor-body" ref={body} aria-busy={busy}>
+        <div
+          className="ds-editor-body"
+          ref={body}
+          aria-busy={busy || snapshot.initialization.status === "loading"}
+        >
           {!View ? (
             <p className="ds-loading" role="alert">
               이 형식을 처리할 편집 엔진이 없습니다.
             </p>
+          ) : initializationError ? (
+            <p className="ds-loading">
+              문서를 열지 못했습니다. 위의 다시 시도 버튼으로 편집기를 다시
+              연결할 수 있습니다.
+            </p>
           ) : document ? (
             <EngineErrorBoundary
               key={engineMountId.current}
-              onError={reportError}
+              onError={reportEngineError}
             >
               <View
                 inputBlocked={inputBlocked}
                 document={document}
                 onReady={(value) => {
+                  if (
+                    engineMountId.current !== mountId ||
+                    engineFailure.current
+                  )
+                    return;
+                  readyMount.current = mountId;
                   inputLocks.current.clear();
                   setInputLockCount(0);
                   sessionId.current = crypto.randomUUID();
                   setSession(value);
                 }}
-                onError={reportError}
+                onError={reportEngineError}
+                onInitializationPhase={(phase) => {
+                  if (
+                    engineMountId.current === mountId &&
+                    !engineFailure.current
+                  )
+                    updateInitializationPhase(phase);
+                }}
                 onSaveRequest={requestSave}
                 onFindRequest={requestFind}
                 advancedTools={nativeTools}
@@ -1870,6 +2022,13 @@ export const DocumentEditor = forwardRef<
           ) : !offer ? (
             <p className="ds-loading">문서를 불러오는 중…</p>
           ) : null}
+          {document && !initializationError && !snapshot.ready && (
+            <div className="ds-engine-loading" role="status">
+              {initializationPhase === "opening"
+                ? "문서를 여는 중…"
+                : "편집기에 연결하는 중…"}
+            </div>
+          )}
         </div>
         {toolsOpen && (
           <EditingTools

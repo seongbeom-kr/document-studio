@@ -1,0 +1,135 @@
+Document Studio 0.2.17 — 0.2.16 통합 재리뷰 대응
+2026-10-15, Asia/Seoul
+
+검토 자료
+docs/uiux-agent-rereview-0.2.16-2026-10-15.txt
+docs/uiux-rereview-0.2.16-2026-10-15.txt
+docs/agent-sdk-rereview-0.2.16-2026-10-15.txt
+
+판정과 수정
+리뷰에서 이전 입력창 가림 P3는 해결로 확인됐다. 새 P2는 HWPX 초기 iframe
+응답을 무기한 기다리는 경로였다. 이 초기화 대기를 제한하고 복구 경로를 추가했다.
+실제 개발 사이트에서 about:blank가 지속된 근본 원인까지 특정한 것은 아니다.
+
+rhwpEngine의 초기화 전체에 기본 30초 제한 시간을 적용한다. 첫 iframe load,
+transport 연결, ready, 초기 chrome 설정, loadFile, 확장 준비와 첫 상태 조회가
+포함된다. initializationTimeoutMs는 1,000~120,000ms의 정수로 설정할 수 있다.
+원본 검증 worker의 기존 제한 시간은 별도로 적용된다.
+
+반환된 editor가 아직 없는 단계에서도 취소가 작동하도록 @rhwp/editor 0.8.6의
+MIT 초기화 코드를 검증된 빌드 변환으로 번들한다. 소스 SHA-256이 바뀌면 빌드를
+실패시키며 dist/native-patch.json에 근거를 남긴다. 소비 앱이 node_modules를
+수정하거나 별도 Yarn patch를 설치할 필요는 없다. 시간 초과·언마운트 시 iframe,
+load/error/abort/message 리스너, polling 및 연결·요청 타이머, 채널을 정리한다.
+취소 뒤 늦은 load나 응답은 이전 편집기를 다시 활성화하지 못한다.
+
+공개 상태와 UI
+- getState().initialization 및 onStateChange에 loading/failed/ready를 제공한다.
+  loading은 validating/connecting/opening 단계이며 실패는 code/message/retryable을 포함한다.
+- 연결 중·문서 여는 중을 표시하고 실패하면 원인을 단정하지 않는 안내와
+  '편집기 다시 시도'를 제공한다. 준비 실패를 계속 준비 중으로 표시하지 않는다.
+- retryInitialization()은 실패한 초기화만 새 세션으로 재시도한다. 준비된
+  편집본은 교체하지 않는다. 새 세션의 연결 상태는 React 재렌더 전 조회에도 반영된다.
+- agent.retryInitialization({ documentId, expectedSessionId, expectedVersion })은
+  현재 실패 대상만 허용한다. 이전 문서·세션·버전이나 재시도 불가 상태는 거절한다.
+  실제 General 네트워크 transport를 연결한 기능은 아니다.
+- 취소 과정의 후속 오류가 최초 초기화 오류를 덮지 않도록 한다.
+- 한 번도 준비되지 않은 문서의 flushDraft()는 내보내기 없이 종료 준비를 한다.
+  기존 복구 초안은 삭제하지 않고, 별도 자동화 입력 보관은 계속 확인한다.
+  준비 전에는 DOM과 네이티브 엔진 입력도 잠가 편집 시작 전이라는 조건을 보장한다.
+  이미 편집을 시작한 세션의 저장·전환 보호는 유지한다.
+
+프론트 변경
+DocumentStudioPanel footer에 초기화 실패를 반영했다. 아직 준비된 적 없는
+문서의 종료 요청은 SDK flushDraft()로 확인하고 파일 업로드 없이 종료한다.
+저장 성공을 꾸며 내거나 onSaved를 발생시키지 않는다. 정상 편집본은 기존 저장
+경로를 사용하고, 에이전트 handoff의 ready/lease/입력 잠금 검사는 유지한다.
+
+직접 실행한 검증
+- SDK 단위 305/305, 타입 검사, 네 패키지 최종 빌드 통과.
+  초기화 취소의 listener/timer/channel 정리, 늦은 load 무시, 즉시 실패,
+  정상 완료, 설정 범위와 안정된 엔진 정의, 에이전트 재시도 대상 검사를 추가했다.
+- Chrome·Edge 전체 25개 파일/654개를 실행했다: 650 통과, 4 실패,
+  skipped/flaky 0. 실패 4건은 아래에 설명한다.
+- 최종 소스의 초기화·입력 잠금 및 UX 생성/전환 3개 파일을 다시 실행해 90/90 통과했다.
+  이 중 초기화 관련 20개는 HTML 무응답, handshake 무응답, ready 미완료,
+  loadFile 무응답/명시적 실패, 반복 실패와 재시도, 닫기/문서 교체 취소,
+  복구 초안 보존, 읽기 전용 유지, 실제 편집·메모리 저장·재열기를 포함한다.
+  90개를 전체 실행의 통과 개수에 더해 고유 테스트 수처럼 표시하지 않는다.
+- 전체 실행을 시작한 뒤 DocumentEditor의 최초 오류 보존과 재시도 직후 공개 상태
+  동기화, 초기화 전 입력 차단을 보완했다. 최종 90개와 실제 패키지 소비 프론트 테스트가 이 소스에 해당한다.
+  전체 실행 당시 manifest와 최종 manifest를 각각 보존했다. 코드/테스트 차이는
+  document-editor.tsx와 initialization.spec.ts, ux-review-0.2.7.spec.ts이며, 빌드가 갱신한 NOTICE 사본 4개도 기록했다.
+- 별도 npm 소비 앱: 최종 네 tarball 설치, Next.js 16.3.8 빌드,
+  Chrome·Edge × DOCX·HWPX 4/4 통과. 소스 alias나 소비자 node_modules 수정 없음.
+  HWPX는 iframe HTML을 보류하고 브라우저 시계를 30,001ms 진행해 기본 제한 시간,
+  오류 안내, iframe 제거 및 재시도를 확인한 뒤 정상 편집·내보내기를 검사했다.
+  이 기본 제한 시간 검사는 실제 30초를 기다린 측정과 구분한다.
+- 샌드박스 최종 전체 단위 614/614, settings 205/205 통과.
+  실제 설치 SDK를 사용하는 프론트 lifecycle 18개에는 초기화 실패 후 종료,
+  오류 원인 보존과 재시도 직후 상태 조회를 추가했다.
+  두 앱 타입 검사와 lint --no-fix, 샌드박스 최종 production 빌드 통과.
+  settings production 빌드는 이번에 재실행하지 않았다.
+- madge: 258개 파일, 순환 0, 기존 해석 경고 236개.
+  root knip는 --no-exit-code 진단이며 미사용 항목이 남는다.
+- 라이선스 검사: npm 102개, 고정 Rust registry crate 393개 통과.
+  자체 Apache-2.0과 RHWP MIT 고지를 유지하고 번들 수정 내용을 NOTICE에 추가했다.
+  새 런타임 의존성은 추가하지 않았다.
+- 최종 manifest 139개 해시, 프론트 설치 dist 97개, public RHWP extension 일치.
+
+실패 기록과 보완을 구분한다
+첫 초기화 검사에서 2건이 실패했다. 즉시 실패한 iframe이 계속 존재한다고
+가정한 테스트를 바로잡았고, 준비 중 flushDraft가 종료를 막던 제품 경로를 수정했다.
+그 뒤 초기화 20개가 통과했고 최종 90개에서도 다시 통과했다.
+
+전체 브라우저 실행의 4건은 new-document document-change 시나리오였다.
+새 문서의 기본 숫자 도구에는 구조 생성 버튼이 없는데, 기존 검사는 이전 버튼이
+비활성 상태로 남는다고 가정했다. 새 문서의 ID/준비 상태와 기본 기능, 이전 생성
+버튼의 제거를 확인하도록 정리했다. 늦게 완료한 생성 작업의 호스트 callback이
+실행되지 않아야 한다는 createdIds=[] 검사는 유지했다. 최종 90개에 네 경우가 포함된다.
+제품의 권한·대상 보호를 해제하거나 실패를 무시해 통과시킨 것은 아니다.
+
+프론트 첫 전체 실행은 612 통과/2 실패였다. 빌드 동시 실행 중 기존 credential-panel의
+첫 테스트가 10초 제한을 넘었고 다음 테스트도 실패했다. 해당 파일 단독 2/2와
+최종 전체 614/614가 통과했다. 이 파일의 제품/테스트 코드는 수정하지 않았다.
+새 재시도 API의 즉시 조회 시험도 보완 전 설치 패키지에서 두 형식 모두 실패했고,
+공개 상태를 동기적으로 갱신한 최종 패키지에서는 lifecycle 18개가 통과했다.
+모든 초기 실패 기록은 최종 결과와 별도로 보관한다.
+
+적용 위치
+SDK: D:\dev\document-studio, main, remote 없음. SDK만 로컬 커밋한다.
+프론트: D:\dev\_worktrees\document-studio-0.2.11
+브랜치: codex/document-studio-0.2.17
+조회·갱신한 origin/dev 기준: 296d5b03327ebfc0d35c89c9e49cdcd8afecf739.
+브랜치 전환 전후 기존 통합 patch SHA는 같았다. 기존 미커밋 변경을 보존했다.
+사용자의 D:\dev\front\automation-platform 작업 트리는 수정하지 않았다.
+폴더 이름의 0.2.11과 설치 SDK 버전 0.2.17은 별개다.
+샌드박스와 settings를 함께 sblim scope로 다시 실행했다.
+최종 launcher 42480, 시작 13:44:57 KST, 포트 10129/10001.
+이전 dev 캐시는 작업 트리 안에 보관했다. General/preview 컨테이너와 서비스 URL은
+변경하지 않았다. 프론트 커밋·푸시·원격 배포·npm 공개는 하지 않는다.
+
+실제 사이트와 남은 범위
+리뷰어는 실제 sessions/session-groups 200 및 DOCX PDF preview 200/화면 표시를
+확인했다. 이전 502/422를 현재 장애로 반복 판정하지 않는다. 이는 리뷰어의 관찰이며
+이번 개발 검증에서 다시 수행한 인증된 사이트 검사로 표시하지 않는다.
+
+이전 브라우저 도구의 origin approval gate가 sblim.dev.gridone.net 접근을
+'user declined permission'으로 거절한 상태여서 이번에는 재접속/우회를 하지 않았다.
+실제 인증된 HWPX의 초기화·재시도 화면 재검증은 별도 접근 승인이 필요한 마지막 단계다.
+about:blank 정체의 실제 근본 원인은 미확정이며, SDK의 유한한 실패·복구 처리와 구분한다.
+실제 General LLM→열린 SDK→guard→commit→서버 재열기 trace도 아직 없다.
+
+낮은 창의 원본/미리보기 전환, 검색 예시, 저장 상태를 가까이 표시하는 제안은
+이번에 재현한 신규 결함과 구분한 후속 UX 과제다. 명찰/회의명패 인쇄 배치,
+실제 Word/한컴 전체 왕복 호환성, 물리 IME, 인쇄·전체 접근성은 이번 검사로 보증하지 않는다.
+
+증거
+.build/fixes-0.2.17/summary.json / source-manifest.json / full-e2e-source-manifest.json
+e2e-results.json / e2e.log: 전체 650 통과/4 실패의 원본 기록.
+targeted-final.json / targeted-final.log: 최종 관련 90개 통과.
+initialization-initial.* / initialization-final.* / full-run-failures/ / screenshots/
+unit-results.json / package-verification.json / consumer-browser.json / packages.log
+installed-packages.json / frontend-unit.json / settings-unit.json / runtime-status.json
+프론트 apps/sandbox-agent/.build/dev-runtime/*0.2.17* 및 current.json.
+.build 자료는 Git에서 제외된 로컬 산출물이다.

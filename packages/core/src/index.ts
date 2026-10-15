@@ -34,6 +34,7 @@ export * from "./report-graphics";
 export * from "./preset-error";
 export * from "./selection-conflict";
 export * from "./inspect";
+export * from "./initialization";
 import type {
   CommandId,
   EditorCommand,
@@ -51,6 +52,8 @@ export interface CommandState {
 }
 export interface EditorSnapshot {
   ready: boolean;
+  /** Host lifecycle, separate from document mutations and command busy state. */
+  initialization?: import("./initialization").EngineInitializationState;
   revision: string;
   dirty: boolean;
   pageCount: number;

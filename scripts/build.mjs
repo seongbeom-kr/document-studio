@@ -4,6 +4,10 @@ import { cp, readFile, writeFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { docxPaintPatch, DOCX_PAINT_PATCH } from "./docx-paint-patch.mjs";
+import {
+  rhwpLifecyclePatch,
+  RHWP_LIFECYCLE_PATCH,
+} from "./rhwp-lifecycle-patch.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const packages = ["core", "react", "engine-docx", "engine-rhwp"];
 const licenseAudit = spawnSync(
@@ -29,7 +33,12 @@ for (const name of packages) {
   await build({
     configFile: false,
     base: "./",
-    plugins: name === "engine-docx" ? [docxPaintPatch()] : [],
+    plugins:
+      name === "engine-docx"
+        ? [docxPaintPatch()]
+        : name === "engine-rhwp"
+          ? [rhwpLifecyclePatch()]
+          : [],
     build: {
       outDir: path.join(root, "packages", name, "dist"),
       emptyOutDir: true,
@@ -46,6 +55,8 @@ for (const name of packages) {
       },
       rolldownOptions: {
         external: (id) => {
+          if (name === "engine-rhwp" && id.startsWith("@rhwp/editor"))
+            return false;
           if (
             name === "engine-docx" &&
             id.startsWith("@docx-editor.dev/") &&
@@ -85,6 +96,10 @@ for (const name of packages) {
       JSON.stringify(DOCX_PAINT_PATCH, null, 2),
     );
   if (name === "engine-rhwp") {
+    await writeFile(
+      path.join(root, "packages", name, "dist", "native-patch.json"),
+      JSON.stringify(RHWP_LIFECYCLE_PATCH, null, 2),
+    );
     await cp(
       path.join(root, ".build/rhwp-studio"),
       path.join(root, "packages/engine-rhwp/dist/studio"),

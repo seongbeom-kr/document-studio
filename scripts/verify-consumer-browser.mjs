@@ -43,11 +43,49 @@ for (const channel of process.env.CI ? [undefined] : ["chrome", "msedge"]) {
           failedAssets.push(`${response.status()} ${response.url()}`);
       });
       await page.goto(baseURL);
+      let restoreBoot;
+      if (format === "hwpx") {
+        // Exercise the actual packaged default deadline, not the source alias or
+        // a consumer-side node_modules patch. Only the iframe HTML is stalled.
+        let blocked = true;
+        let release;
+        const gate = new Promise((resolve) => {
+          release = resolve;
+        });
+        await page.route(
+          "**/editor-assets/rhwp/index.html?*",
+          async (route) => {
+            if (!blocked) return route.continue();
+            await gate;
+            await route.abort().catch(() => undefined);
+          },
+        );
+        await page.clock.install();
+        restoreBoot = () => {
+          blocked = false;
+          release();
+        };
+      }
       await page
         .getByLabel("문서 파일")
         .setInputFiles(`fixtures/sample.${format}`);
       const loadingStarted = Date.now();
       try {
+        if (restoreBoot) {
+          await expect(page.locator("iframe")).toHaveCount(1, {
+            timeout: 30000,
+          });
+          await page.clock.fastForward(30001);
+          await expect(
+            page.getByRole("button", { name: "편집기 다시 시도", exact: true }),
+          ).toBeVisible();
+          await expect(page.locator("iframe")).toHaveCount(0);
+          restoreBoot();
+          await page.clock.resume();
+          await page
+            .getByRole("button", { name: "편집기 다시 시도", exact: true })
+            .click();
+        }
         await expect(
           page.getByRole("button", { name: "굵게", exact: true }),
         ).toBeEnabled({ timeout: 30000 });

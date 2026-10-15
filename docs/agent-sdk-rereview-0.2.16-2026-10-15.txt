@@ -1,0 +1,127 @@
+Document Studio 0.2.16 — 적대적 SDK 상세 재리뷰
+2026-10-15 / SDK HEAD 8827dbab0606f183533349af8058856343299f62
+SDK: D:\dev\document-studio
+통합 리뷰: D:\dev\document-studio\docs\uiux-agent-rereview-0.2.16-2026-10-15.txt
+증거: D:\dev\document-studio\.build\uiux-agent-rereview-0.2.16-20261015
+
+1. 결론
+
+0.2.16의 제품 변경은 UI 배치에 한정된다. core, engine-docx/src,
+engine-rhwp/src, agent-bridge.ts는 0.2.15와 같다. 그럼에도 '작동할 때의 SDK'
+외에 '준비되지 않을 때의 SDK'를 검사한 결과 P2 한 건을 확인했다.
+HWPX의 첫 iframe load가 오지 않으면 초기화가 끝나지도 실패하지도 않는다.
+
+정상 경로의 대상 지정·삽입·메모리 commit은 두 실제 엔진에서 통과했다.
+이 결과는 SDK 사용 가능성의 근거이며, 실제 LLM이 올바른 도구를 선택하고
+서버에 반영하는 전체 업무 성공률의 근거는 아니다.
+
+2. P2 — 엔진 초기화 전체를 제한하고 실패 상태를 전달해야 한다
+
+SDK 위치: packages/engine-rhwp/src/index.tsx:379-382
+현재 await createStudio(container, options)를 감싸는 전체 deadline/취소가 없다.
+반환된 created가 있어야 editor가 할당되고, 그 뒤 chrome 설정과 loadFile이 실행된다.
+
+의존성 @rhwp/editor 0.8.6, node_modules/@rhwp/editor/index.js:69-72는
+iframe.addEventListener('load', resolve, { once: true })만으로 기다린다.
+이 대기에는 timeout/reject 분기가 없다. transport.connect 및 _waitReady는
+그 뒤에 실행된다. 기존 handshake/request timeout이 없는 것으로 오해하면 안 된다.
+문제는 그 timeout에 진입하기 전의 무제한 대기다.
+
+SDK의 catch(717-721)는 reject가 발생해야만 onError를 호출한다.
+cleanup(724-739)은 active를 내리고 message/pending/calls를 정리하지만,
+아직 await가 반환하지 않아 editor가 없는 경우 editor.destroy도 실행되지 않는다.
+초기화 취소를 추가할 때 반환 전 iframe과 리스너의 수명도 함께 다뤄야 한다.
+이번에는 실제 메모리 누수의 크기를 측정한 것이 아니므로 누수량을 주장하지 않는다.
+
+재현 A — 실제 개발 샌드박스:
+sdk-live-B.hwpx raw/preview/edit-session은 200. 실제 크기의 iframe은 존재했으나
+내부가 about:blank로 남았고 두 관찰 사이 94,637ms 동안 준비 상태였다.
+별도 탭의 동일 정적 편집기 URL은 열렸다. 실제 정체 원인은 미확정이다.
+
+재현 B — 로컬 독립 호스트:
+정상 공개 rhwpEngine 경로로 합성 HWPX를 생성한다. normal view는 준비·편집된다.
+fault view만 studioUrl=/editor-assets/rhwp/__review216_stalled_editor로 지정한다.
+해당 HTML 응답만 로컬 Vite 미들웨어에서 보류하고 provenance는 정상 유지한다.
+70,872ms 뒤 공개 getState:
+ready=false, busy=false, saving=false, pendingCommands=0, warnings=[].
+실패 안내나 재시도 UI가 나타나지 않는다.
+초기 provenance 오류가 난 잘못된 fixture는 이 결과에 포함하지 않았다.
+
+권고:
+- 초기 iframe load를 포함한 전체 부팅의 유한한 deadline과 취소를 제공한다.
+- onError와 공개 상태에 실패/재시도 가능성을 전달한다.
+- 타임아웃 후 iframe·이벤트·미해결 작업을 정리하고 새 세션으로 재시도한다.
+- 빠른 실패, HTML 무응답, handshake 무응답, ready/loadFile 실패를 구분해
+  검증한다. 단순 타이머 Promise.race만으로 생명주기 정리가 끝났다고 보지 않는다.
+
+3. 정상 경로에서 직접 검증한 계약
+
+자체 검증 호스트의 UI 버튼이 공개 createAgentBridge를 호출했다.
+브라우저 evaluate로 SDK 내부 상태를 조작하지 않았다. 정상 엔진과 메모리
+DocumentStorage를 사용했다. 서버 저장, 백엔드 mock으로 대체한 실제 서비스
+성공 판정, General LLM 도구 호출은 수행하지 않았다.
+
+두 형식 공통:
+1) 첫 문장을 search/select하고 전체 요청 기준을 고정했다.
+2) 업무 자동화의 입력/미리보기/키보드 보정/세 가지 CSS 크기를 거쳤다.
+3) sessionId, revision, selectionKey, dirty=false, zoom=1이 유지됐다.
+4) 고정된 documentId/expectedSessionId/expectedVersion/expectedRevision/
+   expectedSelectionKey로 insertText를 호출했다.
+5) 첫 문장만 [[AGENT-INSERT]]가 되고 두 번째 문장은 보존됐다.
+6) commit 후 dirty=false이며 receipt.digest와 실제 저장 bytes의 SHA-256이 같았다.
+
+DOCX: revision 0→1. HWPX: 0→2. 증가량을 한 번의 요청=1이라고 가정하지 않았다.
+선택 전체 교체는 고정된 선택 범위에 insertText를 실행한 의도된 결과다.
+현재 자동화 마크다운을 편집하는 동작이 문서 내용 revision을 올리지 않은 것도
+예상한 계약이다. 이 두 편집 상태를 에이전트가 혼동하지 않도록 문서화해야 한다.
+
+DOCX는 동일 operationId로 commit을 재호출했고 같은 version/digest가 반환됐다.
+저장소 호출 누계는 2를 유지했다. 앞선 HWPX 1회+DOCX 1회인 공유 호스트 누계다.
+HWPX의 commit 재시도와 실제 서버 idempotency는 이번에 별도 재실행하지 않았다.
+
+4. 자동화 원본과 문서 변경의 경계
+
+미리보기만 만든 동안 현재 문서의 dirty/revision은 유지됐다. 두 형식에서
+선택 토큰도 보존돼 UI 조작 뒤 고정한 명령이 정확한 대상에 적용됐다.
+이 경계는 에이전트가 작업을 수행할 때 중요하다. '결과 만들기'와 '현재 문서에
+반영하기', '새 문서 만들기', '서버 저장하기'를 도구 계약에서 명확히 구별해야 한다.
+
+이번에는 마크다운 구조 미리보기와 기존 문서의 guard 삽입/commit을 검사했다.
+0.2.16 개발자 기록의 새 문서 생성·inspect 확장 테스트는 소스를 검토했으나
+전체 Chrome/Edge 묶음을 직접 재실행한 것은 아니다. 이를 새 문서 서버 저장·
+재열기까지 이번에 완료했다는 주장으로 바꾸지 않는다.
+
+5. 에이전트가 실제로 이 SDK를 쓰는 목표까지의 거리
+
+소비 프론트 DocumentStudioPanel은 DocumentEditor ref와 편집 잠금/handoff 확인,
+저장 callback을 연결한다. 현재 제품 TS/TSX 검색에서는 createAgentBridge와
+expectedSelectionKey 참조가 0이었다. 이것은 조사한 프론트의 연결 범위에 대한
+증거다. 별도 서비스의 모든 문서 도구 구현이 없다는 증명은 아니다.
+
+따라서 다음 실증이 아직 필요하다.
+- 실제 General LLM이 열린 문서의 상태/기능을 읽는다.
+- 검색/선택 후 session/revision/selection guard를 포함한 호출을 보낸다.
+- 사용자가 대상을 옮기거나 파일을 바꾸면 stale 호출이 적용되지 않는다.
+- 성공한 명령의 결과를 읽고 commit receipt를 실제 서버 저장 결과와 연결한다.
+- 저장된 파일을 다시 열어 의도한 범위만 바뀌었는지 확인한다.
+- 초기화 실패/응답 지연/저장 실패는 재시도 가능한 결과로 종료된다.
+
+최소 DOCX/HWPX 각각 정상 경로 한 건과 선택 변경·연결 지연·저장 재시도 경로를
+실제 도구 trace로 남기는 것이 다음 완료 기준으로 적절하다. LLM에게 내부 ID를
+추측하게 하지 말고 도구 응답의 대상과 guard를 다음 호출에 전달하게 해야 한다.
+
+6. 버전·검증·보존
+
+SDK 단위 테스트: 이번 직접 실행 42 suite, 287/287 통과. 타입 검사 통과.
+대상/범위 drift, session 경계, commit 재시도/실패 등의 기존 단위 검증을 포함한다.
+단위 통과가 실제 RHWP iframe 초기화의 유한한 종료를 보장하지는 않는다.
+
+네 설치 패키지 모두 0.2.16, source dist↔소비 프론트 dist 95개 해시 일치.
+실제 sessions/session-groups와 DOCX preview는 200, PDF 화면 표시도 확인했다.
+이전 502/422는 이번에는 재현되지 않았다. 실제 HWPX native 준비는 실패했다.
+실제 서버 원본 r5/r7과 해시는 그대로다. 서버 저장·업로드를 수행하지 않았다.
+
+제품 소스/설정 49개 파일의 해시는 전후 동일하다. 신규 소스 수정·커밋·푸시·
+프론트/백엔드 재시작 없이 리뷰 문서와 .build 검증 증거만 만들었다.
+독립 검증 서버 4188과 검증 탭은 종료했고 기존 10129/10001 서버는 유지했다.
+새 P0/P1은 이번 범위에서 발견하지 못했으며 P2 한 건은 위 초기화 대기 문제다.

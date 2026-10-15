@@ -41,7 +41,7 @@ export function createAgentBridge(
     if (!handle) throw new Error("열린 편집기가 없습니다.");
     return handle;
   };
-  const target = (request: AgentTarget, write = false) => {
+  const identify = (request: AgentTarget, write = false) => {
     const handle = editor();
     if (typeof request.documentId !== "string" || !request.documentId)
       throw new Error("documentId가 필요합니다.");
@@ -73,8 +73,17 @@ export function createAgentBridge(
       if (revision !== state.revision)
         throw new SaveConflictError("편집 revision이 변경됐습니다.");
     }
-    if (!state.ready) throw new Error("편집기를 준비하는 중입니다.");
     return { handle, state };
+  };
+  const target = (request: AgentTarget, write = false) => {
+    const started = identify(request, write);
+    if (!started.state.ready)
+      throw new Error(
+        started.state.initialization?.status === "failed"
+          ? started.state.initialization.error.message
+          : "편집기를 준비하는 중입니다.",
+      );
+    return started;
   };
   const complete = (started: ReturnType<typeof target>) => {
     const current = editor().getState();
@@ -109,6 +118,20 @@ export function createAgentBridge(
   };
   return {
     getState: () => editor().getState(),
+    retryInitialization: (
+      request: AgentTarget & { expectedSessionId: string },
+    ) => {
+      if (!request.expectedSessionId)
+        throw new Error("expectedSessionId가 필요합니다.");
+      const { handle, state } = identify(request);
+      if (
+        state.initialization?.status !== "failed" ||
+        !state.initialization.error.retryable ||
+        !handle.retryInitialization
+      )
+        throw new Error("재시도 가능한 편집기 초기화 오류가 없습니다.");
+      handle.retryInitialization();
+    },
     listAutomationForms: () => structuredClone(OFFICE_AUTOMATION_FORMS),
     listCommands: () => {
       const state = editor().getState();

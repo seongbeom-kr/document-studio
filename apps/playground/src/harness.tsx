@@ -24,10 +24,15 @@ import {
 import { docxEngine } from "@document-studio/engine-docx";
 import { rhwpEngine } from "@document-studio/engine-rhwp";
 import "../../../packages/react/src/styles.css";
-const engines = [
-  docxEngine(),
-  rhwpEngine({ studioUrl: "/editor-assets/rhwp/index.html" }),
-];
+const rhwpOptions = {
+  studioUrl: "/editor-assets/rhwp/index.html",
+  initializationTimeoutMs: Number(
+    new URLSearchParams(window.location.search).get(
+      "rhwpInitializationTimeoutMs",
+    ) ?? 30000,
+  ),
+};
+const engines = [docxEngine(), rhwpEngine(rhwpOptions)];
 function FaultInjectionView(props: EngineViewProps) {
   const View = engines.find((engine) =>
     engine.formats.includes(props.document.format),
@@ -437,10 +442,7 @@ function Harness() {
         <DocumentEditor
           ref={editor}
           document={document}
-          engines={[
-            docxEngine(),
-            rhwpEngine({ studioUrl: "/editor-assets/rhwp/index.html" }),
-          ].map((engine) => ({
+          engines={[docxEngine(), rhwpEngine(rhwpOptions)].map((engine) => ({
             ...engine,
             View: FaultInjectionView,
             createDocument: async (template) => {

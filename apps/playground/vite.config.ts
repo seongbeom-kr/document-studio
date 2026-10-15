@@ -2,11 +2,13 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { docxPaintPatch } from "../../scripts/docx-paint-patch.mjs";
+import { rhwpLifecyclePatch } from "../../scripts/rhwp-lifecycle-patch.mjs";
 export default defineConfig({
   root: fileURLToPath(new URL("./", import.meta.url)),
-  plugins: [react(), docxPaintPatch()],
+  plugins: [react(), docxPaintPatch(), rhwpLifecyclePatch()],
   optimizeDeps: {
     exclude: [
+      "@rhwp/editor",
       "@docx-editor.dev/core",
       "@docx-editor.dev/react",
       "@docx-editor.dev/i18n",

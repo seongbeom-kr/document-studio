@@ -4,7 +4,7 @@
 
 RHWP와 EigenPal DOCX Editor를 형식별 엔진으로 연결하고 공통 편집 UI, 서식 명령, 저장 연결과 초안 복구를 제공합니다. 파일 목록·라우팅·인증은 소비 앱이 담당합니다. `apps/playground`는 개발·회귀 테스트를 위한 비공개 예제 workspace입니다.
 
-현재 0.2.16의 지원 형식은 HWPX·DOCX입니다. 패키지 이름은 가칭이며 GitHub와 npm에는 아직 공개하지 않았습니다. 로컬 workspace와 배포용 tarball로 사용할 수 있습니다. 기능별 범위는 [지원표](docs/feature-support.md), 테스트 근거는 [확장 검증 기록](docs/practical-validation.md)에 있습니다.
+현재 0.2.17의 지원 형식은 HWPX·DOCX입니다. 패키지 이름은 가칭이며 GitHub와 npm에는 아직 공개하지 않았습니다. 로컬 workspace와 배포용 tarball로 사용할 수 있습니다. 기능별 범위는 [지원표](docs/feature-support.md), 테스트 근거는 [확장 검증 기록](docs/practical-validation.md)에 있습니다.
 
 ## 라이브러리 빌드
 
@@ -114,13 +114,19 @@ async function confirmDocumentSwitch(nextDocument: EditorDocument) {
 }
 ```
 
-`flushDraft()`는 진행 중인 명령·자동 초안 저장을 기다리고 최신 내용을 다시 내보내 초안 트랜잭션 완료까지 기다립니다. 이 동안 편집을 잠시 막습니다. 실패하면 예외를 반환하므로 호스트가 현재 문서를 유지하고 오류를 표시해야 합니다. 편집기 준비 중·저장 진행 중이거나, 미저장 내용이 있는데 `draftStore={false}`이면 전환 준비를 거절합니다. 초안 보관은 서버 저장을 뜻하지 않으며 dirty 상태를 지우지 않습니다. 다음 재열기에서 초안 복구를 선택할 수 있습니다.
+`flushDraft()`는 진행 중인 명령·자동 초안 저장을 기다리고 최신 내용을 다시 내보내 초안 트랜잭션 완료까지 기다립니다. 이 동안 편집을 잠시 막습니다. 실패하면 예외를 반환하므로 호스트가 현재 문서를 유지하고 오류를 표시해야 합니다. 이미 편집을 시작한 세션이 준비되지 않았거나 저장 진행 중인 경우, 미저장 내용이 있는데 `draftStore={false}`이면 전환 준비를 거절합니다. 초안 보관은 서버 저장을 뜻하지 않으며 dirty 상태를 지우지 않습니다. 다음 재열기에서 초안 복구를 선택할 수 있습니다.
 
 파일 읽기나 API 응답을 기다린 뒤에는 이전 렌더의 dirty 값을 사용하지 않습니다. 실제 전환 직전에 현재 문서 ID와 `editorRef.current.getState()`를 다시 확인합니다. 다운로드 저장 후 목록의 bytes·version을 갱신하는 동작과 전환 전 초안 보관은 [playground](apps/playground/src/main.tsx)에서 확인할 수 있습니다. 예제 목록은 해당 브라우저 세션의 메모리에 있으며 영구 파일 관리 서비스는 아닙니다.
 
 샌드박스 에이전트의 기존 파일 탭·모달에 넣는 [React 편집 pane](examples/sandbox-agent/document-pane.tsx)과 [저장 연결](examples/sandbox-agent/storage.ts)을 제공합니다. 사용법은 [호스트 연결 안내](examples/sandbox-agent/README.md)에 있습니다. 기존 `uploadWorkspaceFile`과 BFF·lease·`complete-edit`를 재사용합니다. 저장 연결의 단위 테스트는 호출 계약을 확인한 범위이며 운영 샌드박스 앱을 교체한 상태는 아닙니다.
 
 대상 문서를 열 때와 '새 원본 열기'로 승인된 전환 모두 같은 초안 복구 절차를 거칩니다. 손상된 초안은 다운로드하거나 명시적으로 버리고 정상 원본을 열 수 있으며 자동으로 삭제하지 않습니다. 열린 문서에서 `draftStore={false}`로 바꾸면 새 초안 쓰기를 중지합니다. 일시적인 직렬화 revision 오류는 다시 저장할 수 있고, 서버 version 충돌만 원본 확인이 필요한 충돌 상태로 처리합니다.
+
+초기화가 한 번도 완료되지 않은 문서의 `flushDraft()`는 문서 내보내기 없이 종료 준비를 할 수 있습니다. 기존 복구 초안은 삭제하지 않으며 자동화 입력 보관은 여전히 기다립니다. 준비 완료 후 편집 중인 세션의 보호 규칙은 그대로 적용됩니다.
+
+HWPX 엔진은 iframe 첫 응답부터 연결·WASM 준비·문서 열기까지 기본 30초의 전체 제한 시간을 적용합니다. `rhwpEngine({ studioUrl, initializationTimeoutMs: 60000 })`처럼 1,000~120,000ms 범위에서 조정할 수 있습니다. 시간 초과·실패 시 iframe과 대기 요청을 취소하고 ‘편집기 다시 시도’를 표시합니다. 문서 초기 검증 worker의 제한 시간은 별도로 적용됩니다.
+
+`getState().initialization`과 `onStateChange`는 `loading`(validating/connecting/opening), `failed`(code/message/retryable), `ready`를 구분합니다. `ready=false`인 동안 문서 명령과 저장은 실행하지 마세요. `retryInitialization()`은 실패한 초기화만 새 세션으로 다시 시작하며 준비된 편집본을 교체하지 않습니다. 에이전트는 `agent.retryInitialization({ documentId, expectedSessionId, expectedVersion })`를 호출한 뒤 상태를 다시 읽어야 합니다. 재시도에도 실패할 수 있으므로 호스트가 횟수·총 대기 한도를 관리해야 합니다.
 
 ## 에이전트 연결
 

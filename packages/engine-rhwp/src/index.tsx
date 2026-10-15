@@ -12,6 +12,7 @@ import {
   type SearchResult,
   SaveConflictError,
   SelectionConflictError,
+  EngineInitializationError,
   captureExportSnapshot,
   validateSearch,
   validateReplace,
@@ -108,6 +109,8 @@ interface NativeState {
 }
 export interface RhwpOptions {
   studioUrl: string;
+  /** Whole engine boot, including iframe load and document loading (default 30s; 1–120s). */
+  initializationTimeoutMs?: number;
 }
 function formatFields(native: NativeState) {
   return {
@@ -168,7 +171,17 @@ function activeFormat(native: NativeState, id: CommandId) {
 }
 const engineCache = new Map<string, EngineDefinition>();
 export function rhwpEngine(options: RhwpOptions): EngineDefinition {
-  const cached = engineCache.get(options.studioUrl);
+  const initializationTimeoutMs = options.initializationTimeoutMs ?? 30000;
+  if (
+    !Number.isSafeInteger(initializationTimeoutMs) ||
+    initializationTimeoutMs < 1000 ||
+    initializationTimeoutMs > 120000
+  )
+    throw new RangeError(
+      "initializationTimeoutMs must be an integer from 1000 to 120000.",
+    );
+  const cacheKey = JSON.stringify([options.studioUrl, initializationTimeoutMs]);
+  const cached = engineCache.get(cacheKey);
   if (cached) return cached;
   // Only immutable configuration is captured; sessions remain local to each mounted view.
   options = { ...options };
@@ -178,6 +191,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
     onError,
     onSaveRequest,
     onFindRequest,
+    onInitializationPhase,
     advancedTools,
     inputBlocked = false,
   }: EngineViewProps) {
@@ -187,6 +201,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
       onError,
       onSaveRequest,
       onFindRequest,
+      onInitializationPhase,
     });
     const editorRef = useRef<RhwpEditor | null>(null);
     const blockedRef = useRef(inputBlocked);
@@ -221,9 +236,17 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
         .set({ menu: Boolean(advancedTools), toolbar: false })
         .catch(onError);
     }, [advancedTools, onError]);
-    callbacks.current = { onReady, onError, onSaveRequest, onFindRequest };
+    callbacks.current = {
+      onReady,
+      onError,
+      onSaveRequest,
+      onFindRequest,
+      onInitializationPhase,
+    };
     useEffect(() => {
       let active = true;
+      const abort = new AbortController();
+      let initializationTimer: ReturnType<typeof setTimeout> | undefined;
       let editor: RhwpEditor | null = null;
       let timer: ReturnType<typeof setInterval> | undefined;
       let polling = false;
@@ -370,16 +393,69 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
           },
         );
       };
+      const dispose = (
+        reason: Error = new DOMException(
+          "편집기가 종료됐습니다.",
+          "AbortError",
+        ),
+      ) => {
+        if (!active) return;
+        active = false;
+        clearTimeout(initializationTimer);
+        clearInterval(timer);
+        window.removeEventListener("message", onMessage);
+        abort.abort(reason);
+        for (const task of pending.values()) {
+          clearTimeout(task.timer);
+          task.reject(reason);
+        }
+        pending.clear();
+        for (const task of calls.values()) {
+          clearTimeout(task.timer);
+          task.reject(reason);
+        }
+        calls.clear();
+        if (editorRef.current === editor) editorRef.current = null;
+        editor?.destroy();
+      };
+      const failInitialization = (cause: unknown) => {
+        if (!active) return;
+        const failure =
+          cause instanceof EngineInitializationError
+            ? cause
+            : new EngineInitializationError(
+                "HWPX 편집기를 준비하지 못했습니다. 다시 시도해 주세요.",
+                "engine-initialization-failed",
+                { cause },
+              );
+        dispose(failure);
+        callbacks.current.onError(failure);
+      };
+      initializationTimer = setTimeout(
+        () =>
+          failInitialization(
+            new EngineInitializationError(
+              "HWPX 편집기 연결 시간이 초과됐습니다. 다시 시도해 주세요.",
+              "engine-initialization-timeout",
+            ),
+          ),
+        initializationTimeoutMs,
+      );
       void (async () => {
         try {
           // StrictMode disposes its first effect before the next microtask. Do not
           // create an iframe for that cancelled initializer while its handshake waits.
           await Promise.resolve();
           if (!active || !container.current) return;
-          const created = await createStudio(container.current!, {
+          callbacks.current.onInitializationPhase?.("connecting");
+          // The pinned bundled upstream patch makes cancellation effective even
+          // before createStudio returns an editor handle.
+          const studioOptions = {
             studioUrl: studioUrl.href,
             chrome: { menu: false, toolbar: false, statusbar: false },
-          });
+            signal: abort.signal,
+          };
+          const created = await createStudio(container.current!, studioOptions);
           if (!active) {
             created.destroy();
             return;
@@ -391,13 +467,26 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
             toolbar: false,
           });
           editor.element.title = "HWPX 문서 편집 영역";
+          abort.signal.throwIfAborted();
+          callbacks.current.onInitializationPhase?.("opening");
           await editor.loadFile(document.bytes, document.fileName);
+          abort.signal.throwIfAborted();
           for (let attempt = 0; attempt < 100; attempt++) {
             if (!active) return;
             if (await editor.commands.isEnabled("ext:document-studio:state"))
               break;
-            await new Promise((resolve) => setTimeout(resolve, 20));
+            await new Promise<void>((resolve) => {
+              const finish = () => {
+                clearTimeout(wait);
+                abort.signal.removeEventListener("abort", finish);
+                resolve();
+              };
+              const wait = setTimeout(finish, 20);
+              abort.signal.addEventListener("abort", finish, { once: true });
+              if (abort.signal.aborted) finish();
+            });
           }
+          abort.signal.throwIfAborted();
           // The native Studio fits any iframe narrower than 1024px as a mobile view.
           // Embedded desktop panels need the same 100% opening scale as DOCX.
           // Apply this once per opened document; later user zoom choices are retained.
@@ -694,6 +783,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
           };
           await update();
           if (!active) return;
+          clearTimeout(initializationTimer);
           callbacks.current.onReady(session);
           timer = setInterval(() => {
             if (
@@ -715,29 +805,10 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
               });
           }, 400);
         } catch (cause) {
-          if (active)
-            callbacks.current.onError(
-              cause instanceof Error ? cause : new Error(String(cause)),
-            );
+          failInitialization(cause);
         }
       })();
-      return () => {
-        active = false;
-        clearInterval(timer);
-        window.removeEventListener("message", onMessage);
-        for (const task of pending.values()) {
-          clearTimeout(task.timer);
-          task.reject(new Error("편집기가 종료됐습니다."));
-        }
-        pending.clear();
-        for (const task of calls.values()) {
-          clearTimeout(task.timer);
-          task.reject(new Error("편집기가 종료됐습니다."));
-        }
-        calls.clear();
-        editorRef.current = null;
-        editor?.destroy();
-      };
+      return () => dispose();
     }, [document]);
     return <div ref={container} className="ds-rhwp-surface" />;
   }
@@ -764,6 +835,6 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
         options.studioUrl,
       ),
   };
-  engineCache.set(options.studioUrl, definition);
+  engineCache.set(cacheKey, definition);
   return definition;
 }

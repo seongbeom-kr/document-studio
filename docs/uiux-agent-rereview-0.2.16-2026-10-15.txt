@@ -1,0 +1,162 @@
+Document Studio 0.2.16 — UI/UX·에이전트 SDK 재리뷰
+검토일: 2026-10-15, Asia/Seoul
+SDK: D:\dev\document-studio
+SDK HEAD: 8827dbab0606f183533349af8058856343299f62
+비교: 0.2.15 / 7bee9e00725122462351d7268489dc46aab4113e
+소비 프론트: D:\dev\_worktrees\document-studio-0.2.11
+프론트 HEAD: 79202cdb12f675a13babe98b2ce60257d4d9803b + 기존 통합 변경
+실제 개발 주소: https://sblim.dev.gridone.net/sandbox-agent
+
+1. 판정
+
+0.2.16이 수정한 '미리보기 후 적용 버튼이 원본 입력을 가리는 문제'는 해결됐다.
+실제 샌드박스 DOCX와 독립 DOCX/HWPX 호스트에서 확인했다. 미리보기 생성,
+원본 키보드 수정, 재생성까지 입력칸이 버튼에 가려지지 않았다.
+이전 P3를 그대로 남기지 않고 이번 검증 범위에서 종료한다.
+
+새로 확인한 P2 한 건은 HWPX 편집기 초기화의 무기한 대기 가능성이다.
+실제 샌드박스 HWPX가 최소 94.6초 동안 준비 상태에 머물렀고, 독립 호스트에서
+iframe 초기 응답만 지연시켰을 때도 70.9초 이상 오류 안내 없이 대기했다.
+현재 변경으로 생긴 회귀라고 단정하지 않는다. 엔진 코드는 0.2.15와 같다.
+
+사람이 원본을 보정하는 흐름은 개선됐다. 그러나 '에이전트가 이 SDK를 안정적으로
+쓴다'는 최종 목표는 아직 완료 판정할 수 없다. 초기화 실패가 유한 시간 안에
+복구 가능한 상태로 바뀌어야 하고, 실제 General LLM 도구 호출부터 서버 저장·
+재열기까지 이어지는 증거도 필요하다.
+
+2. P2 — HWPX 초기 iframe 로딩에 전체 제한 시간·복구 경로가 없다
+
+코드 위치:
+D:\dev\document-studio\packages\engine-rhwp\src\index.tsx:379-382
+정리 경로: 같은 파일 717-739
+의존성: D:\dev\document-studio\node_modules\@rhwp\editor\index.js:69-83
+
+엔진은 await createStudio(...)가 완료되기 전에는 editor를 할당하지 않는다.
+상위 의존성 createEditor는 iframe의 첫 load 이벤트를 제한 시간 없이 기다린다.
+그 다음에야 transport 연결/handshake 및 ready 검사를 시작한다. 따라서
+handshake timeout이 있어도 첫 load 자체가 오지 않는 경우를 제한하지 못한다.
+SDK catch의 onError 역시 이 Promise가 reject하지 않으면 실행되지 않는다.
+
+실제 관찰:
+- sdk-live-B.hwpx의 서버 preview/raw/edit-session 요청은 200이었다.
+- iframe은 정상 크기로 존재했지만 내부 문서는 about:blank, 본문은 비어 있었다.
+- 명시적으로 시간을 잰 두 관찰 사이 94,637ms 동안 준비 상태가 지속됐다.
+- 같은 정적 편집기 주소를 별도 탭으로 직접 열었을 때는 편집기 UI가 표시됐다.
+- 이 사실만으로 실제 iframe이 멈춘 근본 원인을 특정하지 않는다. 네트워크,
+  브라우저 정책, 배포 자산, 특정 문서 손상을 원인으로 확정하지 않았다.
+
+독립 재현:
+- 동일 SDK와 실제 RHWP 엔진을 사용하는 자체 생성 HWPX를 사용했다.
+- 정상 자산 경로에서는 ready=true, 검색/선택/삽입/메모리 저장까지 통과했다.
+- provenance 검증 자산은 정상으로 두고, 편집기 HTML 응답만 보류했다.
+- 70,872ms 후 getState는 ready=false, busy=false, pendingCommands=0,
+  warnings=[]였고 화면에는 실패·재시도 안내가 없었다.
+- 초기 잘못 구성된 지연 URL은 provenance JSON 오류가 나서 배제했다.
+  위 재현 수치는 정상 provenance 경로를 유지한 수정된 시험의 결과다.
+
+영향: 사용자는 계속 기다려야 하는지 판단할 수 없고, 에이전트는 준비 완료를
+기다리다가 작업 전체를 소모할 수 있다. 문서 훼손이나 잘못된 저장은 확인하지
+않았다. 정상 네트워크에서도 항상 HWPX가 실패한다는 뜻은 아니다.
+
+수정 권고: iframe load부터 handshake/ready/loadFile까지 포함하는 초기화
+전체 제한 시간, 취소·언마운트 정리, 사람이 이해할 실패 안내와 재시도를 제공한다.
+단순 Promise.race만 추가해서 살아 있는 iframe/이벤트 리스너가 남지 않도록 한다.
+공개 상태에도 loading/failed 구분 또는 재시도 가능한 초기화 오류를 노출한다.
+같은 지연 조건에서 오류 통지, 취소 정리, 정상 재시도까지 회귀 검증해야 한다.
+
+3. UI/UX — 이번 수정이 실제로 바꾼 것
+
+제품 변경은 ReportAutomation의 적용 영역 sticky 제거와 긴 안내문 분리다.
+코어·DOCX/RHWP 엔진 src·agent-bridge.ts는 0.2.15 대비 변경되지 않았다.
+
+독립 호스트는 appearance=embedded, 기본 도구 크기 34에서 업무 자동화가
+자동 확장되는 경로로 검사했다. 표는 두 열, 헤더 한 행과 데이터 두 행이다.
+viewport 값은 브라우저 외곽 크기가 아니라 DOM에서 확인한 CSS 크기다.
+
+CSS 화면 / 호스트               결과 생성 후 가리지 않은 입력 높이
+1366×768 / 1023×514             DOCX/HWPX 각각 약 140.3px
+1366×900 / 1023×646             DOCX/HWPX 각각 약 270.0px
+480×900 / 456×700               DOCX/HWPX 각각 약 177.4px
+
+각 조건에서 입력칸 안쪽 +4/+40/+79px의 elementFromPoint 결과는 textarea였다.
+적용 영역 position은 static이었고 도구 영역의 가로 넘침은 관찰되지 않았다.
+1366×768에서는 원본을 키보드로 수정하고 미리보기 제목이 갱신되는 것까지 확인했다.
+DOCX의 미리보기 전 측정은 focus에 따른 scrollTop=126.1 상태이므로 전후 높이를
+동일 스크롤 조건의 비교값으로 쓰지 않았다. 결과 생성 후에는 scrollTop=0이다.
+
+실제 샌드박스 DOCX는 CSS 1366×768, 편집기 약 1024×537.3에서 확인했다.
+기존 76자 마크다운을 유지하고 미리보기만 생성했다. 가리지 않은 입력 높이는
+약 172.6px였고 같은 세 지점이 모두 textarea였다. 기존 문서 본문은 수정하지 않았다.
+
+UX 개선 권고는 별도 문서에 상세히 적었다. 우선순위는 다음과 같다.
+- 준비 대기를 시간 제한 있는 상태와 재시도로 바꾼다. 위 P2의 사용자 영향이다.
+- 낮은 창에서는 원본/미리보기를 크게 전환해 볼 선택지를 제공한다.
+- 기능 검색에 작업 예시를 보여 주고 목적에 맞는 기능을 찾기 쉽게 한다.
+- 원본 입력 보관·문서 편집·서버 저장의 상태를 문서 가까이에서 구분한다.
+후자의 세 항목은 이번에 재현한 신규 결함이 아니라 사용성 개선 제안이다.
+
+4. SDK — UI 조작이 에이전트 대상 지정을 훼손하는지
+
+공개 createAgentBridge만 호출하는 로컬 검증 버튼으로 두 형식을 검사했다.
+첫 문장을 검색·선택한 뒤 documentId/sessionId/version/revision/selectionKey를
+고정했다. 자동화 원본 입력·미리보기·키보드 보정·화면 크기 변경을 거친 뒤에도
+sessionId, revision, selectionKey, dirty=false, 문서 zoom=1이 유지됐다.
+
+그 뒤 고정한 전체 guard로 insertText를 실행했다. 두 형식 모두 첫 문장만
+[[AGENT-INSERT]]로 교체됐고 두 번째 문장은 유지됐다. applied=true였으며
+DOCX revision은 0→1, HWPX는 0→2였다. 형식별 revision 증가량은 동일하다고
+가정하지 않았다. commit 후 dirty=false, 저장 receipt의 digest는 실제 메모리
+저장 bytes의 SHA-256과 두 형식에서 일치했다.
+
+DOCX는 같은 operationId로 commit을 한 번 더 호출했다. version/digest가
+유지됐고 저장소 호출 누계가 2에서 증가하지 않았다. 이 누계에는 앞선 HWPX
+저장 1회가 포함된다. 서버 업로드나 실제 General의 LLM 호출을 시험한 것은 아니다.
+
+5. 실제 개발 샌드박스와 설치 버전
+
+실제 경로의 sessions/session-groups는 200이었다. 이전 리뷰의 502 차단은
+이번 관찰에서는 해소됐다. DOCX 서버 PDF도 실제로 표시됐고 해당 preview
+요청이 200이었다. 이전 422는 이번에 재현되지 않았다.
+이 관찰을 장시간 가용성 또는 모든 문서 변환의 안정성 보장으로 확대하지 않는다.
+
+작업 공간 원본 다섯 파일의 목록을 전후 비교했다. 특히 기존 검증 파일은:
+- sdk-live-A.docx: revision 5, SHA-256
+  6703b076908563f61d3e34d53c18121e36b7b7579bfe8e80ffced0d624d1181b
+- sdk-live-B.hwpx: revision 7, SHA-256
+  9ae25727d4d005e239a15df2dab3a79ef5761579674a8e428bfb1536fa994c1a
+전후 값이 같았다. 실제 파일 업로드·본문 변경·서버 저장은 하지 않았다.
+
+소비 프론트의 설치 SDK 네 패키지는 모두 0.2.16이었다. 로컬 SDK dist와
+설치 dist 95개 파일의 SHA-256이 전부 일치했다. 화면의 예전 '0.2.11' 문구는
+기존 검증 문서의 제목이며 설치 버전 판단 근거로 사용하지 않았다.
+
+프론트 실제 DocumentStudioPanel은 편집 ref와 저장·handoff 보호를 연결한다.
+현재 sandbox-agent 제품 TS/TSX에서 createAgentBridge/expectedSelectionKey
+참조는 찾지 못했다. 이것만으로 모든 서비스의 에이전트 편집 경로가 없다고
+단정하지 않는다. 실제 LLM→열린 SDK→guard 확인→commit→서버 재열기의
+tool trace를 이번에 얻지 못했다는 것이 최종 목표에 대한 검증 한계다.
+
+6. 검증과 범위
+
+이번 리뷰에서 직접 실행: SDK 단위 287/287, 42 suite 통과; typecheck 통과.
+브라우저는 Chrome에서 위 정상·반응형·지연 주입 경로를 직접 조작했다.
+개발 기록의 Chrome/Edge 198개·프론트 610개·settings 205개 등은 개발자 측
+검증 결과이며 이번 리뷰에서 직접 재실행한 개수로 합산하지 않는다.
+
+새로운 P0/P1은 이번 범위에서 발견하지 못했다. 신규 P2는 위 한 건이다.
+전체 자동화 기능·실제 Word/한컴 왕복 호환성·물리 IME·인쇄·전체 접근성·
+실제 General LLM 성공률은 이번 검증으로 보증하지 않는다.
+
+7. 산출물과 보존
+
+UI/UX 상세: D:\dev\document-studio\docs\uiux-rereview-0.2.16-2026-10-15.txt
+SDK 상세: D:\dev\document-studio\docs\agent-sdk-rereview-0.2.16-2026-10-15.txt
+증거: D:\dev\document-studio\.build\uiux-agent-rereview-0.2.16-20261015
+주요 증거: live-hwpx-boot-pending.json, hwpx-initial-load-stall.json,
+live-docx-preview-geometry.json, docx-preview-geometry.json, hwpx-responsive.json,
+docx-responsive.json, 두 형식 guarded-execute/memory-commit JSON, unit-results.json.
+
+제품 소스·패키지·기존 테스트를 수정하지 않았다. 추적한 소스/설정 49개 파일의
+리뷰 전후 SHA-256이 같았다. 리뷰 문서와 .build 검증 호스트/증거만 추가했다.
+직접 띄운 4188 검증 서버와 검증 탭은 종료하고 viewport override도 해제했다.
+기존 sandbox-agent/settings의 10129/10001 프로세스는 그대로 유지했다.

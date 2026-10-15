@@ -31,6 +31,7 @@ async function visit(directory, bundled = false) {
     await readFile(path.join(directory, "package.json"), "utf8"),
   );
   const key = `${manifest.name}@${manifest.version}`;
+  bundled ||= manifest.name === "@rhwp/editor";
   if (packages.has(key)) return;
   if (
     /\/pro(?:-|$)|editor-api|collaboration/.test(manifest.name) ||
