@@ -827,10 +827,7 @@ export function ReportAutomation(props: Props) {
           </span>
         </div>
       )}
-      <div
-        className="ds-tools-row ds-automation-actions"
-        data-has-result={Boolean(output)}
-      >
+      <div className="ds-tools-row ds-automation-actions">
         {graphic && (
           <button
             type="button"
@@ -930,11 +927,11 @@ export function ReportAutomation(props: Props) {
             구조를 유지해 새 문서 만들기
           </button>
         )}
-        <span className="ds-automation-help">
-          미리보기는 문서를 바꾸지 않습니다. 입력은 현재 편집 세션에서 기능별로
-          유지됩니다. {resultGuidance}
-        </span>
       </div>
+      <p className="ds-automation-help">
+        미리보기는 문서를 바꾸지 않습니다. 입력은 현재 편집 세션에서 기능별로
+        유지됩니다. {resultGuidance}
+      </p>
       {message && (
         <p role="status" className="ds-tools-message">
           {message}

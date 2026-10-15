@@ -308,13 +308,6 @@
 .ds-editing-tools[data-expanded="true"] .ds-text-result textarea {
   height: clamp(160px, 30vh, 360px);
 }
-.ds-editing-tools[data-expanded="true"]
-  .ds-automation-actions[data-has-result="true"] {
-  position: sticky;
-  bottom: 0;
-  padding: 8px 0;
-  background: var(--ds-panel, #f7f9fa);
-}
 .ds-tools-hint {
   margin: 8px 12px;
   font-size: 11px;

@@ -1,0 +1,150 @@
+Document Studio 0.2.15 — UI/UX·에이전트 SDK 재리뷰
+2026-10-15, Asia/Seoul
+SDK: D:\dev\document-studio
+커밋: 7bee9e00725122462351d7268489dc46aab4113e
+소비 프론트: D:\dev\_worktrees\document-studio-0.2.11
+프론트: codex/document-studio-0.2.15 / HEAD ec65adffe5c560d0bfd4fefe4bd1410fc6ed69ec + 기존 통합 변경
+실제 개발 주소: https://sblim.dev.gridone.net/sandbox-agent
+
+1. 결론
+
+이전 P3인 '자동화 도구를 처음 열면 본문이 42px로 줄어드는 문제'는
+독립 실제 엔진 호스트에서 해결을 확인했다. 이전 리뷰와 같은 1023×646
+임베딩 영역에서 DOCX/HWPX 모두 자동 확장되고 본문 약 434.6px, 원본
+입력 270px가 확보됐다. 선택·세션·revision·dirty·문서 배율도 유지됐다.
+
+새로 남긴 P3 한 건은 결과 생성 후의 원본 가림이다. 1366×768 화면의
+1023×514 호스트에서 미리보기를 만들면 sticky 적용 영역이 원본을 덮어
+가리지 않은 입력 높이는 약 39.2px만 남는다. 두 형식 모두 재현됐다.
+모바일 HWPX에서도 결과 생성 후 약 55.5px만 가리지 않고 남았다.
+초기 입력 화면의 개선은 확인했지만 입력→미리보기→원본 보정까지의
+사용성을 모두 해결했다고 판정하기는 어렵다.
+
+검사한 SDK 코드/독립 엔진 범위에서 새 P1/P2 결함은 발견하지 못했다.
+SDK 단위 287개와 타입 검사는 통과했고, 화면 전환 후 정상 수정 및
+메모리 commit의 bytes/digest 일치도 두 형식에서 확인했다.
+
+실제 샌드박스에서는 별도 차단 조건이 있다. 첫 접속은 Gateway Timeout이었고,
+정지된 개발 프론트 두 앱을 재실행한 뒤 페이지는 열렸지만 작업 목록 API가
+502를 반환했다. 실제 파일 열기·저장·General 도구 호출은 검증하지 못했다.
+0.2.15 SDK 회귀나 파일 손상으로 단정하지 않고 환경/연결 문제로 구분한다.
+
+2. 이번 코드 변경 평가
+
+EditingTools는 업무 자동화 탭의 실제 본문 높이가 360px 미만이면 확장하고,
+호스트 크기 변화도 관찰한다. 사용자가 문서와 함께 보기로 돌아간 상태는
+일반 재렌더링으로 강제로 다시 펼치지 않는다.
+ReportAutomation은 입력 앞의 보관 정보/내려받기를 입력 아래로 옮겼고,
+결과가 없을 때 sticky 적용 영역을 해제했다. 생성 미지원 호스트의 파일명과
+저장 위치 입력도 숨긴다. 이 방향은 실제 작업에 필요한 공간 확보에 맞는다.
+core, DOCX/RHWP 엔진 src, agent-bridge.ts는 0.2.14 대비 변경이 없었다.
+
+3. P3: 미리보기 생성 후 sticky 영역이 원본을 다시 덮는다
+
+재현 조건: Chrome, CSS viewport 1366×768, appearance=embedded,
+호스트 1023×514, 기본 도구 크기 34, 업무 자동화→마크다운 보고서.
+제목과 2×2 표를 입력해 결과 미리보기를 만든다. 도구는 자동 확장 상태다.
+
+HWPX 비교: 미리보기 전후 본문 높이 약 302.6px, scrollTop=0.
+원본의 기하학적 노출 높이는 전후 약 140.3px다. 그러나 미리보기 후에는
+하단 적용 영역 101.1px가 겹쳐 실제 가리지 않은 높이는 약 39.2px다.
+원본 top=372.69, 적용 영역 top=411.87이다. 원본 안쪽 +40px 좌표를
+elementFromPoint로 검사하면 textarea 대신 ds-automation-actions가 반환된다.
+DOCX에서도 같은 조건과 가림을 확인했다.
+
+HWPX 모바일: CSS 480×900, 호스트 456×700, 결과 생성 후 실제 가리지 않은
+입력 높이 약 55.5px. 원본 +80px 좌표에는 적용 버튼이 있어 원본 영역이
+가려졌다. 단순히 textarea와 스크롤 본문의 교집합 높이만 보면 놓치는 문제다.
+
+영향: 사용자는 미리보기 후 표 데이터나 본문을 보정할 때 한두 줄만 보이는
+입력을 만나며 추가 내부 스크롤이 필요하다. 데이터 손실이나 저장 실패를
+입증한 것은 아니므로 낮은 우선순위의 사용성 P3로 분류한다.
+이번에 확인한 동작이며 0.2.15에서 최초 발생한 회귀라고 단정하지 않는다.
+
+관련 코드: packages/react/src/styles.css:311–316.
+결과가 있으면 적용 버튼뿐 아니라 긴 공통 설명까지 sticky 영역에 포함된다.
+관련 설명: packages/react/src/report-automation.tsx:933–935.
+권장: 긴 설명을 고정 영역 밖으로 옮기고 고정 영역은 짧은 버튼 행으로
+줄이거나, 낮은 본문 높이에서는 sticky를 해제한다.
+
+완료 기준: 두 형식의 낮은 창/모바일에서 미리보기 생성 후에도 원본의
+최소 80px가 실제로 가리지 않고 보이며 그 안쪽 좌표가 textarea에 도달한다.
+기능 선택·미리보기 버튼과 원본 수정 동작도 함께 검사한다.
+
+시험 보완: tests/e2e/automation-workspace.spec.ts:100–107의 가림 검사는
+미리보기 전에 수행된다. 이후 115–126에서는 결과 영역과 스크린샷만 확인한다.
+같은 가림 검사를 결과 생성 후에도 반복하고 고정 영역과의 겹침을 계산해야 한다.
+
+4. SDK 사용과 상태 보존 검증
+
+실제 DOCX/RHWP 엔진과 공개 createAgentBridge를 사용하는 자체 호스트에서
+합성 두 문단 문서를 만들고 첫 문장을 선택한 요청을 고정했다.
+이후 자동 확장, 수동 복귀, 생성 지원 꺼짐/켜짐, 낮은 창·모바일 전환을 수행했다.
+두 형식 모두 documentId/sessionId/revision/selectionKey/dirty/zoom이
+처음 값과 같았다. 문서 배율 100%도 유지됐다.
+
+그 뒤 처음 고정한 유효 요청으로 첫 문장만 [[AGENT-INSERT]]로 수정했다.
+두 번째 문장은 보존됐다. commit receipt.digest는 메모리 storage에 제출한
+실제 bytes의 SHA-256과 일치했고 dirty=false였다.
+이는 UI 변경 후에도 공개 에이전트 API의 정상 수정이 유지된다는 근거다.
+이번에는 선택을 다른 곳으로 이동시킨 stale 요청 재현이나 서버 저장본
+재열기를 새로 수행하지 않았다. 이전 검증과 구분한다.
+
+생성 지원 꺼짐: 파일명 입력 0개, 생성 버튼 비활성.
+켜짐: 파일명 입력 1개, 생성 버튼 활성. 원본과 수동 복귀 상태가 유지됐다.
+이번 검사는 버튼/지원 전환이며 실제 새 파일 생성·재열기 시험으로 표시하지 않는다.
+
+5. 실제 개발 샌드박스의 현재 차단 조건
+
+첫 접속 화면: Gateway Timeout. 개발 프론트 포트 10129/10001이 닫혀 있었다.
+기존 소비 프론트에서 sandbox-agent와 settings를 sblim scope로 재실행했다.
+메인 페이지는 200으로 복구됐고 인증된 UI가 열렸다.
+GET /sandbox-agent/api/work-agent/sessions?limit=20 → 502.
+GET /sandbox-agent/api/work-agent/session-groups → 502.
+화면: 'General Agent에 연결할 수 없습니다.'
+
+따라서 실제 작업 목록·파일을 열지 못해 기존 DOCX/HWPX의 현재 UI나
+서버 저장을 재검증하지 못했다. General 서비스/컨테이너를 재시작하거나
+런타임 서비스 URL을 변경하지 않았다. 실패를 정상 화면으로 숨기지 않았다.
+개발 프론트 두 앱은 재실행 상태로 두었고 독립 검증 서버/탭은 종료했다.
+
+개발 세션의 10월 14일 DOCX PDF 미리보기 422 기록은 별도 미해결 항목이다.
+오늘은 General 502 때문에 해당 문서 요청까지 도달하지 못했으므로
+422가 오늘도 재현됐다거나 해결됐다고 표시하지 않는다.
+
+6. 최종 목적에 대한 다음 우선순위
+
+1) 실제 General 연결 502를 해결하고 기존 작업/파일 접근을 회복한다.
+2) General→열린 SDK transport→선택/revision 확인→commit→서버 재열기의
+   실제 LLM tool trace를 확보한다. 프론트 production 코드의 공개 브리지
+   등록은 이번에도 확인하지 못했다. 수동 API 성공과 분리해서 평가한다.
+3) 결과 생성 후 sticky 가림을 고쳐 원본 보정까지 읽기 쉬운 흐름을 완성한다.
+4) DOCX 서버 PDF 미리보기 422를 재검증하고 채팅 변경 위치·저장 확정을
+   실제 파일과 연결한다. 명찰/회의명패의 인쇄 배치도 후속 범위다.
+
+7. 직접 실행과 한계
+
+SDK 단위 287/287, yarn typecheck 통과. 설치된 네 패키지는 0.2.15이며
+dist 95개 전체가 SDK 빌드와 SHA-256 일치했다. SDK 소스 manifest 49개는
+시작·종료 해시가 같았다. 제품 구현 소스·커밋·푸시·공개는 변경하지 않았다.
+소비 프론트의 기존 미커밋 통합 변경은 유지했다. 실행에 따른 생성 캐시는 별도다.
+
+개발 세션의 브라우저 162개/프론트 610개/settings 205개/소비 앱 4개는
+10월 14일의 별도 결과다. 이번에 재실행한 숫자에 합산하지 않는다.
+독립 호스트는 SDK src alias와 실제 엔진을 사용한다. 배포 파일 일치 확인과
+구분하며, npm 소비 앱 브라우저 시험을 이번에 재실행했다고 표시하지 않는다.
+실제 파일 변경·업로드·LLM 메시지 전송·서버 저장은 수행하지 않았다.
+물리 IME·Word/한컴·인쇄·전체 접근성·모바일 전체 업무 완료는 미검증이다.
+
+8. 문서와 증거
+
+UI 상세: D:\dev\document-studio\docs\uiux-rereview-0.2.15-2026-10-15.txt
+SDK 상세: D:\dev\document-studio\docs\agent-sdk-rereview-0.2.15-2026-10-15.txt
+증거: D:\dev\document-studio\.build\uiux-agent-rereview-0.2.15-20261015
+00-initial-gateway-timeout.jpg / 01-live-general-unavailable.jpg / live-backend-status.json
+02-docx-automation-expanded.jpg: 초기 입력 공간 개선.
+04-docx-preview-input-covered.jpg / 05-hwpx-preview-input-covered.jpg: 남은 P3.
+*-layouts.json / *-preview-overlap*.json / hwpx-mobile-preview-overlap.json
+*-layout-state-preservation.json / *-edit-after-layout.json / *-commit.json
+*-manual-return-and-creation.json / unit-results.json / installed-packages.json
+source-manifest.json / verification-summary.json / frontend-scoped-runtime.log

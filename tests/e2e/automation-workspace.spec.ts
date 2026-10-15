@@ -31,9 +31,21 @@ async function readableControls(page: Page) {
       r.bottom <= box.bottom &&
       r.left >= box.left &&
       r.right <= box.right;
-    const inputHit = document.elementFromPoint(
-      input.left + input.width / 2,
-      input.top + 40,
+    const inputTop = Math.max(input.top, box.top);
+    let inputBottom = Math.min(input.bottom, box.bottom, window.innerHeight);
+    const actions = bounds(".ds-automation-actions");
+    if (
+      actions.left < input.right &&
+      actions.right > input.left &&
+      actions.top < inputBottom &&
+      actions.bottom > inputTop
+    )
+      inputBottom = Math.min(inputBottom, actions.top);
+    const inputHits = [4, 40, 79].map(
+      (offset) =>
+        document
+          .elementFromPoint(input.left + input.width / 2, inputTop + offset)
+          ?.hasAttribute("data-automation-input") ?? false,
     );
     return {
       height: box.height,
@@ -44,10 +56,24 @@ async function readableControls(page: Page) {
         0,
         Math.min(input.bottom, box.bottom) - Math.max(input.top, box.top),
       ),
-      inputUnobscured: inputHit?.hasAttribute("data-automation-input") ?? false,
+      inputUnobscuredHeight: Math.max(0, inputBottom - inputTop),
+      inputUnobscured: inputHits.every(Boolean),
       horizontalOverflow: body.scrollWidth > body.clientWidth + 2,
     };
   });
+}
+
+async function expectReadableControls(page: Page) {
+  const space = await readableControls(page);
+  expect(space.scrollTop).toBe(0);
+  expect(space.height).toBeGreaterThan(300);
+  expect(space.selectVisible).toBe(true);
+  expect(space.previewVisible).toBe(true);
+  expect(space.inputVisibleHeight).toBeGreaterThan(80);
+  expect(space.inputUnobscuredHeight).toBeGreaterThan(80);
+  expect(space.inputUnobscured).toBe(true);
+  expect(space.horizontalOverflow).toBe(false);
+  return space;
 }
 
 for (const format of ["docx", "hwpx"] as const) {
@@ -97,21 +123,16 @@ for (const format of ["docx", "hwpx"] as const) {
       await page
         .getByLabel("자동화 기능", { exact: true })
         .selectOption("마크다운 보고서");
-      const space = await readableControls(page);
-      expect(space.scrollTop).toBe(0);
-      expect(space.height).toBeGreaterThan(300);
-      expect(space.selectVisible).toBe(true);
-      expect(space.previewVisible).toBe(true);
-      expect(space.inputVisibleHeight).toBeGreaterThan(80);
-      expect(space.inputUnobscured).toBe(true);
-      expect(space.horizontalOverflow).toBe(false);
+      await expectReadableControls(page);
       await expect(page.getByLabel("현재 적용 대상")).toBeVisible();
       await expect(page.locator(".ds-editor-body")).toHaveAttribute(
         "inert",
         "",
       );
       const input = page.getByLabel("보고서 마크다운", { exact: true });
-      await input.fill("# 크기를 바꿔도 유지\n원본 입력");
+      let source =
+        "# 크기를 바꿔도 유지\n| 항목 | 결과 |\n|---|---|\n| 원본 | 유지 |";
+      await input.fill(source);
       await page
         .getByRole("button", { name: "결과 미리보기", exact: true })
         .click();
@@ -121,6 +142,35 @@ for (const format of ["docx", "hwpx"] as const) {
           exact: true,
         }),
       ).toBeVisible();
+      await expectReadableControls(page);
+      // A visible rectangle is insufficient: click where the old sticky actions
+      // intercepted the textarea, then correct the source and preview again.
+      const inputBox = await input.boundingBox();
+      await page.mouse.click(
+        inputBox!.x + inputBox!.width / 2,
+        inputBox!.y + 79,
+      );
+      await expect(input).toBeFocused();
+      await input.press("Control+Home");
+      await input.press("ArrowRight");
+      await input.press("ArrowRight");
+      await page.keyboard.insertText("수정 완료 ");
+      source = source.replace("# ", "# 수정 완료 ");
+      await expect(input).toHaveValue(source);
+      await page
+        .getByRole("button", { name: "결과 미리보기", exact: true })
+        .click();
+      await expectReadableControls(page);
+      await expect(
+        page.getByRole("region", {
+          name: "마크다운 보고서 구조 미리보기",
+          exact: true,
+        }),
+      ).toContainText("수정 완료 크기를 바꿔도 유지");
+      await info.attach("preview-input-geometry", {
+        body: JSON.stringify(await expectReadableControls(page)),
+        contentType: "application/json",
+      });
       await page.screenshot({
         path: info.outputPath(`${format}-${width}x${height}.png`),
       });
@@ -137,7 +187,7 @@ for (const format of ["docx", "hwpx"] as const) {
         "data-expanded",
         "false",
       );
-      await expect(input).toHaveValue("# 크기를 바꿔도 유지\n원본 입력");
+      await expect(input).toHaveValue(source);
       await expect(
         page.getByRole("slider", { name: "도구 영역 크기" }),
       ).toHaveValue("34");
@@ -164,7 +214,58 @@ for (const format of ["docx", "hwpx"] as const) {
         "data-expanded",
         "true",
       );
-      await expect(input).toHaveValue("# 크기를 바꿔도 유지\n원본 입력");
+      await expect(input).toHaveValue(source);
+      await page
+        .getByRole("button", { name: "결과 미리보기", exact: true })
+        .click();
+      await page
+        .getByRole("button", {
+          name: "텍스트로 삽입 · 표/서식 제외",
+          exact: true,
+        })
+        .click();
+      await expect(
+        page
+          .getByRole("status")
+          .filter({ hasText: "줄을 선택 위치에 삽입했습니다" }),
+      ).toBeVisible();
+      const read = await page.evaluate(() => {
+        const agent = window.documentStudioTest.agent;
+        return agent.readDocument({ documentId: agent.getState().documentId });
+      });
+      expect(read.text).toContain("수정 완료 크기를 바꿔도 유지");
+      await page.evaluate(() => window.documentStudioTest.save());
+      expect(
+        await page.evaluate(() => window.documentStudioTest.state()?.dirty),
+      ).toBe(false);
+      const saved = await page.evaluate((format) => {
+        const host = window.documentStudioTest;
+        return host.inspectBytes(host.savedEvent!.bytes, format);
+      }, format);
+      expect(saved.tables).toHaveLength(0);
+      const oldSession = await page.evaluate(
+        () => window.documentStudioTest.state()!.sessionId,
+      );
+      await page
+        .getByRole("button", {
+          name: "구조를 유지해 새 문서 만들기",
+          exact: true,
+        })
+        .click();
+      await expect
+        .poll(() =>
+          page.evaluate((previous) => {
+            const state = window.documentStudioTest.state();
+            return state?.ready && state.sessionId !== previous;
+          }, oldSession),
+        )
+        .toBe(true);
+      const created = await page.evaluate(() => {
+        const agent = window.documentStudioTest.agent;
+        return agent.inspect({ documentId: agent.getState().documentId });
+      });
+      expect(created.tables).toHaveLength(1);
+      expect(created.tables[0]).toMatchObject({ rows: 2, columns: 2 });
     });
   }
 

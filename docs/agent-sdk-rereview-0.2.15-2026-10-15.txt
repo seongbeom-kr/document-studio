@@ -1,0 +1,132 @@
+Document Studio 0.2.15 — 에이전트 SDK 상세 재리뷰
+2026-10-15, Asia/Seoul
+SDK: D:\dev\document-studio
+커밋: 7bee9e00725122462351d7268489dc46aab4113e
+소비 프론트: D:\dev\_worktrees\document-studio-0.2.11
+General: D:\dev\go-agent-platform\go_agent_general_api (HEAD f3da373)
+
+1. 판정
+
+이번 변경은 작은 임베딩 호스트의 React 도구 배치/도움말/생성 입력 노출이다.
+core, 두 엔진 src, agent-bridge.ts는 0.2.14 대비 변경이 없었다.
+화면 확장·축소와 호스트 지원 변경 중에도 공개 상태가 유지되고,
+그 뒤 정상 수정·commit이 되는지 실제 두 엔진으로 검사했다.
+그 범위에서 새 P1/P2 SDK 결함은 발견하지 못했다.
+
+SDK API를 수동으로 호출한 성공과 실제 General 에이전트 업무 완료는
+별도 기준이다. 오늘 실제 작업 목록 API부터 502여서 기존 파일 및
+General→SDK→서버 저장본 재열기 경로를 검증하지 못했다.
+브리지 transport 등록과 실제 LLM tool trace도 아직 확인되지 않았다.
+
+2. 버전과 직접 실행
+
+SDK 단위 287/287, yarn typecheck를 직접 재실행해 통과했다.
+소비 프론트 core/react/engine-docx/engine-rhwp는 모두 0.2.15다.
+dist 해시 비교: core 19개, react 22개, engine-docx 22개, engine-rhwp 32개,
+총 95개 전부 SDK 빌드의 SHA-256과 일치했다.
+SDK 소스 manifest 49개는 리뷰 시작과 종료의 해시가 같았다.
+
+개발 세션의 10월 14일 브라우저 162개, 프론트 610개, settings 205개,
+외부 소비 앱 4개는 별도 기록이다. 이번 직접 실행과 숫자를 합산하지 않는다.
+이번 독립 브라우저 호스트는 src alias와 실제 엔진을 사용한다.
+설치 파일 일치 확인을 실제 tarball 소비 앱의 재실행으로 표시하지 않는다.
+
+3. UI 변경 중 공개 상태 보존
+
+실제 DOCX/RHWP 엔진의 합성 두 문단 문서를 사용했다.
+첫 문장 '첫 번째 대상 문장입니다.'를 공개 search/select로 선택하고
+해당 document/session/version/revision/selectionKey로 요청을 고정했다.
+
+이후 다음 UI 변경을 수행했다.
+- 업무 자동화 탭의 자동 확장 및 Markdown 구조 미리보기.
+- 사용자의 문서와 함께 보기 복귀.
+- 호스트 onCreateDocument 지원 꺼짐/켜짐과 일반 재렌더링.
+- 1366×900 / 1366×768 / 480×900 화면 전환과 호스트 영역 변경.
+
+끝의 공개 getState와 처음 고정한 상태를 비교했다.
+DOCX/HWPX 모두 documentId, sessionId, revision, selectionKey, dirty, zoom이 같았다.
+이는 화면 배치 변경이 문서 세션을 바꾸거나 선택·배율을 잃게 하지 않았다는
+직접 근거다. 문서 배율은 100%, 변경 전후 dirty=false였다.
+모든 DOM 노드의 객체 동일성을 별도로 계측한 결과로 해석하지 않는다.
+
+4. 화면 변경 후 정상 execute와 commit
+
+처음 고정한 요청은 UI 변경 중 대상이 바뀌지 않아 계속 유효했다.
+그 요청으로 insertText를 실행하자 첫 문장만 [[AGENT-INSERT]]로 바뀌고
+두 번째 문장은 보존됐다. 실제 readDocument의 문단 배열과 text로 확인했다.
+
+각 형식에서 commit을 실행했다. receipt.digest는 메모리 storage에 전달된
+실제 bytes의 SHA-256과 일치했고 commit 이후 dirty=false였다.
+명령 receipt뿐 아니라 수정 결과와 저장 payload를 확인했다.
+
+이번에 다른 문단으로 이동시킨 stale 선택 거절을 새로 검사하지는 않았다.
+0.2.14에서의 직접 재현과 변경 없는 core/bridge 코드, 이번 단위 결과를
+참고한다. 정상 요청을 검사한 것을 모든 충돌·동시 편집 계약 검증으로 확대하지 않는다.
+실제 서버 수락 버전·파일 충돌·저장본 다운로드/재열기는 이번 결과에 포함되지 않는다.
+
+5. 생성 지원과 문서 미리보기
+
+두 형식에서 onCreateDocument 지원을 끄면 파일명 입력이 사라지고
+생성 버튼은 비활성이다. 켜면 원본을 유지한 채 파일명과 버튼이 다시 제공된다.
+수동 복귀한 도구가 이 일반 재렌더링만으로 강제로 다시 확장되지는 않았다.
+
+구조 미리보기에는 제목과 2×2 표가 표시됐다. 이것은 생성 예정 template의
+미리보기 검증이며 실제 새 DOCX/HWPX를 생성해 내보내고 inspect한 결과가 아니다.
+실제 생성·재열기의 이전 검증/개발 기록과 이번 버튼 노출 검증을 구분한다.
+
+낮은 창에서 미리보기 이후 sticky 적용 영역이 원본을 덮는 P3는 별도
+UI 상세 문서에 기록했다. SDK 명령의 데이터 손실이나 잘못된 대상 적용을
+입증한 것은 아니다. 사용자 경험과 API 정합성을 구분해 평가한다.
+
+6. 실제 General 연결의 현재 차단 조건
+
+실제 주소의 최초 상태는 Gateway Timeout이었다. 정지된 개발 프론트의
+sandbox-agent/settings를 sblim scope로 재실행해 페이지 200을 확인했다.
+그러나 sessions?limit=20, session-groups API는 모두 502였다.
+실제 화면에도 General 연결 불가 오류가 표시돼 기존 작업과 파일에 접근할 수 없었다.
+
+BFF의 현재 네트워크 실패 경계는 다음 위치에서 확인했다.
+D:\dev\_worktrees\document-studio-0.2.11\apps\sandbox-agent\app\api\work-agent\[...path]\route.ts:102
+클라이언트의 연결 오류 안내는 lib/work-agent/api.ts:83에 있다.
+정확한 서비스 URL·worker 원인을 특정한 것으로 표시하지 않는다.
+General 서비스/컨테이너와 runtime URL 설정은 변경하지 않았다.
+
+소비 프론트 production TS/TSX의 createAgentBridge/expectedSelectionKey
+참조는 이번 검색에서도 0개였다. General production Python의 SDK 관련
+등록도 확인되지 않았다. 기존 파일 에이전트의 다른 능력을 부정하는 것은 아니다.
+열린 SDK를 실제 도구로 호출해 완료한 trace가 없다는 제한이다.
+
+전날 DOCX 서버 PDF 미리보기 422 기록도 별도 미해결 항목이다.
+오늘은 앞선 General 연결에서 막혀 그 요청까지 재검증하지 못했다.
+서버 변환 오류를 SDK 엔진 오류나 파일 손상으로 단정하지 않는다.
+
+7. 실제 에이전트가 잘 쓰는지의 다음 완료 기준
+
+연결을 회복한 뒤 작은 실제 업무 하나를 처음부터 끝까지 완료해야 한다.
+1) LLM이 열린 문서·세션·lease를 확인하고 inspect로 수정 대상을 찾는다.
+2) revision/선택 토큰을 포함해 특정 문단 또는 셀만 수정한다.
+3) 선택 충돌은 대상 재확인, revision 충돌은 안정된 버전 재조회로 처리한다.
+4) commit receipt와 실제 서버 저장 버전·파일 digest를 연결한다.
+5) 서버 파일을 다시 열어 목표 수정과 나머지 내용 보존을 검사한다.
+6) 채팅에서 대상 파일·변경 위치·확정 상태와 실패 시 다음 행동을 제시한다.
+
+tool trace와 최종 서버 파일을 증거로 남긴다. 단위 통과, 수동 API 호출,
+생성 미리보기 성공을 실제 LLM 업무 완료의 대체 증거로 사용하지 않는다.
+이 연결 시험이 없으면 '에이전트가 SDK를 안정적으로 잘 쓴다'는 판정은 보류해야 한다.
+
+8. 범위와 정리
+
+독립 호스트는 임베딩 모드로 맞추고 명시적으로 페이지를 재로드한 뒤
+새 합성 문서로 검사했다. 앞선 설정 중의 단독 모드/HMR 측정은 판정에서 제외했다.
+브라우저의 기존 배율은 보존하고 실제 CSS viewport를 확인했다.
+최종 임시 viewport와 검증 탭/서버를 정리했다.
+개발 프론트 두 앱은 재실행 상태다. 실제 파일·채팅·업로드·서버 저장은 변경하지 않았다.
+제품 구현 소스·커밋·푸시는 변경하지 않았다. 물리 IME·외부 Office 전체
+호환성·인쇄·운영 장애·모바일 전체 업무 완료는 미검증이다.
+
+증거 폴더:
+D:\dev\document-studio\.build\uiux-agent-rereview-0.2.15-20261015
+*-layout-before-state.json / *-layout-state-preservation.json
+*-edit-after-layout.json / *-commit.json / *-manual-return-and-creation.json
+live-backend-status.json / live-general-error.txt / frontend-scoped-runtime.log
+unit-results.json / installed-packages.json / source-manifest.json / verification-summary.json

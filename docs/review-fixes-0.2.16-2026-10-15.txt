@@ -1,0 +1,99 @@
+Document Studio 0.2.16 — 0.2.15 재리뷰 대응
+2026-10-15, Asia/Seoul
+
+검토 자료
+docs/uiux-agent-rereview-0.2.15-2026-10-15.txt
+docs/uiux-rereview-0.2.15-2026-10-15.txt
+docs/agent-sdk-rereview-0.2.15-2026-10-15.txt
+
+수정한 문제
+새 P3인 '미리보기 후 적용 영역이 원본 입력을 덮는 문제'를 SDK에서 수정했다.
+ReportAutomation의 적용 버튼을 일반 스크롤 흐름에 배치하고, 긴 안내를
+별도 문단으로 옮겼다. 결과가 생겼을 때도 버튼이 원본 입력 위에 겹치지 않는다.
+적용 버튼에는 스크롤 또는 키보드 이동으로 접근한다. 화면 높이별 예외 임계값은
+추가하지 않았다. 문서 엔진, 저장 계약과 General 명령 transport는 변경하지 않았다.
+
+재현과 회귀 검사
+제품 수정 전, 리뷰 조건인 1366×768 화면/1023×514 호스트에서 보완한 검사를
+실행했다. DOCX/HWPX 모두 미리보기 후 실제 가리지 않은 입력이 37.52px여서
+80px 기준에 실패했다. 이 두 실패는 의도한 수정 전 재현이며 최종 결과와 분리한다.
+
+최종 검사에서는 미리보기 전, 생성 후, 원본 보정 후에 가림을 검사한다.
+본문/화면과 textarea의 교집합에서 적용 영역의 겹침을 제외하고,
+입력 안쪽 +4/+40/+79px의 elementFromPoint가 실제 textarea인지 확인한다.
++79px를 실제 클릭해 키보드로 제목을 수정하고 미리보기를 다시 생성한다.
+문서와 함께 보기, 재렌더링, 도구 닫기/재열기에서 입력과 native 노드를 보존한다.
+문서 revision/선택/dirty 및 100% 배율도 유지한다.
+이어 텍스트 삽입과 공개 readDocument, 메모리 저장/dirty 해제/저장 bytes 구조,
+새 문서 생성과 실제 엔진의 2×2 표 구조 inspect까지 확인한다.
+이는 격리 테스트 호스트의 생성/저장 흐름이며 실제 서버 업로드 결과가 아니다.
+
+Chrome·Edge × DOCX·HWPX의 미리보기 후 가리지 않은 입력 높이:
+- 1366×900 / 호스트 1023×646: 270px.
+- 1366×768 / 호스트 1023×514: 139.11px.
+- 480×900 / 호스트 456×700: 176.11px.
+12개 조합 모두 좌표가 textarea에 도달했다. 넓은 화면에서 작은 화면으로
+변경하는 추가 4개 검사도 통과했다. 실제 문서 배율은 100%다.
+
+이번에 실행한 검증
+- SDK 단위 287/287, 타입 검사, 네 패키지 빌드 통과.
+- 관련 Chrome·Edge E2E 198/198. unexpected/flaky/skipped 모두 0.
+  automation-workspace, automation-size, balanced-review, inspection-rereview,
+  embedded-ui, embedded-guidance, report-boundaries, practical-editor 8개 파일.
+  자동화 입력 한도/복구, 원본 보정/생성/삽입, 차트 그림, 검색·치환,
+  중첩 표, 서식·페이지 설정, 150명 표 생성/재열기도 포함한다.
+  전체 E2E를 다시 실행한 결과는 아니다.
+- 별도 npm 소비 앱에 최종 tarball 설치, Next.js 16.3.8 빌드 통과.
+  Chrome·Edge × DOCX·HWPX 4/4. 엔진 준비 시간 898~1902ms.
+- 샌드박스 단위 610/610, settings 단위 205/205.
+  두 앱 타입 검사와 lint --no-fix, 샌드박스 production 빌드 통과.
+  settings production 빌드는 이번에 재실행하지 않았다.
+- madge: 250개 파일, 순환 0개, 해석 경고 236개.
+  root knip는 --no-exit-code 진단이며 기존 미사용 항목이 남는다.
+- 라이선스 검사: npm 102개, 고정 Rust registry crate 393개 통과.
+  자체 라이선스 Apache-2.0, 새 런타임 의존성 없음.
+- 검증 전 고정한 소스 134개 해시 일치. 설치된 네 패키지의 dist 95개,
+  public RHWP extension, 최종 검증 tarball과 프론트 vendor archive 일치.
+
+프론트 적용과 실행
+SDK: D:\dev\document-studio, main, 로컬 저장소(remote 없음).
+프론트: D:\dev\_worktrees\document-studio-0.2.11
+브랜치: codex/document-studio-0.2.16
+갱신한 origin/dev 기준: 79202cdb12f675a13babe98b2ce60257d4d9803b.
+브랜치 전환 전후 기존 통합 patch SHA가 같았다. 기존 미커밋 작업은 보존했다.
+이번 프론트 변경은 네 SDK tarball/무결성 기록, lockfile과 버전 표시 갱신이다.
+사용자의 D:\dev\front\automation-platform 작업 트리는 수정하지 않았다.
+샌드박스와 settings를 sblim scope로 함께 재실행했다.
+11:45:50 KST launcher 27220, sandbox 10129 / settings 10001 포트와
+두 앱의 Ready 로그를 확인했다. 이전 dev 캐시는 삭제하지 않고 작업 트리 안에 보관했다.
+General/preview 컨테이너나 서비스 URL 설정을 변경하거나 재시작하지 않았다.
+SDK만 로컬 커밋한다. 프론트 커밋·푸시·원격 배포·npm 공개는 하지 않는다.
+
+실제 사이트 검증 차단과 남은 범위
+새 브라우저 탭으로 https://sblim.dev.gridone.net/sandbox-agent 접근을 요청했으나
+도구의 origin approval gate가 'user declined permission' 사유로 거절했다.
+다른 브라우저/직접 CDP/HTTP 인증 주입 등으로 접근을 우회하지 않았다.
+따라서 이번에 실제 인증된 샌드박스 문서 화면·settings 화면·서버 저장을
+확인했다고 표시하지 않는다. 위 포트/Ready는 실행 상태 확인에 한정된다.
+
+접근 시도 전의 읽기 전용 관측에서 General 컨테이너는 healthy였고
+localhost:30084/health는 200이었다. 이것만으로 리뷰의 인증된 sessions 및
+session-groups API 502가 해결됐다고 판정할 수 없다. 실제 경로 재검증은 남았다.
+기존 DOCX 서버 PDF 미리보기 422도 이번에 재검증하지 못했다.
+General LLM → 열린 SDK transport → 선택/revision 확인 → commit → 서버 재열기의
+실제 tool trace는 여전히 없다. 이번 수동 SDK/메모리 저장 검사와 구분한다.
+명찰/회의명패의 인쇄 치수·격자·재단/접힘선도 후속 범위다.
+실제 Word/한컴 전체 호환성, 물리 IME, 인쇄 및 전체 접근성/모바일 업무 완료는
+이번 변경의 검사 범위를 넘어선다. 새로운 P1/P2가 없다는 리뷰를 제품 전체
+운영 준비 완료로 확대하지 않는다.
+
+증거
+.build/fixes-0.2.16/summary.json / source-manifest.json / installed-packages.json
+preview-input-geometry.json / screenshots/ / runtime-status.json
+overlap-before.log / overlap-before.json: 수정 전 두 형식 실패.
+overlap-after.log: 수정 직후 낮은 창 두 형식의 흐름 통과.
+e2e-results.json / e2e.log / unit-results.json
+package-verification.json / consumer-browser.json / packages.log
+frontend-unit.json / settings-unit.json
+프론트 apps/sandbox-agent/.build/dev-runtime/*0.2.16* 및 current.json.
+.build 산출물은 Git에서 제외된 로컬 검증 자료다.
