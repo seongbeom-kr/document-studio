@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Embedded editor UI host</title>
+    <style>
+      body {
+        margin: 0;
+        font: 14px system-ui;
+        background: #fafafa;
+        color: #191724;
+      }
+      button {
+        font: inherit;
+      }
+      #layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 360px;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        height: 780px;
+        max-height: 100vh;
+        gap: 0;
+      }
+      #top,
+      #bottom {
+        grid-column: 1/-1;
+        min-width: 0;
+      }
+      #editor,
+      #side {
+        min-height: 0;
+        min-width: 0;
+      }
+      #side {
+        border-left: 1px solid #ddd;
+        overflow: hidden;
+      }
+      #alternative {
+        height: 600px;
+      }
+      #host-marker {
+        display: none;
+      }
+      .host-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .host-status {
+        margin: 0;
+        padding: 8px;
+      }
+      @media (max-width: 700px) {
+        #layout {
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: auto 240px 520px auto;
+          height: auto;
+          min-height: 100vh;
+          max-height: none;
+        }
+        #side {
+          grid-column: 1;
+          grid-row: 3;
+        }
+        #bottom {
+          grid-row: 4;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="layout">
+      <header id="top">
+        <span id="host-marker">Host-owned toolbar label</span>
+      </header>
+      <main id="editor"></main>
+      <aside id="side" aria-label="앱 도구 영역"></aside>
+      <footer id="bottom"></footer>
+    </div>
+    <div id="alternative"></div>
+    <script type="module" src="/src/ui-harness.tsx"></script>
+  </body>
+</html>

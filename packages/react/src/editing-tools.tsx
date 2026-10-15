@@ -48,6 +48,8 @@ interface Props {
   documentKey?: string;
   onClose?(): void;
   expanded?: boolean;
+  /** The host supplies panel geometry; do not impose the SDK dock width/expansion. */
+  external?: boolean;
   onExpandedChange?(expanded: boolean): void;
 }
 const TABS = [
@@ -84,7 +86,7 @@ export function EditingTools(props: Props) {
   expanded.current = Boolean(props.expanded);
   useEffect(() => {
     if (tab !== "업무 자동화" || !props.onExpandedChange) return;
-    const area = toolsElement.current?.parentElement;
+    const area = toolsElement.current?.closest(".ds-work-area");
     if (!area) return;
     const ensureInputSpace = () => {
       // Measure the form body after the host's header, target and tabs consume space.
@@ -452,7 +454,7 @@ export function EditingTools(props: Props) {
             : " · 텍스트 삽입 시 선택 내용 교체"}
         </span>
       </div>
-      {!props.expanded && (
+      {!props.expanded && !props.external && (
         <label className="ds-tools-resize">
           도구 영역 크기
           <input

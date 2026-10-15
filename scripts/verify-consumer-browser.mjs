@@ -224,9 +224,11 @@ for (const channel of process.env.CI ? [undefined] : ["chrome", "msedge"]) {
             exact: true,
           }),
         ).toBeVisible();
+        // A generated HWPX starts a new engine with a 30s initialization limit.
+        // Allow that limit plus assertion polling overhead.
         await expect(
           page.getByRole("button", { name: "굵게", exact: true }),
-        ).toBeEnabled();
+        ).toBeEnabled({ timeout: 35000 });
         const generatedDownload = page.waitForEvent("download");
         await page
           .getByRole("button", { name: "저장하고 다운로드", exact: true })

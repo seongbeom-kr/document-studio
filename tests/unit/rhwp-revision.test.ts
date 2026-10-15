@@ -14,7 +14,7 @@ function fixture() {
     string,
     { execute(services: unknown, params: unknown): void }
   >();
-  const subscriptions = new Map<string, (() => void)[]>();
+  const subscriptions = new Map<string, ((reason?: unknown) => void)[]>();
   const messages: {
     type: string;
     state: { revision: number; context: { isDirty: boolean } };
@@ -23,7 +23,7 @@ function fixture() {
   let dirty = false;
   const services = {
     eventBus: {
-      on(name: string, handler: () => void) {
+      on(name: string, handler: (reason?: unknown) => void) {
         subscriptions.set(name, [...(subscriptions.get(name) ?? []), handler]);
       },
     },
@@ -77,15 +77,33 @@ function fixture() {
   return {
     state,
     messages,
-    emit(name: string) {
+    emit(name: string, reason?: unknown) {
       if (name === "document-mutated" || name === "document-changed")
         dirty = true;
-      for (const handler of subscriptions.get(name) ?? []) handler();
+      for (const handler of subscriptions.get(name) ?? []) handler(reason);
     },
   };
 }
 
 describe("HWPX native revision signals", () => {
+  it.each([
+    ["document-changed", "deferred-pagination-flush:idle-auto"],
+    ["document-changed", "deferred-pagination-complete"],
+    ["document-mutated", "input-handler-resumable-pagination"],
+  ])("does not count layout-only %s/%s as a new edit", (event, reason) => {
+    const test = fixture();
+    test.emit("document-mutated", "input-handler-edit");
+    const before = test.state().revision;
+    test.emit(event, reason);
+    expect(test.state().revision).toBe(before);
+    test.emit("document-mutated", "input-handler-edit");
+    expect(test.state().revision).toBe(before + 1);
+  });
+  it("still counts unknown change reasons conservatively", () => {
+    const test = fixture();
+    test.emit("document-changed", "future-edit-reason");
+    expect(test.state().revision).toBe(1);
+  });
   it("increments synchronously for page-local mutations without a full render event", async () => {
     const test = fixture();
     test.emit("document-mutated");

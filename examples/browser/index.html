@@ -4,6 +4,52 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Document Studio browser example</title>
+    <style>
+      body {
+        font: 14px system-ui;
+        margin: 16px;
+      }
+      .document-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        height: 75vh;
+        min-height: 450px;
+      }
+      #editor-toolbar,
+      #editor-status {
+        grid-column: 1 / -1;
+        min-width: 0;
+      }
+      .document-surface,
+      #editor-tools {
+        min-width: 0;
+        min-height: 0;
+      }
+      #editor-tools {
+        display: none;
+      }
+      .document-layout:has(#editor-tools .ds-editing-tools) {
+        grid-template-columns: minmax(0, 1fr) 360px;
+      }
+      #editor-tools:has(.ds-editing-tools) {
+        display: block;
+      }
+      @media (max-width: 850px) {
+        .document-layout:has(#editor-tools .ds-editing-tools) {
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: auto 240px 520px auto;
+          height: auto;
+          min-height: 100vh;
+        }
+        #editor-tools {
+          grid-row: 3;
+        }
+        #editor-status {
+          grid-row: 4;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>

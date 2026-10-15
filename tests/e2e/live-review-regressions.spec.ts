@@ -21,6 +21,7 @@ async function edit(page: Page, value: string) {
   await page.evaluate(() =>
     window.documentStudioTest.execute({ id: "selectAll" }),
   );
+  await focusDocumentInput(page);
   await page.keyboard.insertText(value);
   await expect
     .poll(() => page.evaluate(() => window.documentStudioTest.state()?.dirty))
@@ -337,4 +338,12 @@ for (const format of ["docx", "hwpx"] as const) {
       expect(await text(page, format)).toContain("보존 내용");
     });
   });
+}
+
+
+// Native selectAll changes the document selection; it does not promise keyboard focus.
+async function focusDocumentInput(page: Page) {
+  const format = await page.evaluate(() => window.documentStudioTest.state()?.format);
+  if (format === "hwpx") await page.frameLocator("iframe").getByLabel("문서 편집 입력", { exact: true }).focus();
+  else await page.getByRole("textbox", { name: "Document content", exact: true }).focus();
 }

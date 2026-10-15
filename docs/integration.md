@@ -148,3 +148,54 @@ HWPX의 서식 조회는 캐럿 기준, DOCX의 서식 조회는 엔진의 선�
 Vue의 `onBeforeUnmount`나 다른 프레임워크의 unmount callback은 비동기 초안 보관이 끝날 때까지 DOM 제거를 자동으로 기다려 주지 않습니다. 라우터의 종료 guard 또는 사용자가 누르는 닫기 함수에서 **먼저 `await editor.destroy()`가 성공한 뒤** 컴포넌트/DOM을 제거하세요. 실패하면 화면을 유지하고 사용자가 저장·복구할 수 있게 해야 합니다. 페이지 강제 종료까지 보장하는 계약은 아닙니다.
 
 `EditorController`, `EditorControllerState`, 저장 영수증과 `createAgentBridge`는 `@document-studio/core`에서 가져올 수 있습니다. 기존 React의 `DocumentEditorHandle`과 브리지 export는 호환됩니다. `const agent = createAgentBridge(() => editor)`로 DOM controller에도 같은 문서·세션·revision·선택 보호를 사용합니다. 이 브리지는 브라우저에 연결된 controller를 제어하며 서버에서 화면 없이 실행하는 Office 엔진이나 실제 LLM transport를 제공하지 않습니다.
+
+## 앱의 UI 구성에 연결
+
+0.2.19의 `ui.containers`는 툴바·상태 표시·추가 편집 도구를 앱이 만든 HTML 요소에 배치합니다. React와 DOM API에서 같은 옵션을 사용합니다. `tools`에는 문단·표·그림·찾기·보고서·업무 자동화 탭이 들어갑니다. 지정하지 않은 영역은 편집기 내부의 기본 위치에 표시합니다.
+
+```ts
+const ui = {
+  containers: {
+    toolbar: document.getElementById("document-toolbar")!,
+    statusBar: document.getElementById("document-status")!,
+    tools: document.getElementById("document-properties")!,
+  },
+  theme: { accent: "#6c3be9", radius: "4px", fontFamily: "inherit" },
+};
+// React: <DocumentEditor {...options} ui={ui} />
+// DOM: await mountDocumentEditor(host, { ...options, ui });
+await editor.update({ ui: { ...ui, theme: { ...ui.theme, accent: "#005c53" } } });
+```
+
+대상은 같은 document에 연결된 호스트 소유 HTMLElement여야 합니다. SDK 내부 요소나 분리된 DOM을 지정하면 거절합니다. 대상의 기존 자식은 유지하고 SDK가 만든 영역만 추가·이동·제거합니다. 배치나 테마 변경으로 엔진을 재마운트하지 않으며, 도구 영역 이동에도 입력 중인 폼과 포커스를 유지합니다. 오류·저장 경고·초안 복구·확인창은 편집기 본체에 남습니다. 종료 전 `destroy()`를 기다린 뒤 앱의 대상 DOM을 제거하세요. React 호스트도 상위 라우트가 DOM을 제거하기 전에 `flushDraft()`로 종료를 준비해야 합니다.
+
+`update({ ui })`는 `ui` 객체 전체를 교체합니다. 일부 테마나 대상만 바꿀 때는 위 예제처럼 유지할 설정도 함께 전달하세요.
+
+외부 `tools`의 크기와 화면 전환은 호스트가 소유합니다. SDK의 도킹 크기 슬라이더·자동 전체 확장은 적용하지 않습니다. 좁은 화면에서는 원본 입력이 가려지지 않도록 충분한 높이와 세로 스크롤을 제공하세요. [일반 JavaScript·Vue 예제](../examples/browser/main.ts)는 도구 영역을 조건부로 열고 모바일에서 520px 높이로 문서 아래에 배치합니다. 이 수치는 모든 글꼴·배율·호스트에서의 최소 높이를 보증하는 값은 아닙니다.
+
+`ui.theme`의 선택 항목은 `accent`, `accentForeground`, `background`, `panel`, `text`, `muted`, `border`, `radius`, `fontFamily`입니다. 색과 길이는 CSS 값으로 전달하며, 편집기와 분리된 영역에 함께 적용됩니다. `appearance="embedded"`는 기본적으로 앱의 `--primary`, `--foreground`, `--background`, `--border`, `--radius` 등 디자인 토큰을 따릅니다. 문서 내용 자체의 글꼴·색·용지 확대를 바꾸는 옵션은 아닙니다.
+
+React 앱은 `slots.toolbar`와 `slots.statusBar`로 자체 컴포넌트를 사용합니다.
+
+```tsx
+import type { EditorUISlots } from "@document-studio/react";
+
+const slots: EditorUISlots = {
+  toolbar: ({ defaultContent, openTools }) => (
+    <div className="my-document-toolbar">
+      <MyButton onClick={() => openTools("automation")}>업무 자동화</MyButton>
+      {defaultContent}
+    </div>
+  ),
+  statusBar: ({ snapshot, setZoom }) => (
+    <div>
+      <span>{snapshot.pageCount}쪽</span>
+      <MyButton onClick={() => setZoom(1)}>100%</MyButton>
+    </div>
+  ),
+};
+```
+
+슬롯은 `snapshot`, `readOnly`, `defaultContent`, `execute`, `openTools`, `closeTools`, `toolsOpen`, `nativeTools`, `setNativeTools`, `fitWidth`, `setZoom`를 받습니다. `execute`는 공개 controller와 같은 권한·저장·선택 검사를 거치며 Promise 실패를 앱이 표시해야 합니다. 각 버튼의 활성화 상태는 `snapshot.commands`에서 확인하세요. `openTools`의 탭은 `text`, `paragraph`, `table`, `image`, `page`, `search`, `presets`, `automation`입니다. `setZoom`은 배수 또는 `"width"`를 받습니다.
+
+슬롯의 렌더링이 실패하면 해당 영역의 기본 UI로 복구하고 편집기에 오류를 표시합니다. 문서 엔진은 유지됩니다. DOM API는 React 슬롯 함수를 받지 않습니다. 일반 JavaScript·Vue에서는 영역을 배치하고 자체 버튼을 기존 controller의 `execute`/`save`와 연결하세요. 브리지·저장 계약과 실제 LLM transport 범위는 기존과 같습니다.

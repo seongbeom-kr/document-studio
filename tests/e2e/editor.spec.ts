@@ -22,6 +22,7 @@ async function load(page: Page, format: "docx" | "hwpx") {
     .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
     .toBe(true);
   await expect(page.getByRole("alert")).toHaveCount(0);
+  await focusDocumentInput(page);
 }
 async function textFrom(page: Page, format: "docx" | "hwpx") {
   const bytes = await page.evaluate(() => window.documentStudioTest.export());
@@ -610,6 +611,7 @@ for (const format of ["docx", "hwpx"] as const) {
       await page.evaluate(() =>
         window.documentStudioTest.execute({ id: "selectAll" }),
       );
+      await focusDocumentInput(page);
       await page.keyboard.insertText("빈 문서에서 시작");
       expect(await textFrom(page, format)).toContain("빈 문서에서 시작");
     });
@@ -878,6 +880,7 @@ for (const format of ["docx", "hwpx"] as const) {
         await window.documentStudioTest.save();
         await window.documentStudioTest.execute({ id: "selectAll" });
       });
+      await focusDocumentInput(page);
       await page.keyboard.insertText("저장 이후의 새 편집 유지");
       await expect
         .poll(() =>
@@ -1049,3 +1052,11 @@ test("has no horizontal overflow on a narrow device", async ({ page }) => {
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(390);
 });
+
+
+// Native selectAll changes the document selection; it does not promise keyboard focus.
+async function focusDocumentInput(page: Page) {
+  const format = await page.evaluate(() => window.documentStudioTest.state()?.format);
+  if (format === "hwpx") await page.frameLocator("iframe").getByLabel("문서 편집 입력", { exact: true }).focus();
+  else await page.getByRole("textbox", { name: "Document content", exact: true }).focus();
+}

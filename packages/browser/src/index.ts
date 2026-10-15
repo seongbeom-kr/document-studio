@@ -2,6 +2,7 @@ import { createElement, useLayoutEffect, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import {
   DocumentEditor,
+  validateEditorUI,
   type DocumentEditorProps,
 } from "@document-studio/react";
 import {
@@ -15,7 +16,12 @@ export type {
   EditorController,
   EditorControllerState,
 } from "@document-studio/core";
-export type BrowserEditorOptions = DocumentEditorProps;
+export type BrowserEditorOptions = Omit<DocumentEditorProps, "slots">;
+export type {
+  EditorUIOptions,
+  EditorTheme,
+  EditorToolTab,
+} from "@document-studio/react";
 export type BrowserEditorUpdate = Partial<
   Pick<
     DocumentEditorProps,
@@ -29,6 +35,7 @@ export type BrowserEditorUpdate = Partial<
     | "onClose"
     | "onCreateDocument"
     | "creationLocation"
+    | "ui"
   >
 >;
 
@@ -55,6 +62,7 @@ const updateKeys = new Set([
   "onClose",
   "onCreateDocument",
   "creationLocation",
+  "ui",
 ]);
 
 function CommitBoundary({
@@ -80,6 +88,7 @@ export async function mountDocumentEditor(
     throw new Error("이 요소에는 이미 편집기가 연결돼 있습니다.");
   if (!initialOptions?.document || !initialOptions.engines?.length)
     throw new TypeError("문서와 편집 엔진이 필요합니다.");
+  validateEditorUI(initialOptions.ui, container.ownerDocument);
   mounts.add(container);
   // Own one child only: never clear the host's other content.
   const surface = container.ownerDocument.createElement("div");
@@ -100,6 +109,30 @@ export async function mountDocumentEditor(
     | { resolve(): void; reject(error: unknown): void }
     | undefined;
   const listeners = new Set<() => void>();
+  const freezeRegions = () => {
+    const focused = container.ownerDocument.activeElement as HTMLElement | null;
+    const owner =
+      surface.querySelector<HTMLElement>(".ds-editor")?.dataset
+        .documentStudioOwner;
+    const regions = owner
+      ? [
+          ...container.ownerDocument.querySelectorAll<HTMLElement>(
+            ".ds-ui-region",
+          ),
+        ].filter((region) => region.dataset.documentStudioOwner === owner)
+      : [];
+    const previous = regions.map((region) => ({ region, inert: region.inert }));
+    const restoreFocus =
+      focused && previous.some(({ region }) => region.contains(focused));
+    surface.inert = true;
+    for (const { region } of previous) region.inert = true;
+    return () => {
+      surface.inert = false;
+      for (const { region, inert } of previous) region.inert = inert;
+      if (restoreFocus && focused.isConnected && !focused.closest("[inert]"))
+        focused.focus({ preventScroll: true });
+    };
+  };
   const publish = () => {
     for (const listener of listeners) listener();
   };
@@ -207,6 +240,7 @@ export async function mountDocumentEditor(
         );
       if ("document" in patch && !patch.document)
         throw new TypeError("문서가 필요합니다.");
+      validateEditorUI(patch.ui ?? options.ui, container.ownerDocument);
       const next = patch.document;
       const switching =
         next !== undefined &&
@@ -216,7 +250,7 @@ export async function mountDocumentEditor(
           next.version !== options.document.version ||
           next.bytes !== options.document.bytes);
       transitioning = true;
-      surface.inert = true;
+      const thaw = freezeRegions();
       try {
         if (switching) await protect();
         options = { ...options, ...patch };
@@ -229,7 +263,7 @@ export async function mountDocumentEditor(
         }
       } finally {
         transitioning = false;
-        surface.inert = false;
+        thaw();
         publish();
       }
     },
@@ -239,7 +273,7 @@ export async function mountDocumentEditor(
       if (transitioning)
         return Promise.reject(new Error("편집기를 전환하는 중입니다."));
       transitioning = true;
-      surface.inert = true;
+      const thaw = freezeRegions();
       destroyTask = (async () => {
         try {
           await protect();
@@ -249,7 +283,7 @@ export async function mountDocumentEditor(
           mounts.delete(container);
         } finally {
           transitioning = false;
-          surface.inert = false;
+          thaw();
           destroyTask = null;
           publish();
           if (disposed) listeners.clear();

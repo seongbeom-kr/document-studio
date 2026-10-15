@@ -52,6 +52,14 @@ import type { AutomationDraftStore } from "./automation-drafts";
 import { matchesSavedSource, type SavedSource } from "./save-source";
 import { fitPageWidth } from "./fit-page-width";
 import {
+  EDITOR_TOOL_TABS,
+  EditorRegion,
+  editorThemeStyle,
+  type EditorUIOptions,
+  type EditorUISlots,
+  type EditorUIContext,
+} from "./editor-ui";
+import {
   resolveRecovery,
   RecoveryUnavailableError,
   type RecoveryResolution,
@@ -84,6 +92,9 @@ export interface DocumentEditorProps {
   automationDraftStore?: AutomationDraftStore | false;
   /** Embedded mode omits the SDK title/action header and inherits the host's design tokens. */
   appearance?: "standalone" | "embedded";
+  ui?: EditorUIOptions;
+  /** Customize ordinary chrome; recovery dialogs and safety notices remain SDK-owned. */
+  slots?: EditorUISlots;
   onStateChange?(snapshot: EditorSnapshot): void;
   onDirtyChange?(dirty: boolean): void;
   onSaved?(result: DocumentSavedEvent): void | Promise<void>;
@@ -171,13 +182,22 @@ export const DocumentEditor = forwardRef<
   const [saving, setSaving] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [toolsExpanded, setToolsExpanded] = useState(false);
+  const externalTools = Boolean(props.ui?.containers?.tools);
+  const overlayTools = toolsExpanded && !externalTools;
   const expandedTools = useRef(false);
-  expandedTools.current = toolsExpanded;
+  expandedTools.current = overlayTools;
   const toolsToggle = useRef<HTMLButtonElement>(null);
+  const toolsReturnFocus = useRef<HTMLElement | null>(null);
   const closeTools = () => {
     setToolsExpanded(false);
     setToolsOpen(false);
-    requestAnimationFrame(() => toolsToggle.current?.focus());
+    requestAnimationFrame(() => {
+      const target = toolsReturnFocus.current?.isConnected
+        ? toolsReturnFocus.current
+        : toolsToggle.current;
+      target?.focus({ preventScroll: true });
+      toolsReturnFocus.current = null;
+    });
   };
   const [toolsTab, setToolsTab] = useState("문단");
   const [nativeTools, setNativeTools] = useState(false);
@@ -226,7 +246,7 @@ export const DocumentEditor = forwardRef<
   const inputBlocked =
     !session ||
     busy ||
-    toolsExpanded ||
+    overlayTools ||
     inputLockCount > 0 ||
     modalBlocked.current ||
     Boolean(props.readOnly);
@@ -1601,10 +1621,44 @@ export const DocumentEditor = forwardRef<
     },
     [mountId, reportError],
   );
+  const uiContext: Omit<EditorUIContext, "defaultContent"> = {
+    snapshot,
+    readOnly: Boolean(props.readOnly),
+    toolsOpen,
+    nativeTools,
+    fitWidth,
+    execute,
+    openTools(tab = "paragraph") {
+      if (!Object.hasOwn(EDITOR_TOOL_TABS, tab))
+        throw new TypeError("지원하지 않는 편집 도구입니다.");
+      toolsReturnFocus.current =
+        window.document.activeElement instanceof HTMLElement
+          ? window.document.activeElement
+          : null;
+      setToolsTab(EDITOR_TOOL_TABS[tab]);
+      setToolsOpen(true);
+    },
+    closeTools,
+    setNativeTools,
+    setZoom(value) {
+      setFitWidth(value === "width");
+      if (value !== "width") run({ id: "zoom", value });
+    },
+  };
+  const regionProps = {
+    appearance: props.appearance,
+    theme: props.ui?.theme,
+    context: uiContext,
+    onError: reportError,
+    owner: dialogId,
+    blocked: Boolean(offer) || closeDialog,
+  };
   return (
     <section
       className="ds-editor"
       data-appearance={props.appearance ?? "standalone"}
+      data-document-studio-owner={dialogId}
+      style={editorThemeStyle(props.ui?.theme)}
       aria-label={`${displayed.fileName} 편집기`}
       onKeyDownCapture={(event) => {
         if (event.key === "Escape" && toolsOpen) {
@@ -1716,143 +1770,150 @@ export const DocumentEditor = forwardRef<
           </div>
         </header>
       )}
-      <div className="ds-toolbar" role="toolbar" aria-label="문서 서식">
-        <div className="ds-tool-group">
-          <button
-            className="ds-button"
-            disabled={!snapshot.ready || busy}
-            aria-expanded={toolsOpen}
-            ref={toolsToggle}
-            title="문단·글자·표·그림·페이지 설정"
-            onClick={() => {
-              if (!toolsOpen) setToolsTab("문단");
-              if (toolsOpen) closeTools();
-              else setToolsOpen(true);
-            }}
-          >
-            문단·표·그림
-          </button>
-          <button
-            className="ds-button"
-            disabled={!snapshot.ready || busy}
-            aria-expanded={nativeTools}
-            title="엔진의 삽입·쪽 설정·파일 메뉴"
-            onClick={() => setNativeTools(!nativeTools)}
-          >
-            삽입·쪽 메뉴
-          </button>
-          <button
-            type="button"
-            className="ds-button"
-            title="문서에서 찾기 · Ctrl+F"
-            onClick={() => {
-              setToolsTab("찾기와 바꾸기");
-              setToolsOpen(true);
-            }}
-          >
-            찾기
-          </button>
-        </div>
-        <div className="ds-tool-group">
-          {button("undo", "되돌리기", "↶")}
-          {button("redo", "다시 실행", "↷")}
-        </div>
-        <div className="ds-tool-group">
+      <EditorRegion
+        {...regionProps}
+        name="toolbar"
+        target={props.ui?.containers?.toolbar}
+        render={props.slots?.toolbar}
+      >
+        <div className="ds-toolbar" role="toolbar" aria-label="문서 서식">
+          <div className="ds-tool-group">
+            <button
+              className="ds-button"
+              disabled={!snapshot.ready || busy}
+              aria-expanded={toolsOpen}
+              ref={toolsToggle}
+              title="문단·글자·표·그림·페이지 설정"
+              onClick={() => {
+                if (!toolsOpen) setToolsTab("문단");
+                if (toolsOpen) closeTools();
+                else setToolsOpen(true);
+              }}
+            >
+              문단·표·그림
+            </button>
+            <button
+              className="ds-button"
+              disabled={!snapshot.ready || busy}
+              aria-expanded={nativeTools}
+              title="엔진의 삽입·쪽 설정·파일 메뉴"
+              onClick={() => setNativeTools(!nativeTools)}
+            >
+              삽입·쪽 메뉴
+            </button>
+            <button
+              type="button"
+              className="ds-button"
+              title="문서에서 찾기 · Ctrl+F"
+              onClick={() => {
+                setToolsTab("찾기와 바꾸기");
+                setToolsOpen(true);
+              }}
+            >
+              찾기
+            </button>
+          </div>
+          <div className="ds-tool-group">
+            {button("undo", "되돌리기", "↶")}
+            {button("redo", "다시 실행", "↷")}
+          </div>
+          <div className="ds-tool-group">
+            <label className="ds-field">
+              글꼴
+              <select
+                aria-label="글꼴"
+                disabled={!enabled("fontFamily")}
+                value={snapshot.fontFamily ?? ""}
+                onChange={(event) =>
+                  run({ id: "fontFamily", value: event.target.value })
+                }
+              >
+                <option value="" disabled>
+                  선택
+                </option>
+                {Array.from(
+                  new Set(
+                    [
+                      snapshot.fontFamily,
+                      "Arial",
+                      "맑은 고딕",
+                      "바탕",
+                      "Noto Sans KR",
+                    ].filter((name): name is string => Boolean(name)),
+                  ),
+                ).map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="ds-field ds-number">
+              크기
+              <input
+                aria-label="글자 크기"
+                type="number"
+                min={1}
+                max={200}
+                key={`${snapshot.fontSize ?? "mixed"}`}
+                defaultValue={snapshot.fontSize}
+                disabled={!enabled("fontSize")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    // Blurring restores editor focus; consume Enter before its default edit action can replace the selection.
+                    event.preventDefault();
+                    event.stopPropagation();
+                    event.currentTarget.blur();
+                  }
+                }}
+                onBlur={(event) => {
+                  if (Number(event.target.value) !== snapshot.fontSize)
+                    run({ id: "fontSize", value: Number(event.target.value) });
+                }}
+              />
+            </label>
+          </div>
+          <div className="ds-tool-group">
+            {button("bold", "굵게", "B")}
+            {button("italic", "기울임", "I")}
+            {button("underline", "밑줄", "U")}
+          </div>
+          <div className="ds-tool-group">
+            {button("alignLeft", "왼쪽 정렬", "≡←")}
+            {button("alignCenter", "가운데 정렬", "≡")}
+            {button("alignRight", "오른쪽 정렬", "→≡")}
+            {button("alignJustify", "양쪽 정렬", "☰")}
+          </div>
           <label className="ds-field">
-            글꼴
+            행간
             <select
-              aria-label="글꼴"
-              disabled={!enabled("fontFamily")}
-              value={snapshot.fontFamily ?? ""}
+              aria-label="행간"
+              value={snapshot.lineSpacing ?? ""}
+              disabled={!enabled("lineSpacing")}
               onChange={(event) =>
-                run({ id: "fontFamily", value: event.target.value })
+                run({ id: "lineSpacing", value: Number(event.target.value) })
               }
             >
               <option value="" disabled>
-                선택
+                사용자 지정
               </option>
               {Array.from(
                 new Set(
-                  [
-                    snapshot.fontFamily,
-                    "Arial",
-                    "맑은 고딕",
-                    "바탕",
-                    "Noto Sans KR",
-                  ].filter((name): name is string => Boolean(name)),
+                  [snapshot.lineSpacing, 1, 1.15, 1.5, 1.6, 2, 2.5, 3].filter(
+                    (value): value is number => value !== undefined,
+                  ),
                 ),
-              ).map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
+              )
+                .sort((a, b) => a - b)
+                .map((value) => (
+                  <option key={value} value={value}>
+                    {Math.round(value * 100)}%
+                  </option>
+                ))}
             </select>
           </label>
-          <label className="ds-field ds-number">
-            크기
-            <input
-              aria-label="글자 크기"
-              type="number"
-              min={1}
-              max={200}
-              key={`${snapshot.fontSize ?? "mixed"}`}
-              defaultValue={snapshot.fontSize}
-              disabled={!enabled("fontSize")}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  // Blurring restores editor focus; consume Enter before its default edit action can replace the selection.
-                  event.preventDefault();
-                  event.stopPropagation();
-                  event.currentTarget.blur();
-                }
-              }}
-              onBlur={(event) => {
-                if (Number(event.target.value) !== snapshot.fontSize)
-                  run({ id: "fontSize", value: Number(event.target.value) });
-              }}
-            />
-          </label>
         </div>
-        <div className="ds-tool-group">
-          {button("bold", "굵게", "B")}
-          {button("italic", "기울임", "I")}
-          {button("underline", "밑줄", "U")}
-        </div>
-        <div className="ds-tool-group">
-          {button("alignLeft", "왼쪽 정렬", "≡←")}
-          {button("alignCenter", "가운데 정렬", "≡")}
-          {button("alignRight", "오른쪽 정렬", "→≡")}
-          {button("alignJustify", "양쪽 정렬", "☰")}
-        </div>
-        <label className="ds-field">
-          행간
-          <select
-            aria-label="행간"
-            value={snapshot.lineSpacing ?? ""}
-            disabled={!enabled("lineSpacing")}
-            onChange={(event) =>
-              run({ id: "lineSpacing", value: Number(event.target.value) })
-            }
-          >
-            <option value="" disabled>
-              사용자 지정
-            </option>
-            {Array.from(
-              new Set(
-                [snapshot.lineSpacing, 1, 1.15, 1.5, 1.6, 2, 2.5, 3].filter(
-                  (value): value is number => value !== undefined,
-                ),
-              ),
-            )
-              .sort((a, b) => a - b)
-              .map((value) => (
-                <option key={value} value={value}>
-                  {Math.round(value * 100)}%
-                </option>
-              ))}
-          </select>
-        </label>
-      </div>
+      </EditorRegion>
       {error && (
         <div className="ds-notice ds-error" role="alert">
           <span>{error}</span>
@@ -1973,75 +2034,89 @@ export const DocumentEditor = forwardRef<
             </div>
           )}
         </div>
-        {toolsOpen && (
-          <EditingTools
-            format={document?.format}
-            saveLocation={props.creationLocation}
-            automationSession={automationSession}
-            automationStatus={automationStatus}
-            creationContext={automationContext}
-            initialTab={toolsTab}
-            expanded={toolsExpanded}
-            onExpandedChange={setToolsExpanded}
-            onTabChange={setToolsTab}
-            documentKey={`${displayed.id}:${sessionId.current}`}
-            onClose={closeTools}
-            snapshot={snapshot}
-            disabled={busy}
-            readOnly={props.readOnly}
-            execute={execute}
-            search={search}
-            selectMatch={selectMatch}
-            replace={replace}
-            applyPreset={applyPreset}
-            presets={props.presets}
-            onError={reportError}
-            createDocument={engine?.createDocument}
-            onCreateDocument={
-              props.readOnly ? undefined : props.onCreateDocument
-            }
-          />
-        )}
+        <EditorRegion
+          {...regionProps}
+          name="tools"
+          target={props.ui?.containers?.tools}
+        >
+          {toolsOpen && (
+            <EditingTools
+              format={document?.format}
+              saveLocation={props.creationLocation}
+              automationSession={automationSession}
+              automationStatus={automationStatus}
+              creationContext={automationContext}
+              initialTab={toolsTab}
+              expanded={overlayTools}
+              external={externalTools}
+              onExpandedChange={externalTools ? undefined : setToolsExpanded}
+              onTabChange={setToolsTab}
+              documentKey={`${displayed.id}:${sessionId.current}`}
+              onClose={closeTools}
+              snapshot={snapshot}
+              disabled={busy}
+              readOnly={props.readOnly}
+              execute={execute}
+              search={search}
+              selectMatch={selectMatch}
+              replace={replace}
+              applyPreset={applyPreset}
+              presets={props.presets}
+              onError={reportError}
+              createDocument={engine?.createDocument}
+              onCreateDocument={
+                props.readOnly ? undefined : props.onCreateDocument
+              }
+            />
+          )}
+        </EditorRegion>
       </div>
-      <footer className="ds-document-footer">
-        <span>{snapshot.pageCount ? `${snapshot.pageCount}쪽` : ""}</span>
-        <span>선택한 영역에 서식 적용</span>
-        <label className="ds-zoom">
-          확대
-          <select
-            aria-label="확대"
-            value={fitWidth ? "width" : Math.round(snapshot.zoom * 100)}
-            disabled={!enabled("zoom")}
-            onChange={(event) => {
-              const fit = event.target.value === "width";
-              setFitWidth(fit);
-              if (!fit)
-                run({ id: "zoom", value: Number(event.target.value) / 100 });
-            }}
-          >
-            <option value="width" disabled={!snapshot.page?.widthMm}>
-              페이지 너비에 맞춤
-            </option>
-            {Array.from(
-              new Set([
-                Math.round(snapshot.zoom * 100),
-                50,
-                75,
-                100,
-                125,
-                150,
-                200,
-              ]),
-            )
-              .sort((a, b) => a - b)
-              .map((value) => (
-                <option key={value} value={value}>
-                  {value}%
-                </option>
-              ))}
-          </select>
-        </label>
-      </footer>
+      <EditorRegion
+        {...regionProps}
+        name="statusBar"
+        target={props.ui?.containers?.statusBar}
+        render={props.slots?.statusBar}
+      >
+        <footer className="ds-document-footer">
+          <span>{snapshot.pageCount ? `${snapshot.pageCount}쪽` : ""}</span>
+          <span>선택한 영역에 서식 적용</span>
+          <label className="ds-zoom">
+            확대
+            <select
+              aria-label="확대"
+              value={fitWidth ? "width" : Math.round(snapshot.zoom * 100)}
+              disabled={!enabled("zoom")}
+              onChange={(event) => {
+                const fit = event.target.value === "width";
+                setFitWidth(fit);
+                if (!fit)
+                  run({ id: "zoom", value: Number(event.target.value) / 100 });
+              }}
+            >
+              <option value="width" disabled={!snapshot.page?.widthMm}>
+                페이지 너비에 맞춤
+              </option>
+              {Array.from(
+                new Set([
+                  Math.round(snapshot.zoom * 100),
+                  50,
+                  75,
+                  100,
+                  125,
+                  150,
+                  200,
+                ]),
+              )
+                .sort((a, b) => a - b)
+                .map((value) => (
+                  <option key={value} value={value}>
+                    {value}%
+                  </option>
+                ))}
+            </select>
+          </label>
+        </footer>
+      </EditorRegion>
       {offer && (
         <ModalDialog labelledBy={`${dialogId}-recovery`}>
           <h3 id={`${dialogId}-recovery`}>

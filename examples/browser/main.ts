@@ -28,8 +28,19 @@ async function openFile(host: HTMLElement, file: File) {
       engines,
       draftStore,
       draftNamespace: "browser-example:local-user",
+      ui: {
+        containers: {
+          toolbar: documentElement("editor-toolbar"),
+          statusBar: documentElement("editor-status"),
+          tools: documentElement("editor-tools"),
+        },
+        theme: { accent: "#6c3be9", radius: "4px" },
+      },
     });
   await editor.whenReady();
+}
+function documentElement(id: string): HTMLElement {
+  return window.document.getElementById(id)!;
 }
 
 if (new URLSearchParams(location.search).get("host") === "vue") {
@@ -93,14 +104,19 @@ if (new URLSearchParams(location.search).get("host") === "vue") {
             "초안 보관 후 닫기",
           ),
           h("p", { role: "status" }, status.value),
-          h("div", { ref: host, style: "height:75vh;min-height:450px" }),
+          h("section", { class: "document-layout" }, [
+            h("header", { id: "editor-toolbar" }),
+            h("div", { ref: host, class: "document-surface" }),
+            h("aside", { id: "editor-tools", "aria-label": "문서 도구 영역" }),
+            h("footer", { id: "editor-status" }),
+          ]),
         ]);
     },
   }).mount("#app");
 } else {
   const root = document.querySelector<HTMLElement>("#app")!;
   root.innerHTML =
-    '<h1>JavaScript 앱의 문서 편집기</h1><label>문서 파일<input type="file" accept=".docx,.hwpx"></label><button id="save">저장하고 다운로드</button><button id="close">초안 보관 후 닫기</button><p role="status">문서를 선택하세요.</p><div id="editor" style="height:75vh;min-height:450px"></div>';
+    '<h1>JavaScript 앱의 문서 편집기</h1><label>문서 파일<input type="file" accept=".docx,.hwpx"></label><button id="save">저장하고 다운로드</button><button id="close">초안 보관 후 닫기</button><p role="status">문서를 선택하세요.</p><section class="document-layout"><header id="editor-toolbar"></header><div id="editor" class="document-surface"></div><aside id="editor-tools" aria-label="문서 도구 영역"></aside><footer id="editor-status"></footer></section>';
   const host = root.querySelector<HTMLElement>("#editor")!;
   const status = root.querySelector('[role="status"]')!;
   const input = root.querySelector("input")!;

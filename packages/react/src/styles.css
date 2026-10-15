@@ -1,10 +1,17 @@
-.ds-editor {
+.ds-editor,
+.ds-ui-scope {
   --ds-accent: #245f56;
+  --ds-accent-foreground: #fff;
+  --ds-background: #fff;
+  --ds-panel: #f7f9fa;
+  --ds-radius: 7px;
   --ds-border: #e3e7e8;
   --ds-text: #23312e;
   --ds-muted: #71807b;
   color: var(--ds-text);
   font-family: Inter, "Segoe UI", "Malgun Gothic", sans-serif;
+}
+.ds-editor {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -17,28 +24,58 @@
   border-radius: 14px;
   overflow: hidden;
 }
-.ds-editor *,
-.ds-editor *::before,
-.ds-editor *::after {
+.ds-ui-anchor,
+.ds-ui-region {
+  display: contents;
+}
+.ds-ui-region[data-external="true"] {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  container-type: inline-size;
+  container-name: document-editor;
+}
+.ds-ui-region[data-external="true"][data-region="tools"] {
+  height: 100%;
+}
+.ds-ui-region[data-external="true"][data-region="tools"] > .ds-editing-tools {
+  height: 100%;
+  max-height: 100%;
+  width: 100%;
+  border: 0;
+}
+.ds-ui-region[data-external="true"] .ds-automation-data textarea,
+.ds-ui-region[data-external="true"] .ds-text-result textarea {
+  height: 160px;
+}
+:is(.ds-editor, .ds-ui-scope) textarea,
+:is(.ds-editor, .ds-ui-scope) input,
+:is(.ds-editor, .ds-ui-scope) select {
+  color: var(--ds-text);
+  background: var(--ds-background);
+}
+:is(.ds-editor, .ds-ui-scope) *,
+:is(.ds-editor, .ds-ui-scope) *::before,
+:is(.ds-editor, .ds-ui-scope) *::after {
   box-sizing: border-box;
 }
-.ds-editor button,
-.ds-editor input,
-.ds-editor select {
+:is(.ds-editor, .ds-ui-scope) button,
+:is(.ds-editor, .ds-ui-scope) input,
+:is(.ds-editor, .ds-ui-scope) select {
   font: inherit;
 }
-.ds-editor button {
+:is(.ds-editor, .ds-ui-scope) button {
   cursor: pointer;
 }
-.ds-editor button:disabled,
-.ds-editor select:disabled,
-.ds-editor input:disabled {
+:is(.ds-editor, .ds-ui-scope) button:disabled,
+:is(.ds-editor, .ds-ui-scope) select:disabled,
+:is(.ds-editor, .ds-ui-scope) input:disabled {
   cursor: default;
   opacity: 0.45;
 }
-.ds-editor button:focus-visible,
-.ds-editor select:focus-visible,
-.ds-editor input:focus-visible {
+:is(.ds-editor, .ds-ui-scope) button:focus-visible,
+:is(.ds-editor, .ds-ui-scope) select:focus-visible,
+:is(.ds-editor, .ds-ui-scope) input:focus-visible {
   outline: 2px solid var(--ds-accent);
   outline-offset: 2px;
 }
@@ -48,7 +85,7 @@
   justify-content: space-between;
   gap: 18px;
   padding: 20px 24px;
-  background: white;
+  background: var(--ds-background);
   border-bottom: 1px solid var(--ds-border);
   flex-shrink: 0;
 }
@@ -86,9 +123,9 @@
   gap: 8px;
 }
 .ds-button {
-  background: white;
+  background: var(--ds-background);
   border: 1px solid var(--ds-border);
-  border-radius: 7px;
+  border-radius: var(--ds-radius);
   padding: 9px 13px;
   font-size: 12px !important;
   color: var(--ds-text);
@@ -97,18 +134,20 @@
 .ds-primary {
   background: var(--ds-accent);
   border-color: var(--ds-accent);
-  color: white;
+  color: var(--ds-accent-foreground);
 }
 .ds-button:hover:not(:disabled) {
   filter: brightness(0.96);
 }
 .ds-toolbar {
   display: flex;
+  min-width: 0;
+  max-width: 100%;
   gap: 12px;
   align-items: center;
   flex-wrap: wrap;
   padding: 12px 20px;
-  background: #fff;
+  background: var(--ds-background);
   border-bottom: 1px solid var(--ds-border);
   flex-shrink: 0;
 }
@@ -123,7 +162,7 @@
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: #4c5b57;
+  color: var(--ds-text);
   font-size: 15px !important;
   width: 30px;
   height: 30px;
@@ -198,7 +237,7 @@
   display: flex;
   align-items: center;
   gap: 20px;
-  background: white;
+  background: var(--ds-background);
   border-top: 1px solid var(--ds-border);
   font-size: 11px;
   color: var(--ds-muted);
@@ -294,7 +333,7 @@
   cursor: pointer;
   padding: 4px 0;
 }
-.ds-work-area > .ds-editing-tools[data-expanded="true"] {
+.ds-work-area .ds-editing-tools[data-expanded="true"] {
   position: absolute;
   inset: 0;
   z-index: 3;
@@ -314,44 +353,50 @@
   line-height: 1.6;
   color: var(--ds-muted);
 }
-.ds-editor[data-appearance="embedded"] {
+:is(.ds-editor, .ds-ui-scope)[data-appearance="embedded"] {
   --ds-accent: var(--primary, #245f56);
   --ds-accent-foreground: var(--primary-foreground, #fff);
   --ds-border: var(--border, #e3e7e8);
   --ds-text: var(--foreground, #23312e);
   --ds-muted: var(--muted-foreground, #71807b);
   --ds-panel: var(--muted, #f7f9fa);
+  --ds-background: var(--background, #fff);
+  --ds-radius: var(--radius, 6px);
   font-family: inherit;
+}
+.ds-editor[data-appearance="embedded"] {
   border: 0;
   border-radius: 0;
-  background: var(--background, #fff);
+  background: var(--ds-background);
 }
-.ds-editor[data-appearance="embedded"] .ds-toolbar {
+:is(.ds-editor, .ds-ui-scope)[data-appearance="embedded"] .ds-toolbar {
   padding: 6px 10px;
   gap: 6px;
-  background: var(--background, #fff);
+  background: var(--ds-background);
 }
-.ds-editor[data-appearance="embedded"] .ds-button,
-.ds-editor[data-appearance="embedded"] .ds-field input,
-.ds-editor[data-appearance="embedded"] .ds-field select {
-  background: var(--background, #fff);
+:is(.ds-editor, .ds-ui-scope)[data-appearance="embedded"] .ds-button,
+:is(.ds-editor, .ds-ui-scope)[data-appearance="embedded"] .ds-field input,
+:is(.ds-editor, .ds-ui-scope)[data-appearance="embedded"] .ds-field select {
+  background: var(--ds-background);
   color: var(--ds-text);
-  border-radius: var(--radius, 6px);
+  border-radius: var(--ds-radius);
 }
-.ds-editor[data-appearance="embedded"] .ds-primary,
-.ds-editor[data-appearance="embedded"] .ds-tools-tabs button.active {
+:is(.ds-editor, .ds-ui-scope)[data-appearance="embedded"] .ds-primary,
+:is(.ds-editor, .ds-ui-scope)[data-appearance="embedded"]
+  .ds-tools-tabs
+  button.active {
   background: var(--ds-accent);
   color: var(--ds-accent-foreground);
 }
-.ds-editor[data-appearance="embedded"] .ds-document-footer {
-  background: var(--background, #fff);
+:is(.ds-editor, .ds-ui-scope)[data-appearance="embedded"] .ds-document-footer {
+  background: var(--ds-background);
   padding: 5px 10px;
 }
 @container document-editor (max-width: 1100px) {
   .ds-work-area {
     flex-direction: column;
   }
-  .ds-work-area > .ds-editing-tools {
+  .ds-work-area .ds-editing-tools {
     flex: 0 0 var(--ds-tools-size, 34%);
     max-height: 48%;
     border-left: 0;

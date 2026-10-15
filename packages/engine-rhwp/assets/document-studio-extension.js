@@ -909,7 +909,17 @@ const poll = setInterval(() => {
     execute(services, params) {
       if (!boundServices) {
         boundServices = services;
-        const changed = () => {
+        const changed = (reason) => {
+          // RHWP 0.8.6 also announces deferred page layout as a document change.
+          // Its edit was already counted before scheduling the layout. Counting
+          // the later notification again dirties a document after a confirmed save.
+          if (
+            reason === "input-handler-resumable-pagination" ||
+            reason === "deferred-pagination-complete" ||
+            (typeof reason === "string" &&
+              reason.startsWith("deferred-pagination-flush:"))
+          )
+            return;
           revision++;
           const changedRevision = revision;
           queueMicrotask(() =>

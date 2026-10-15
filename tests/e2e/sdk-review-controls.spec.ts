@@ -56,6 +56,7 @@ for (const format of ["docx", "hwpx"] as const) {
     await page.evaluate(() =>
       window.documentStudioTest.execute({ id: "selectAll" }),
     );
+    await focusDocumentInput(page);
     await page.keyboard.insertText("강조색 팔레트 확인");
     await expect
       .poll(() => page.evaluate(() => window.documentStudioTest.state()?.dirty))
@@ -206,4 +207,12 @@ for (const format of ["docx", "hwpx"] as const) {
     ).toBe(beforeFont);
     expect(await page.evaluate(() => window.documentStudioTest.saves)).toBe(0);
   });
+}
+
+
+// Native selectAll changes the document selection; it does not promise keyboard focus.
+async function focusDocumentInput(page: Page) {
+  const format = await page.evaluate(() => window.documentStudioTest.state()?.format);
+  if (format === "hwpx") await page.frameLocator("iframe").getByLabel("문서 편집 입력", { exact: true }).focus();
+  else await page.getByRole("textbox", { name: "Document content", exact: true }).focus();
 }

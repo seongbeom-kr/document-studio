@@ -4,6 +4,8 @@
 
 소비 앱이 파일 목록·인증·저장소를 담당합니다. 별도 편집기 서버 없이 실행하며, `appearance="embedded"`로 기존 앱의 헤더·버튼·테마에 연결할 수 있습니다.
 
+`ui.containers`로 툴바·상태 표시·편집/자동화 패널을 앱의 영역에 배치하고 `ui.theme`으로 디자인 토큰을 지정합니다. React 앱은 `slots`로 자체 버튼과 상태 컴포넌트를 사용할 수 있습니다. [UI 구성 API](docs/integration.md#앱의-ui-구성에-연결)를 참고하세요.
+
 ## 지원 기능
 
 - 글자·문단 서식, 행간, 페이지 설정, 표·그림, 검색·치환
@@ -99,6 +101,6 @@ yarn verify:packages
 
 - [호스트 앱 통합](docs/integration.md) · [연결 예제](examples/sandbox-agent/README.md)
 - [지원 기능](docs/feature-support.md) · [범정부 오피스 기능 대응](docs/government-office-reference.md)
-- [검증 기록](docs/practical-validation.md) · [최근 수정·검증 결과](docs/review-fixes-0.2.18-2026-10-15.txt)
+- [검증 기록](docs/practical-validation.md) · [최근 수정·검증 결과](docs/review-fixes-0.2.19-2026-10-15.txt)
 
 버그 제보에는 공개 가능한 최소 재현 문서, 기대·실제 결과와 브라우저 버전을 포함해 주세요. 업무·고객 문서는 올리지 마세요.

@@ -6,6 +6,15 @@ export type {
   DocumentCommitReceipt,
 } from "./document-editor";
 export type { EngineDefinition, EngineViewProps } from "./types";
+export { validateEditorUI } from "./editor-ui";
+export type {
+  EditorUIOptions,
+  EditorUISlots,
+  EditorUIContext,
+  EditorUIRegion,
+  EditorTheme,
+  EditorToolTab,
+} from "./editor-ui";
 export { browserAutomationDraftStore } from "./automation-drafts";
 export {
   AUTOMATION_FIELD_LIMIT,

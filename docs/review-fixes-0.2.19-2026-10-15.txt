@@ -1,0 +1,120 @@
+Document Studio 0.2.19 — 소비 앱의 UI 구성 API
+2026-10-15 / Asia/Seoul
+
+범위
+0.2.18의 범용 DOM 연결·HWPX 입력 보존을 검증하고 커밋한 뒤 진행했다.
+이번 버전은 소비 앱이 툴바·상태 표시·편집/자동화 패널의 위치와 모양을 소유하도록
+하는 UI 단계다. 실제 General transport와 편의작업 통합 dispatcher는 추가하지 않았다.
+
+SDK 계약
+- ui.containers.toolbar/statusBar/tools에 호스트의 HTML 요소를 전달한다.
+  React와 DOM API가 같은 옵션을 사용한다. 미지정 영역은 기본 위치에 표시한다.
+- 툴바·상태·편집 도구는 안정된 portal 대상으로 렌더링한다. 목적지를 바꿔도
+  엔진·도구 폼을 재마운트하지 않으며 입력·선택·포커스를 유지한다.
+- 대상의 기존 자식은 보존하고 SDK 소유 요소만 추가·이동·제거한다.
+  분리된 DOM, 다른 document, SDK 내부 요소는 대상으로 받지 않는다.
+- ui.theme의 색·글꼴·모서리 토큰을 편집기와 외부 영역에 같이 적용한다.
+  문서 내용의 글꼴이나 용지 확대는 바꾸지 않는다.
+- React slots.toolbar/statusBar는 기본 UI, 상태, guarded execute, 도구 탭 열기,
+  native 메뉴와 확대 제어 함수를 받는다. DOM API는 React render 슬롯을 받지 않는다.
+- 커스텀 슬롯 렌더링 실패는 해당 영역의 기본 UI로 복구하고 오류를 표시한다.
+  저장 경고·초안 복구·확인창·오류 안내는 교체 가능한 슬롯에 넣지 않는다.
+- DOM 전환·종료 동안 외부 도구도 inert 처리한다. 초안 보관 실패 시 편집기와
+  도구를 유지하며 재시도할 수 있다. 메모리 자동화 입력의 폐기 보호도 유지한다.
+- 외부 tools의 크기는 호스트가 정한다. 내부 도킹 크기·자동 전체 확장을 강제하지
+  않는다. 예제는 모바일에서 문서 아래에 충분한 높이의 도구 영역을 배치한다.
+
+프론트 로컬 적용
+DocumentStudioToolbar와 DocumentStudioStatus가 플랫폼 Button/디자인 토큰을 사용한다.
+기본 서식·찾기·업무 자동화·native 메뉴·페이지 수·확대를 host-owned 영역에 연결했다.
+기존 저장·다운로드·편집권/lease·동기화 재시도 흐름은 유지했다.
+프론트의 기준 커밋·브랜치를 추가 갱신하지 않았으며 커밋·푸시하지 않는다.
+작업 위치: D:\dev\_worktrees\document-studio-0.2.11
+브랜치: codex/document-studio-0.2.18
+기준: 4aadc010ee34cc7bddb79de65d994e1523d5476f
+설치 SDK: 0.2.19 (브랜치/폴더 이름과 설치 버전은 별개).
+
+검증 중 보완
+첫 신규 UI Chrome 시험은 12개 중 10 통과/2 실패였다. DOM update의 입력 잠금이
+패널 이동 때 포커스를 해제해 입력 값은 유지되지만 커서가 사라졌다. 잠금 해제 후
+기존 SDK 영역의 연결된 요소에 포커스를 복원하고 해당 두 형식을 재검증했다.
+이후 좁은 화면에서 툴바의 flex 최소 폭으로 가로 넘침이 발생했다. 최소/최대 폭을
+설정하고 외부 자동화 원본 입력의 높이를 보완했다. 예제의 모바일 패널 높이도
+조정하고 실제 보이는 입력 높이를 측정하는 검사를 추가했다.
+
+전체 회귀에서는 일부 이전 HWPX 키보드 시험이 selectAll 호출만으로 native 입력창에
+포커스가 생긴다고 가정한 것을 확인했다. 0.2.18의 React 소스를 분리한 비교 호스트와
+같은 엔진에서도 selectAll 뒤 body가 활성 상태였고, 명시적으로 입력창에 포커스를
+주면 정상 입력됐다. 4개 파일의 키보드 시험에 실제 입력창 포커스를 추가했다.
+XML 내용·미저장 상태·초안 복구·형식·서버 저장에 대한 검증 조건은 그대로 유지했다.
+전체 실행 중인 원본 시험은 수정하지 않고 별도 복사본으로 먼저 재검증했다.
+복사본의 Chrome/Edge × DOCX/HWPX 관련 250/250이 통과했으며, 전체 실행 완료 후
+검증한 파일과 같은 바이트를 원본 시험에 적용했다. 제품 런타임은 이 시험 보완으로 바뀌지 않는다.
+
+전체 732개 실행은 689 통과/43 실패였다. 42개는 위 포커스 준비 문제였다.
+나머지 1개는 HWPX 저장 직후 다시 열 때 불필요한 초안 복구창이 생긴 경우였다.
+해당 파일 재실행은 42/42 통과했지만 반복 12회에서는 3회 실패해 실제 경합으로
+분류했다. native 이벤트 호출 스택에서 flushDeferredPaginationIfNeeded가 저장된
+revision 5 이후 revision 6을 만들고 dirty=true로 바꾸는 것을 확인했다.
+
+원인은 RHWP의 지연 페이지 계산 알림을 SDK가 새 편집으로 센 것이다. 고정 엔진의
+deferred-pagination-flush:* / deferred-pagination-complete 및
+input-handler-resumable-pagination 알림만 revision에서 제외했다. 실제 입력과
+cell-overflow 편집, 알려지지 않은 변경 이유는 계속 추적한다. 초안을 강제로 삭제하거나
+미저장 보호를 우회하지 않는다.
+
+실제 native event bus에 관찰된 지연 계산 알림을 저장 이후 주입하는 회귀 시험을
+추가했다. 이전 handler는 저장 revision 5가 7로 바뀌어 실패했고, 수정 후 두 브라우저가
+통과했다. 이어서 실제 새 입력은 dirty=true가 되고 저장·종료·재열기에도 남는지 확인한다.
+이 시험의 이벤트 순서 주입과 실제 타이머를 사용하는 반복 시험을 구분한다.
+
+확인된 결과
+- SDK 타입 검사, 최종 단위 314/314, 다섯 패키지 빌드 통과.
+- 라이선스: npm 105개, 고정 Rust 의존성 393개. 새 런타임 의존성 없음.
+  production 의존성 npm audit도 보고 항목 없이 종료했다.
+- 신규 UI Chrome/Edge 36/36 통과: 두 형식·React/DOM 호스트, 외부 배치·이동·
+  재렌더·테마·포커스·readonly·저장/재열기·잘못된 대상·슬롯 오류·종료 실패·
+  전환 중 외부 도구 잠금·480/1366px 입력 가시성 검증.
+- 최종 tarball을 별도 npm 소비 앱에 설치했다. Next.js와 일반 JS/Vue production
+  build, Next.js 브라우저 4/4, JS/Vue 브라우저 8/8 통과. 소스 alias 없음.
+- 프론트 설치 SDK dist 100개 해시가 빌드 결과와 일치한다.
+- 프론트 전체 단위 709/709, 타입 검사, lint --no-fix, production build 통과.
+  지연 계산 수정이 포함된 최종 패키지로 교체한 뒤 타입 검사와 SDK 연동 86/86도 통과했다.
+  86개는 전체 709개에 포함되므로 합산하지 않는다.
+  settings는 0.2.18 마무리에서 단위 235/235·타입·lint·build를 통과했으며
+  이후 settings 제품 코드를 변경하지 않았다.
+- madge: 311개 파일, 순환 0, 해석 경고 252개. root knip --no-exit-code는
+  진단용이며 기존 미사용 항목과 설정 안내가 남는다.
+- sandbox-agent/settings를 함께 재시작하고 두 listener, bootstrap, SSE 연결을
+  확인했다. 실제 인증 화면의 브라우저 검증과 구분한다.
+- 지연 계산 수정 후 HWPX 관련 Chrome/Edge 364/364 통과. 같은 최종 패키지의
+  별도 npm 소비 build와 브라우저 12/12도 다시 통과했다. 신규 UI/보완된 250개/
+  최종 HWPX는 최초 732개와 중복되므로 총 테스트 개수처럼 합산하지 않는다.
+  최초 실패 43건과 최종 같은 시나리오의 결과는 summary.json에서 대조한다.
+- 실제 타이머를 사용하는 문제 시나리오의 최종 단독 반복 12/12 통과.
+  다른 브라우저 검사와 동시에 실행한 첫 반복에서는 11 통과/1 실패였다.
+  이 1건은 @react-refresh 요청의 net::ERR_NO_BUFFER_SPACE로 테스트 호스트 모듈이
+  로드되지 않은 경우이며 SDK mount 이전에 발생했다. 원래의 초안 복구창 문제와
+  구분해 trace를 보관하고, 다른 검사가 끝난 뒤 단독 반복으로 확인했다.
+- 소비 앱 생성 문서의 준비 대기는 초기 5초 제한에서 한 번 실패했다. 새 엔진의
+  기존 30초 초기화 계약과 polling 여유를 반영해 35초로 맞췄다. 실패 상태나 저장
+  검증을 건너뛰지 않으며 완료되지 않으면 계속 실패한다.
+
+한계
+실제 인증된 샌드박스 사이트는 브라우저 도구의 저장된 권한 정책에 의해 접근이
+차단된 상태여서 우회하지 않았다. 실제 General LLM→열린 SDK→서버 저장 성공을
+검증했다고 표시하지 않는다. 자동 테스트는 로컬 합성 문서와 격리된 호스트를 쓴다.
+HWPX 첫 연결 지연 원인, Word/한컴 전체 호환성, 물리 IME, 인쇄·전체 접근성,
+범정부 오피스 전체 기능 일치는 별도 후속 범위다.
+
+증거
+.build/fixes-0.2.19/: ui-initial.*, ui-focus-fix.*, ui-first-full.*,
+ui-visible-height-initial.*, ui-final.*, ui-test-results/,
+full-e2e.*, hwpx-final.*, focused-final.*, browser-repeat-final.*,
+browser-repeat-resource.*, browser-timeout-evidence/, draft-event-probe.log,
+pagination-baseline.*, pagination-after.*, unit-final.log, typecheck-final.log,
+build-final.log, packages-final.log, packages-readiness-initial.log,
+package-verification.json, consumer-browser.json, dom-consumer-browser.json,
+frontend-unit.*, frontend-sdk-final.*, frontend-typecheck-final.log, frontend-lint.log,
+installed-packages.json, source-manifest.json, full-e2e-source-manifest.json, summary.json.
+.build 자료는 로컬 증거이며 Git에서 제외한다.

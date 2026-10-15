@@ -212,6 +212,7 @@ for (const format of ["docx", "hwpx"] as const)
     }) => {
       await load(page, format, `blank.${format}`);
       await execute(page, { id: "selectAll" });
+      await focusDocumentInput(page);
       await page.keyboard.insertText("서식 색상 검증");
       await execute(page, { id: "selectAll" });
       await execute(page, { id: "textColor", value: "#245f56" });
@@ -248,6 +249,7 @@ for (const format of ["docx", "hwpx"] as const)
     }) => {
       await load(page, format);
       await execute(page, { id: "selectAll" });
+      await focusDocumentInput(page);
       await page.keyboard.insertText("확장 패널 전환 중에도 보존할 편집본");
       const before = await page.evaluate(
         () => window.documentStudioTest.state()?.revision,
@@ -332,6 +334,7 @@ for (const format of ["docx", "hwpx"] as const)
     }) => {
       await load(page, format, `blank.${format}`);
       await execute(page, { id: "selectAll" });
+      await focusDocumentInput(page);
       await page.keyboard.insertText("😀 cat concatenate CAT cat · 끝");
       // Native input publishes its revision asynchronously. Search is allowed to
       // reject a concurrent revision change, so first observe this edit settling.
@@ -554,6 +557,7 @@ for (const format of ["docx", "hwpx"] as const)
     }) => {
       await load(page, format, `blank.${format}`);
       await execute(page, { id: "selectAll" });
+      await focusDocumentInput(page);
       await page.keyboard.insertText("중복 항목 · 중복 항목 · 다른 항목");
       const result = await page.evaluate(async () => {
         const agent = window.documentStudioTest.agent,
@@ -819,3 +823,11 @@ test("preserves nested DOCX tables when editing the surrounding body", async ({
   expect(xml).toContain("중첩 표 보존 텍스트");
   expect(xml).toContain("검토한 중첩 구조");
 });
+
+
+// Native selectAll changes the document selection; it does not promise keyboard focus.
+async function focusDocumentInput(page: Page) {
+  const format = await page.evaluate(() => window.documentStudioTest.state()?.format);
+  if (format === "hwpx") await page.frameLocator("iframe").getByLabel("문서 편집 입력", { exact: true }).focus();
+  else await page.getByRole("textbox", { name: "Document content", exact: true }).focus();
+}
