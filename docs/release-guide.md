@@ -1,8 +1,10 @@
-# 0.2.8 공개 준비와 소비
+# 패키지 빌드와 소비
 
 기존 앱의 파일 pane/modal에 네 SDK 패키지를 넣습니다. 별도 Document Studio 서비스는 필요하지 않습니다. `apps/playground`는 private 개발 예제입니다. 호스트는 사용자·문서 ID·저장소 version·초안 namespace·문서 전환·파일 목록을 소유합니다.
 
 로컬 검증 tarball은 `.build/packs/core.tgz`, `react.tgz`, `engine-docx.tgz`, `engine-rhwp.tgz`입니다. 소비 앱에서 네 파일을 함께 설치하고 RHWP 자산을 자신의 public 디렉터리에 복사합니다. 각각의 immutable hash 파일은 검증 cache 구분용이며 최신 패키지는 고정 이름 파일입니다.
+
+[README의 준비·빌드](../README.md#시작하기)를 마친 뒤 `yarn verify:packages`를 실행하면 네 tarball을 생성하고 별도 소비 앱에서 검증합니다. 브라우저 검증 없이 tarball만 만들려면 각 workspace에서 `yarn pack --out <출력 파일의 절대 경로>`를 실행할 수 있습니다. 예: `yarn workspace @document-studio/core pack --out /absolute/output/core.tgz`. 네 패키지를 같은 소스 버전에서 함께 생성하세요.
 
 ```sh
 npm install /path/to/core.tgz /path/to/react.tgz /path/to/engine-docx.tgz /path/to/engine-rhwp.tgz
@@ -15,7 +17,7 @@ React 19와 React DOM 19는 host peer입니다. `@document-studio/react/styles.c
 
 에이전트는 `createAgentBridge()`로 지원/활성 명령·valueSchema를 조회합니다. documentId·expectedSessionId·expectedRevision으로 쓰기를 보호합니다. 0.2.3부터 쓰기 요청의 expectedSessionId는 필수이며 getState()/search()가 반환한 sessionId를 전달합니다. 같은 원본 버전으로 다시 열어도 새 세션 ID를 발급합니다. expectedVersion을 전달하면 저장소 버전도 검증합니다. 그림의 JSON byte 배열은 host transport에서 Uint8Array로 변환합니다. DOCX·HWPX 모두 바꾸기는 하나의 native undo 단계입니다. 기본 엔진의 preset은 하나의 native 작업으로 실행합니다. 외부 엔진의 순차 fallback은 전체 하나의 Undo가 아닙니다.
 
-공개 전 [검증 기록](practical-validation.md), [기능 범위](feature-support.md), [정부 기능 대응](government-office-reference.md), [라이선스](licensing.md)를 같이 공개합니다. 정확한 공개 이름·repository/bugs URL·npm scope 소유권을 결정한 뒤 package metadata를 설정합니다. 검증된 버전·자산·notice·lock을 사용하고, 실제 registry 게시 후 같은 외부 소비 시험을 다시 실행합니다. 현재 공개 게시 대상은 정해지지 않았으므로 npm publish/GitHub push를 실행하지 않았습니다.
+소스는 [GitHub 저장소](https://github.com/seongbeom-kr/document-studio)에 공개했으며 npm registry 게시 전입니다. npm 공개 전에는 scope 소유권과 package metadata를 확인하고 검증된 버전·자산·notice·lock을 사용합니다. 실제 registry 게시 후에도 같은 외부 소비 시험을 실행합니다. 최신 저장·전환·초기화·에이전트 계약은 [호스트 통합 안내](integration.md), 지원 범위와 근거는 [검증 기록](practical-validation.md), [기능 범위](feature-support.md), [정부 기능 대응](government-office-reference.md), [라이선스](licensing.md)를 참고하세요.
 
 이 버전의 파일 처리·저장 보호와 공개 패키지 근거는 갖췄지만, 기관 업무 문서 도입 전 실제 corpus와 한컴 native·물리 IME·운영 저장 계약을 확인해야 합니다. Windows 전용 정부 오피스의 전체 기능을 동일하게 제공하는 완료판으로 홍보하지 않습니다.
 

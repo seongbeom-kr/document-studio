@@ -10,6 +10,40 @@
 | fflate              | 0.8.3, [공식 저장소](https://github.com/101arrowz/fflate)                                           | MIT, ZIP parts 조회                             |
 | CanvasKit WASM      | 0.42.0, [공식 Skia CanvasKit](https://github.com/google/skia/tree/main/modules/canvaskit)           | BSD-3-Clause, 원본 LICENSE 포함                 |
 
+## BSD-3-Clause와 CanvasKit
+
+BSD-3-Clause는 소스·바이너리의 사용, 수정, 재배포를 허용하며 다음 세 조건을 둡니다.
+
+1. 소스 재배포에는 원본 저작권, 라이선스 조건, 면책 문구를 유지합니다.
+2. 바이너리 재배포에도 같은 고지를 문서 또는 함께 제공하는 자료에 포함합니다.
+3. 저작권자·기여자의 이름을 사전 허락 없이 파생 제품의 보증이나 홍보에 사용하지 않습니다.
+
+상업적 사용을 금지하거나 소비 앱의 소스 공개를 요구하는 조건은 없습니다. [OSI의 BSD-3-Clause 원문](https://opensource.org/license/bsd-3-clause)과 [Apache 재단의 허용 라이선스 목록](https://www.apache.org/legal/resolved.html#category-a)에서 확인할 수 있습니다. 자체 코드를 Apache-2.0으로 배포하면서 BSD-3-Clause 의존성을 함께 배포할 수 있습니다. 의존성의 원래 라이선스를 Apache-2.0으로 바꾸는 것은 아닙니다.
+
+CanvasKit은 RHWP Studio가 선택적으로 사용하는 문서 출력 엔진입니다. 문서의 글자·표·그림을 브라우저의 문서 영역에 그리는 역할이며, 별도 앱이나 저장 서비스가 아닙니다. 고정 RHWP 소스의 `rhwp-studio/src/view/render-backend.ts`에서 기본값은 **브라우저 Canvas2D**입니다. `renderer=canvaskit` 또는 `renderer=auto`를 지정할 때 CanvasKit 경로를 선택하거나 평가합니다. SDK는 이 옵션을 강제로 설정하지 않습니다. 기본 실행 여부와 별개로 CanvasKit JS/WASM이 정적 배포 자산에 포함되므로 고지를 유지합니다.
+
+설치된 `canvaskit-wasm@0.42.0`은 Google 저작권과 BSD-3-Clause 원문을 제공합니다. 그 의존성 `@webgpu/types@0.1.21`도 BSD-3-Clause입니다. Rust 목록에도 BSD 의존성이 있습니다. README에서 CanvasKit 설명을 줄여도 이 고지와 배포물의 원문은 삭제하지 않습니다.
+
+## 2026-10-15 점검 결과와 배포 조건
+
+현재 고정된 의존성 선언과 보관된 고지 범위에서는 자체 Apache-2.0 배포를 막는 라이선스 충돌을 발견하지 않았습니다. `yarn audit:licenses`는 npm 102개와 Rust 외부 의존성 393개를 검사했습니다. 아래 선택은 이 배포에 적용하며 원래의 복수 라이선스 고지는 보존합니다.
+
+0.2.17 네 tarball에서 프로젝트 `LICENSE`·`NOTICE`, 의존성 목록, 통합 고지가 현재 원본과 바이트 단위로 일치함을 확인했습니다. CanvasKit의 원본 BSD 고지도 포함되어 있습니다. HWPX 정적 자산의 RHWP 라이선스와 추가 고지도 확인했으며, 라이선스 정책을 포함한 기존 관련 단위 테스트 40개가 통과했습니다. 이 점검은 패키지 고지 검증이며 새로운 업무 문서 호환성 시험은 아닙니다.
+
+| 의존성               | 원래 라이선스 식                       | 적용 조건               |
+| -------------------- | -------------------------------------- | ----------------------- |
+| jszip 3.10.2         | MIT OR GPL-3.0-or-later                | MIT 선택                |
+| r-efi 5.3.0 / 6.0.0  | MIT OR Apache-2.0 OR LGPL-2.1-or-later | MIT 선택                |
+| pako 1.0.11          | MIT AND Zlib                           | MIT와 Zlib 모두 유지    |
+| encoding_rs 0.8.35   | (Apache-2.0 OR MIT) AND BSD-3-Clause   | MIT와 BSD-3-Clause 유지 |
+| unicode-ident 1.0.24 | (MIT OR Apache-2.0) AND Unicode-3.0    | MIT와 Unicode-3.0 유지  |
+
+`OR`는 선택 가능한 라이선스입니다. 위 목록에 GPL·LGPL 문자열이 있다는 이유만으로 그 조건이 프로젝트 전체에 적용되는 것은 아닙니다. `AND`는 함께 충족해야 하므로 한쪽 고지만 지워서는 안 됩니다. 나머지 복수 라이선스도 검사 정책에서 허용한 선택지를 사용하고 제공된 원문은 모두 보관합니다.
+
+배포자는 프로젝트의 `LICENSE`·`NOTICE`, 각 패키지의 `dist/licenses/`, HWPX 정적 자산의 라이선스 파일과 `licenses/`를 함께 제공합니다. 앱 번들러가 `node_modules`의 고지 파일을 최종 앱에 복사하지 않는다면 앱의 배포 자료나 오픈소스 고지에 별도로 포함해야 합니다. 수정해서 번들한 EigenPal·RHWP 부분의 변경 사실은 `NOTICE`와 각 엔진의 `dist/native-patch.json`에 기록합니다. Apache-2.0의 배포·변경 고지 조건은 [원문 4조](https://www.apache.org/licenses/LICENSE-2.0#redistribution)를 따릅니다.
+
+## 검사 방법과 한계
+
 `yarn audit:licenses`는 설치된 SDK production 의존성·필수 peer와 번들 RHWP Studio 의존성을 순회합니다. 이번 결과는 자체 네 패키지를 포함한 npm 102개입니다. 라이선스 식의 AND는 모두 충족해야 하며 OR에서는 허용되는 permissive 선택지가 있어야 합니다. 미확인 식·금지 라이선스·빠진 고지·유료 모듈은 gate를 실패시킵니다.
 
 고정 RHWP Cargo.lock의 외부 항목은 393개(레지스트리 392개·고정 Git 1개)입니다. `.crate` SHA-256을 lock checksum과 비교하고 고지를 보관했습니다. Git 의존성 svg2pdf는 고정 commit `2caeb0a038f9128b79833d803b94c2667565c4da`의 archive와 license를 기록했습니다. [Rust inventory](../third_party/rust-sbom.json)는 optional/native-only 의존성까지 포함하는 보수적 목록입니다. WASM linker의 실제 포함 항목을 독립 추출한 결과는 아닙니다. upstream 요약의 243개와 현재 lock의 수가 달라 실제 lock 기준으로 기록합니다.
@@ -26,6 +60,8 @@ yarn build
 yarn verify:packages
 ```
 
-upstream dependency가 바뀌면 `scripts/prepare-rust-licenses.mjs`로 checksum·고지를 다시 준비하고 검토합니다. 누락 npm 고지는 pinned name/version으로 `scripts/prepare-npm-license.mjs`를 실행합니다. 준비 단계에는 네트워크가 필요하지만 감사와 build는 보관된 근거를 사용합니다. GitHub/npm 실제 게시 대상과 공개 이름은 아직 정해지지 않았습니다.
+upstream dependency가 바뀌면 `scripts/prepare-rust-licenses.mjs`로 checksum·고지를 다시 준비하고 검토합니다. 누락 npm 고지는 pinned name/version으로 `scripts/prepare-npm-license.mjs`를 실행합니다. 준비 단계에는 네트워크가 필요하지만 감사와 build는 보관된 근거를 사용합니다. 소스는 [GitHub 저장소](https://github.com/seongbeom-kr/document-studio)에 공개했으며 npm registry 게시 전입니다.
 
 0.2.7의 DOCX 패키지는 Apache-2.0 EigenPal 2.25.0의 무료 core/react/i18n JavaScript를 번들합니다. `scripts/docx-paint-patch.mjs`는 원본 chunk SHA-256과 변경 지점의 유일성을 검증한 뒤 인라인 그림의 paint 시작 좌표와 shaped text advance를 보정합니다. 변경 사실과 원본 commit/path는 NOTICE, 배포 패키지의 `dist/native-patch.json`에 남깁니다. 원본 npm 라이선스/고지와 기존 SBOM은 각 패키지에 유지합니다. 유료 Pro/editor-api 코드는 포함하지 않습니다.
+
+0.2.17의 HWPX 패키지는 MIT `@rhwp/editor@0.8.6`의 초기화 취소·정리 경로를 수정해 번들합니다. `scripts/rhwp-lifecycle-patch.mjs`가 고정 입력 digest를 검사하고 변경 이력을 남깁니다. 원본 MIT 고지는 유지하며 Rust/WASM 바이너리는 변경하지 않습니다.
