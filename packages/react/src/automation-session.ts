@@ -2,6 +2,7 @@ import {
   OFFICE_AUTOMATION_FORMS,
   automationDefault,
   type CellTransform,
+  type AutomationDraftStatus,
 } from "@document-studio/core";
 import type {
   AutomationDraftState,
@@ -18,12 +19,7 @@ export interface AutomationDraft {
   transform: CellTransform;
   delimiter: string;
 }
-export interface AutomationDraftStatus {
-  ready: boolean;
-  pending: boolean;
-  storage: "memory" | "local";
-  error: string;
-}
+export type { AutomationDraftStatus } from "@document-studio/core";
 /** Fields stay in memory unless the host explicitly supplies an isolated draft store. */
 export class AutomationSession {
   utility = "금액 한글화";

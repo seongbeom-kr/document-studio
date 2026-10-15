@@ -3,7 +3,11 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "jsx": "react-jsx",
     "strict": true,
     "noUncheckedIndexedAccess": true,
@@ -11,12 +15,26 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
-    "types": ["node", "vite/client"],
+    "types": [
+      "node",
+      "vite/client"
+    ],
     "paths": {
-      "@document-studio/core": ["./packages/core/src/index.ts"],
-      "@document-studio/react": ["./packages/react/src/index.ts"],
-      "@document-studio/engine-docx": ["./packages/engine-docx/src/index.tsx"],
-      "@document-studio/engine-rhwp": ["./packages/engine-rhwp/src/index.tsx"]
+      "@document-studio/core": [
+        "./packages/core/src/index.ts"
+      ],
+      "@document-studio/react": [
+        "./packages/react/src/index.ts"
+      ],
+      "@document-studio/engine-docx": [
+        "./packages/engine-docx/src/index.tsx"
+      ],
+      "@document-studio/engine-rhwp": [
+        "./packages/engine-rhwp/src/index.tsx"
+      ],
+      "@document-studio/browser": [
+        "./packages/browser/src/index.ts"
+      ]
     }
   },
   "include": [
@@ -24,7 +42,12 @@
     "apps/playground/src",
     "examples/sandbox-agent",
     "tests",
-    "*.ts"
+    "*.ts",
+    "examples/browser"
   ],
-  "exclude": ["node_modules", ".cache", "**/dist"]
+  "exclude": [
+    "node_modules",
+    ".cache",
+    "**/dist"
+  ]
 }

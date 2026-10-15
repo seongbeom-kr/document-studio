@@ -1,4 +1,4 @@
-# 0.2.8 기능 지원과 적용 범위
+# 기능 지원과 적용 범위
 
 2026-10-05 로컬 검증을 기준으로 하며, 2026-10-07의 0.2.7 SDK·UX 리뷰 대응을 반영했습니다. 공통 SDK·UI 기능과 고정 엔진의 확장 UI를 구분합니다. 실행 가능 여부는 `getState().commands`와 `agent.listCommands()`에서 현재 선택에 대해 확인합니다. 엔진은 RHWP core/editor 0.8.6, EigenPal core/react 2.25.0입니다.
 
@@ -31,6 +31,8 @@
 
 댓글 작성·변경 추적·실시간 협업·상용 PDF converter/editor-api는 채택하지 않았습니다. PDF 텍스트 읽기, 실제 XLSX 파일 병합/편집, HWP·PPTX 편집, 기관별 native 단축키와 Windows 배치 작업은 후속 범위입니다.
 
-표준 build는 네 SDK 패키지입니다. 문서 목록·라우팅·인증·서버 저장·LLM transport는 소비 앱이 소유합니다. playground는 개발 예제이며 별도 제품 서버를 요구하지 않습니다.
+0.2.18부터 표준 build는 다섯 SDK 패키지입니다. React 컴포넌트 외에 `@document-studio/browser`의 DOM API로 일반 JavaScript·Vue 호스트에 연결할 수 있습니다. 내부 렌더링에는 React를 사용합니다. 문서 목록·라우팅·인증·서버 저장·LLM transport는 소비 앱이 소유합니다. playground는 개발 예제이며 별도 제품 서버를 요구하지 않습니다.
 
 0.2.8은 HWPX 내부 입력 차단, 중첩 가능한 `acquireInputLock()`과 편집 세션별 잠금 수명을 추가합니다. 샌드박스는 마지막 저장부터 lease 해제·문서 전환까지 잠금을 유지하고, 이전 문서의 늦은 저장 콜백이 현재 미저장 상태를 바꾸지 않도록 검증합니다. 검증 범위와 재현 시험은 [0.2.8 수정 기록](review-fixes-0.2.8-2026-10-07.txt)에 있습니다.
+
+0.2.18은 공통 controller와 에이전트 브리지를 core에서 제공합니다. DOM의 문서 교체·종료는 초안 보관을 기다리고 실패하면 기존 편집기를 유지합니다. HWPX의 페이지 내부 짧은 입력도 revision과 미저장 상태에 즉시 반영하도록 수정했습니다. 자동화 transport나 UI 영역 배치 API를 추가한 버전은 아닙니다. [0.2.18 검증 기록](review-fixes-0.2.18-2026-10-15.txt)을 참고하세요.

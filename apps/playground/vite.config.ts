@@ -16,6 +16,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "@document-studio/browser": fileURLToPath(
+        new URL("../../packages/browser/src/index.ts", import.meta.url),
+      ),
       "@document-studio/core": fileURLToPath(
         new URL("../../packages/core/src/index.ts", import.meta.url),
       ),

@@ -1,0 +1,20 @@
+{
+  "name": "@document-studio/browser-example",
+  "private": true,
+  "version": "0.2.18",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 4177",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@document-studio/browser": "workspace:*",
+    "@document-studio/core": "workspace:*",
+    "@document-studio/engine-docx": "workspace:*",
+    "@document-studio/engine-rhwp": "workspace:*",
+    "vue": "3.5.44"
+  },
+  "devDependencies": {
+    "vite": "8.3.2"
+  }
+}

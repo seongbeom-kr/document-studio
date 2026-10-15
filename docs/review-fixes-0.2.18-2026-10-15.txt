@@ -1,0 +1,68 @@
+Document Studio 0.2.18 — DOM 호스트 연결과 HWPX 입력 보존
+2026-10-15 / Asia/Seoul
+
+범위
+React 앱 밖에서 사용할 수 있는 DOM 진입점과 공통 controller를 추가했다.
+별도 편집기 앱/서버를 요구하지 않으며 호스트가 문서 목록·인증·저장소를 소유한다.
+UI 영역 배치 API와 실제 General transport는 이 버전의 구현 범위가 아니다.
+
+구현
+- @document-studio/core의 EditorController와 createAgentBridge는 React 타입에
+  의존하지 않는다. 기존 React export는 동일 계약을 호환 재노출한다.
+- @document-studio/browser는 mountDocumentEditor/update/destroy/whenReady를
+  제공한다. 호스트는 DOM 요소와 일반 옵션을 전달하며 내부 렌더러는 React다.
+  mount는 제어 연결 완료, whenReady는 네이티브 엔진 준비 완료를 의미한다.
+- 문서 교체와 종료는 입력 잠금·초안 보관을 기다린다. 실패하면 기존 편집기를
+  유지하고 재시도할 수 있다. 호스트의 다른 DOM 자식은 제거하지 않는다.
+- 원본 id/fileName/format/version/bytes 변경은 보관 이후 새 세션으로 연다.
+  동일 원본의 옵션 변경은 세션을 유지한다. 진행 중인 전환의 중복 명령은 거절한다.
+- 엔진·저장소·사용자 namespace 교체는 destroy 성공 후 새 mount로 처리한다.
+  readOnly 변경은 네이티브 입력 잠금 반영까지 기다린다.
+- 실제 Vue 3 및 일반 JavaScript 소비 예제를 제공한다. 부모 화면이 DOM을 제거하기
+  전에 destroy를 기다리는 계약을 명시했다. Vue는 SDK 런타임 의존성이 아니다.
+
+검증 중 발견한 실제 HWPX 결함
+고정 RHWP의 짧은 페이지 내부 입력은 document-mutated만 발생할 수 있었다.
+기존 document-changed 구독만으로는 revision=0/dirty=false가 남아 즉시 저장의
+onlyIfDirty 분기가 입력을 건너뛰었다. 두 네이티브 이벤트를 모두 구독하도록
+수정했다. revision은 변경 횟수가 아닌 단조 증가하는 불투명 토큰이다.
+짧은 키보드 입력→즉시 저장→종료→저장 bytes 재열기까지 두 브라우저로 검증했다.
+
+검증
+- SDK 타입 검사, 단위 310/310, 다섯 패키지 빌드 통과.
+- 라이선스 검사: npm 105개, 고정 Rust 의존성 393개. 원문 고지 배포 유지.
+- Chrome/Edge 관련 9개 E2E 파일: 202개 중 201 통과/1 실패.
+  실패는 Vue 테스트 호스트가 DOM 생성 전에 제어 API를 공개한 순서 문제였다.
+  제품의 HTMLElement 검증을 약화시키지 않고 테스트 호스트의 준비 순서를 고쳤다.
+  최종 DOM 연결 파일 42/42 통과. 앞의 202개와 중복되므로 합산하지 않는다.
+- 최종 다섯 tarball을 별도 npm 소비 앱에 설치했다. 소스 alias 없음.
+  Next.js production build와 Chrome/Edge × DOCX/HWPX 4/4 통과.
+  일반 JavaScript/Vue production build와 브라우저/호스트/형식 8조합 모두 통과.
+- 샌드박스 전체 단위 705/705, settings 235/235 통과.
+  두 앱 타입 검사, lint --no-fix, 각각의 production build 통과.
+- 샌드박스 madge: 309개 파일, 순환 0, 해석 경고 251개.
+  root knip --no-exit-code는 진단용이며 기존 미사용 항목과 설정 안내가 남는다.
+- 프론트 설치 SDK dist 99개가 빌드 원본과 해시 일치했다.
+
+로컬 통합 경계
+SDK D:\dev\document-studio / main.
+프론트 D:\dev\_worktrees\document-studio-0.2.11 /
+codex/document-studio-0.2.18 / 기준 4aadc010ee34cc7bddb79de65d994e1523d5476f.
+이전 작업에서 로컬 테스트 브랜치의 dev 기준을 갱신했고 기존 변경을 보존했다.
+이번 마무리에서는 프론트 브랜치를 추가로 갱신하지 않는다. 원래 프론트 작업
+폴더와 원격 dev/main은 변경하지 않는다. SDK만 커밋·푸시하며 프론트는 푸시하지 않는다.
+사용자가 수정 중인 0.2.17 통합 리뷰 문서는 원래 해시를 보존하고 커밋에서 제외한다.
+
+한계
+인증된 sblim.dev.gridone.net 브라우저 접근은 저장된 권한 정책에 의해 차단된
+상태다. 다른 접근 경로로 우회하지 않았다. 위 브라우저 시험은 격리된 로컬 SDK
+호스트와 합성 문서를 사용하며, 실제 General 실행/서버 commit 성공 증거가 아니다.
+실제 HWPX 첫 연결 지연 원인, 물리 IME, Word/한컴 전체 왕복 호환성, 인쇄·전체
+접근성은 이 버전에서 완료했다고 표시하지 않는다.
+
+증거
+.build/fixes-0.2.18/: unit-final.log, e2e-final.json, browser-final.json,
+packages-final.log, package-verification.json, consumer-browser.json,
+dom-consumer-browser.json, frontend-unit.json, settings-unit.json,
+installed-packages.json, source-manifest.json, 초기 실패 기록과 trace.
+.build 자료는 로컬 검증 산출물이며 Git에서 제외한다.

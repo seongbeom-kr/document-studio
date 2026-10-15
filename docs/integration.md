@@ -133,3 +133,18 @@ HWPX의 서식 조회는 캐럿 기준, DOCX의 서식 조회는 엔진의 선�
 중첩 표의 속성과 셀 주소는 각 표에 독립적으로 반환합니다. 바깥 셀 텍스트에는 중첩 표의 텍스트를 중복해서 넣지 않습니다. 현재 셀의 텍스트 run을 연결하며, 중첩 표 내용은 별도 표의 셀에서 확인하세요. DOCX 세로 병합은 원본 merge 상태를 반환하고 전체 rowSpan 추론은 제공하지 않습니다.
 `agent.commit({...target, operationId})`은 저장 version, SHA-256, 저장 revision, 저장 위치 종류와 로컬 입력 상태를 반환합니다. 같은 요청 ID는 이 브리지 수명 안에서 동일 receipt를 재사용합니다. 탭 재연결까지 보장하려면 호스트가 receipt를 영속화해야 합니다. 비동기 에이전트 그림 삽입은 안전한 권한/범위 계약을 제공할 때까지 거절됩니다.
 인증된 에이전트 transport와 실행 trace 수집은 호스트가 구현합니다. 브리지 API 제공만으로 실제 LLM의 문서 작업 완료를 보장하지 않습니다.
+
+## DOM API로 연결
+
+0.2.18부터 `@document-studio/browser`가 `mountDocumentEditor(element, options)`를 제공합니다. React 코드는 SDK 내부에 있으며 호스트는 DOM 요소와 일반 객체·함수를 전달합니다. `@document-studio/browser/styles.css`를 import하고 호스트 요소에 높이를 지정하세요. Vue 예제는 `examples/browser/main.ts`의 `?host=vue` 경로입니다.
+
+- `mountDocumentEditor()`는 공개 controller 연결까지 기다립니다. 문서 검증·native 초기화 완료는 `whenReady({ signal, timeoutMs })`로 기다립니다. 기본 45초, 지정 범위는 1~180,000ms이며 대기 취소는 편집기를 종료하지 않습니다.
+- `update({ document })`는 현재 입력을 잠그고 `flushDraft()`가 완료된 뒤 새 편집 수명을 엽니다. 실패하면 기존 문서가 유지됩니다. 새 문서의 기존 초안은 정상 복구 UI를 거칩니다. 같은 id·fileName·format·version·bytes 참조의 객체 갱신과 UI 설정 갱신은 세션을 다시 만들지 않습니다.
+- `update({ readOnly })`는 준비된 엔진의 내부 입력 잠금 응답까지 기다립니다. 지원하는 나머지 갱신은 appearance·presets·호스트 콜백·creationLocation입니다. 엔진·저장소·draftNamespace 등 소유권 설정 변경은 기존 controller를 종료하고 새로 mount하세요.
+- `destroy()`는 최신 문서 초안과 자동화 입력의 종료 준비를 기다립니다. 저장소 실패·미보관 입력은 거절하며 편집기를 유지합니다. 동시 destroy는 같은 요청을 공유하고 종료 후 반복 호출은 허용합니다. 성공 후 편집 명령은 거절됩니다.
+- 전환 중 새 명령·다른 update/destroy는 거절합니다. 저장 중 문서 전환은 먼저 저장이 끝나야 합니다. `onSaved`에서는 호스트 파일 목록을 갱신하고, 문서를 새로 열 필요가 있으면 `save()` 완료 후 update하세요.
+- 같은 DOM 요소의 중복 mount는 거절합니다. SDK는 자신이 만든 자식 영역만 관리하며 호스트의 다른 요소를 지우지 않습니다.
+
+Vue의 `onBeforeUnmount`나 다른 프레임워크의 unmount callback은 비동기 초안 보관이 끝날 때까지 DOM 제거를 자동으로 기다려 주지 않습니다. 라우터의 종료 guard 또는 사용자가 누르는 닫기 함수에서 **먼저 `await editor.destroy()`가 성공한 뒤** 컴포넌트/DOM을 제거하세요. 실패하면 화면을 유지하고 사용자가 저장·복구할 수 있게 해야 합니다. 페이지 강제 종료까지 보장하는 계약은 아닙니다.
+
+`EditorController`, `EditorControllerState`, 저장 영수증과 `createAgentBridge`는 `@document-studio/core`에서 가져올 수 있습니다. 기존 React의 `DocumentEditorHandle`과 브리지 export는 호환됩니다. `const agent = createAgentBridge(() => editor)`로 DOM controller에도 같은 문서·세션·revision·선택 보호를 사용합니다. 이 브리지는 브라우저에 연결된 controller를 제어하며 서버에서 화면 없이 실행하는 Office 엔진이나 실제 LLM transport를 제공하지 않습니다.

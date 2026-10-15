@@ -909,7 +909,7 @@ const poll = setInterval(() => {
     execute(services, params) {
       if (!boundServices) {
         boundServices = services;
-        services.eventBus.on("document-changed", () => {
+        const changed = () => {
           revision++;
           const changedRevision = revision;
           queueMicrotask(() =>
@@ -921,7 +921,11 @@ const poll = setInterval(() => {
               parentOrigin,
             ),
           );
-        });
+        };
+        // Page-local text edits emit document-mutated without a full document-changed
+        // render. Track both signals; revision is an opaque monotonic token, not an edit count.
+        services.eventBus.on("document-mutated", changed);
+        services.eventBus.on("document-changed", changed);
       }
       window.parent.postMessage(
         {

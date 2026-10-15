@@ -353,3 +353,17 @@ export function browserDraftStore(
     },
   };
 }
+
+export type {
+  EditorController,
+  EditorControllerState,
+  DocumentCommitReceipt,
+  DocumentSavedEvent,
+  AutomationDraftStatus,
+} from "./editor-controller";
+export { createAgentBridge } from "./agent-bridge";
+export type {
+  AgentTarget,
+  AgentWriteTarget,
+  AgentSelectionTarget,
+} from "./agent-bridge";

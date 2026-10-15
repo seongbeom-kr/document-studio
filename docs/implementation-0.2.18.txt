@@ -1,0 +1,20 @@
+Document Studio 0.2.18 구현 범위
+
+목표: React 앱 바깥에서 소비할 수 있는 브라우저 진입점과 공통 제어 계약.
+기존 React 엔진을 재사용하고 SDK의 저장·복구·대상 보호를 유지한다.
+
+- EditorController/상태/저장 영수증/에이전트 브리지를 core로 이동한다.
+  React의 기존 export는 호환 재노출한다.
+- @document-studio/browser: DOM mount/update/destroy/whenReady.
+  mount 완료는 React 제어 연결 완료이며 native 준비는 whenReady로 따로 기다린다.
+- 문서 교체·destroy 전에 입력 차단과 flushDraft를 기다린다.
+  초안 실패 시 이전 문서를 유지한다. 자동 저장이나 서버 업로드를 합성하지 않는다.
+- 엔진/저장소/사용자 namespace 교체는 새 mount 수명으로 분리한다.
+  update 중 새로운 제어 명령/동시 update는 거절한다. 반복 destroy는 합친다.
+- 원래 DOM 요소와 주변 앱 요소를 보존하고 소유한 자식 영역만 제거한다.
+- 일반 JavaScript 및 Vue 소비 예제와 실제 DOCX/HWPX 편집/저장/복구 검증.
+- 별도 npm 소비 앱에 실제 tarball 설치·build·브라우저 검증.
+
+이번 범위에 UI slot·편의작업 dispatcher·실제 General transport 구현을 포함했다고
+표시하지 않는다. 실제 사이트 접근은 브라우저 도구 정책 차단이 해제될 때 재검증한다.
+기존 샌드박스/settings와 변경 중인 다른 리뷰 문서는 보존한다.

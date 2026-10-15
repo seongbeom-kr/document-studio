@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createAgentBridge } from "../../packages/react/src/agent-bridge";
+import { createAgentBridge } from "@document-studio/core";
+import { createAgentBridge as legacyAgentBridge } from "../../packages/react/src/agent-bridge";
 import type { DocumentEditorHandle } from "../../packages/react/src/document-editor";
 import type { EditorSnapshot } from "@document-studio/core";
 function fixture() {
@@ -60,6 +61,10 @@ function fixture() {
   };
 }
 describe("agent document targeting", () => {
+  it("keeps the React export compatible with the framework-neutral core bridge", () => {
+    expect(legacyAgentBridge).toBe(createAgentBridge);
+    expect(fixture().agent.getState().documentId).toBe("first-document");
+  });
   it("exposes initialization failure and retries only the matching failed session", () => {
     const test = fixture();
     test.snapshot.ready = false;

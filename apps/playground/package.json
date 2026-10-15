@@ -4,11 +4,13 @@
   "version": "0.1.0",
   "type": "module",
   "dependencies": {
+    "@document-studio/browser": "workspace:*",
     "@document-studio/core": "workspace:*",
     "@document-studio/engine-docx": "workspace:*",
     "@document-studio/engine-rhwp": "workspace:*",
     "@document-studio/react": "workspace:*",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "vue": "3.5.44"
   }
 }

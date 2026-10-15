@@ -9,7 +9,7 @@ import {
   RHWP_LIFECYCLE_PATCH,
 } from "./rhwp-lifecycle-patch.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
-const packages = ["core", "react", "engine-docx", "engine-rhwp"];
+const packages = ["core", "react", "engine-docx", "engine-rhwp", "browser"];
 const licenseAudit = spawnSync(
   process.execPath,
   [path.join(root, "scripts/audit-licenses.mjs")],
@@ -85,10 +85,10 @@ for (const name of packages) {
     path.join(root, "packages", name, "dist"),
     { recursive: true },
   );
-  if (name === "react")
+  if (name === "react" || name === "browser")
     await cp(
       path.join(root, "packages/react/src/styles.css"),
-      path.join(root, "packages/react/dist/styles.css"),
+      path.join(root, "packages", name, "dist/styles.css"),
     );
   if (name === "engine-docx")
     await writeFile(

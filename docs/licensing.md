@@ -65,3 +65,7 @@ upstream dependency가 바뀌면 `scripts/prepare-rust-licenses.mjs`로 checksum
 0.2.7의 DOCX 패키지는 Apache-2.0 EigenPal 2.25.0의 무료 core/react/i18n JavaScript를 번들합니다. `scripts/docx-paint-patch.mjs`는 원본 chunk SHA-256과 변경 지점의 유일성을 검증한 뒤 인라인 그림의 paint 시작 좌표와 shaped text advance를 보정합니다. 변경 사실과 원본 commit/path는 NOTICE, 배포 패키지의 `dist/native-patch.json`에 남깁니다. 원본 npm 라이선스/고지와 기존 SBOM은 각 패키지에 유지합니다. 유료 Pro/editor-api 코드는 포함하지 않습니다.
 
 0.2.17의 HWPX 패키지는 MIT `@rhwp/editor@0.8.6`의 초기화 취소·정리 경로를 수정해 번들합니다. `scripts/rhwp-lifecycle-patch.mjs`가 고정 입력 digest를 검사하고 변경 이력을 남깁니다. 원본 MIT 고지는 유지하며 Rust/WASM 바이너리는 변경하지 않습니다.
+
+## 0.2.18 범용 브라우저 패키지
+
+`@document-studio/browser` 추가 후 production·필수 peer·번들 의존성 검사는 자체 다섯 패키지를 포함해 npm 105개입니다. Rust 고정 목록은 393개로 유지됩니다. browser 패키지가 내부 React 19 런타임과 TypeScript 소비에 필요한 `@types/react`를 의존성으로 제공합니다. 이들의 라이선스는 MIT이며 원문 고지를 배포물에 포함합니다. Vue 3.5.44(MIT)는 소비 예제와 검증용 의존성이며 SDK 런타임 번들에 추가하지 않습니다.

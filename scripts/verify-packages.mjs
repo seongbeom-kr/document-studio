@@ -32,7 +32,7 @@ if (!yarnCli)
   throw new Error(
     "Corepack is required to generate Yarn workspace package archives.",
   );
-const names = ["core", "react", "engine-docx", "engine-rhwp"];
+const names = ["core", "react", "engine-docx", "engine-rhwp", "browser"];
 const archives = new Map();
 for (const name of names)
   run(
@@ -68,6 +68,7 @@ const manifest = {
     ]),
   ),
   devDependencies: {
+    vue: "3.5.44",
     next: "16.3.8",
     react: "19.3.0",
     "react-dom": "19.3.0",
@@ -211,6 +212,11 @@ try {
 } finally {
   server.kill();
 }
+run(
+  process.execPath,
+  [path.join(root, "scripts/verify-dom-consumer.mjs"), consumer],
+  root,
+);
 await writeFile(
   path.join(root, ".build/package-verification.json"),
   JSON.stringify(

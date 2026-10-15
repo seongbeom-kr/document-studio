@@ -1,17 +1,19 @@
 # 패키지 빌드와 소비
 
-기존 앱의 파일 pane/modal에 네 SDK 패키지를 넣습니다. 별도 Document Studio 서비스는 필요하지 않습니다. `apps/playground`는 private 개발 예제입니다. 호스트는 사용자·문서 ID·저장소 version·초안 namespace·문서 전환·파일 목록을 소유합니다.
+React 연결은 기존 네 SDK 패키지를 사용합니다. DOM 연결은 `@document-studio/browser`를 함께 설치합니다. 별도 Document Studio 서비스는 필요하지 않습니다. `apps/playground`는 private 개발 예제입니다. 호스트는 사용자·문서 ID·저장소 version·초안 namespace·문서 전환·파일 목록을 소유합니다.
 
-로컬 검증 tarball은 `.build/packs/core.tgz`, `react.tgz`, `engine-docx.tgz`, `engine-rhwp.tgz`입니다. 소비 앱에서 네 파일을 함께 설치하고 RHWP 자산을 자신의 public 디렉터리에 복사합니다. 각각의 immutable hash 파일은 검증 cache 구분용이며 최신 패키지는 고정 이름 파일입니다.
+로컬 검증 tarball은 `.build/packs/core.tgz`, `react.tgz`, `engine-docx.tgz`, `engine-rhwp.tgz`, `browser.tgz`입니다. React 소비 앱에서 앞의 네 파일을 함께 설치하고 RHWP 자산을 자신의 public 디렉터리에 복사합니다. 각각의 immutable hash 파일은 검증 cache 구분용이며 최신 패키지는 고정 이름 파일입니다.
 
-[README의 준비·빌드](../README.md#시작하기)를 마친 뒤 `yarn verify:packages`를 실행하면 네 tarball을 생성하고 별도 소비 앱에서 검증합니다. 브라우저 검증 없이 tarball만 만들려면 각 workspace에서 `yarn pack --out <출력 파일의 절대 경로>`를 실행할 수 있습니다. 예: `yarn workspace @document-studio/core pack --out /absolute/output/core.tgz`. 네 패키지를 같은 소스 버전에서 함께 생성하세요.
+[README의 준비·빌드](../README.md#시작하기)를 마친 뒤 `yarn verify:packages`를 실행하면 다섯 tarball을 생성하고 별도 소비 앱에서 검증합니다. 브라우저 검증 없이 tarball만 만들려면 각 workspace에서 `yarn pack --out <출력 파일의 절대 경로>`를 실행할 수 있습니다. 예: `yarn workspace @document-studio/core pack --out /absolute/output/core.tgz`. 패키지를 같은 소스 버전에서 함께 생성하세요.
 
 ```sh
 npm install /path/to/core.tgz /path/to/react.tgz /path/to/engine-docx.tgz /path/to/engine-rhwp.tgz
 npx document-studio-rhwp-assets public/editor-assets/rhwp
 ```
 
-React 19와 React DOM 19는 host peer입니다. `@document-studio/react/styles.css`를 import하고 안정적인 document id와 원본 bytes/version을 전달합니다. 현재 문서의 version으로 `key`를 만들지 않습니다. 문서 ID가 바뀌는 host 전환은 `flushDraft()`를 기다린 뒤 수행합니다. `onSaved`의 bytes와 version을 함께 목록에 반영합니다. 새 보고서 factory의 `onCreateDocument`도 같은 전환 정책을 사용합니다.
+DOM 호스트에서는 위 설치에 `/path/to/browser.tgz`를 추가하고 `@document-studio/browser/styles.css`를 import합니다. React 런타임과 선언 파일은 browser 패키지의 의존성으로 설치됩니다. 일반 JS/Vue 예제는 `examples/browser/`이며 빌드한 패키지와 RHWP 자산을 사용합니다.
+
+React 컴포넌트 연결에서는 React 19와 React DOM 19가 host peer입니다. `@document-studio/react/styles.css`를 import하고 안정적인 document id와 원본 bytes/version을 전달합니다. 현재 문서의 version으로 `key`를 만들지 않습니다. 문서 ID가 바뀌는 host 전환은 `flushDraft()`를 기다린 뒤 수행합니다. `onSaved`의 bytes와 version을 함께 목록에 반영합니다. 새 보고서 factory의 `onCreateDocument`도 같은 전환 정책을 사용합니다.
 
 0.2.4의 저장 후 종료 경로는 `save({ onlyIfDirty: true })`를 항상 기다립니다. SDK는 새 입력을 막고 진행 중인 명령을 기다린 뒤 dirty를 판단합니다. 호스트는 성공 후 sessionId와 권한, dirty, 동기화 경고를 다시 확인합니다. 동일 digest 저장도 승인된 바이트 내용과 현재 세션을 확인해 원본 props 갱신을 받아들입니다. 같은 version의 다른 내용은 계속 전환 승인이 필요합니다.
 
