@@ -4,6 +4,7 @@ import {
   type EditorSnapshot,
   type TableColumnPreview,
   type TableColumnRequest,
+  type TableColumnOperation,
   type TableSnapshot,
   type createTableColumnEditor,
 } from "@document-studio/core";
@@ -24,9 +25,11 @@ export function TableColumnTools({
     [column, setColumn] = useState(1),
     [kind, setKind] = useState<TableColumnRequest["columnKind"]>("unknown"),
     [header, setHeader] = useState(true);
-  const [operation, setOperation] = useState<"commas" | "replace">("commas"),
+  const [operation, setOperation] =
+      useState<TableColumnOperation["kind"]>("commas"),
     [find, setFind] = useState(""),
-    [replacement, setReplacement] = useState("");
+    [replacement, setReplacement] = useState(""),
+    [affix, setAffix] = useState("");
   const [preview, setPreview] = useState<TableColumnPreview | null>(null),
     [pending, setPending] = useState(false),
     [notice, setNotice] = useState("");
@@ -174,6 +177,10 @@ export function TableColumnTools({
               >
                 <option value="commas">숫자 쉼표</option>
                 <option value="replace">문자열 치환</option>
+                <option value="prefix">앞에 문구 붙이기</option>
+                <option value="suffix">뒤에 문구 붙이기</option>
+                <option value="trim">앞뒤 공백 제거</option>
+                <option value="collapseSpaces">연속 공백 정리</option>
               </select>
             </label>
           </div>
@@ -205,6 +212,20 @@ export function TableColumnTools({
               </label>
             </div>
           )}
+          {(operation === "prefix" || operation === "suffix") && (
+            <label>
+              붙일 문구
+              <input
+                aria-label="열에 붙일 문구"
+                value={affix}
+                disabled={pending}
+                onChange={(e) => {
+                  setAffix(e.target.value);
+                  invalidate();
+                }}
+              />
+            </label>
+          )}
           <p className="ds-muted">
             날짜·식별자 헤더, 앞자리 0, 긴 숫자 번호는 보호합니다. 치환은
             대소문자를 구분하며 입력한 문자열 그대로 찾습니다.
@@ -221,9 +242,11 @@ export function TableColumnTools({
                   columnKind: kind,
                   headerRows: header ? 1 : 0,
                   operation:
-                    operation === "commas"
-                      ? { kind: "commas" }
-                      : { kind: "replace", find, replacement },
+                    operation === "replace"
+                      ? { kind: "replace", find, replacement }
+                      : operation === "prefix" || operation === "suffix"
+                        ? { kind: operation, text: affix }
+                        : { kind: operation },
                 });
                 if (ticket === sequence.current) setPreview(value);
               })

@@ -233,6 +233,61 @@ export async function mountDocumentEditor(
       if (!method) throw new Error("표 열 편집을 지원하지 않습니다.");
       return method();
     },
+    listQuickActions: () => {
+      const method = current().listQuickActions;
+      if (!method) throw new Error("빠른 작업을 지원하지 않습니다.");
+      return method();
+    },
+    registerMailMergeTemplate: (document) => {
+      const method = current().registerMailMergeTemplate;
+      if (!method) throw new Error("서식 등록을 지원하지 않습니다.");
+      return method(document);
+    },
+    registerCurrentMailMergeTemplate: () => {
+      const method = current().registerCurrentMailMergeTemplate;
+      if (!method) throw new Error("서식 등록을 지원하지 않습니다.");
+      return method();
+    },
+    listMailMergeTemplates: () => {
+      const method = current().listMailMergeTemplates;
+      if (!method) throw new Error("메일머지를 지원하지 않습니다.");
+      return method();
+    },
+    previewMailMerge: (request) => {
+      const method = current().previewMailMerge;
+      if (!method) throw new Error("메일머지를 지원하지 않습니다.");
+      return method(request);
+    },
+    generateMailMerge: (request) => {
+      const method = current().generateMailMerge;
+      if (!method) throw new Error("메일머지를 지원하지 않습니다.");
+      return method(request);
+    },
+    cancelMailMerge: (id) => {
+      const method = current().cancelMailMerge;
+      if (!method) throw new Error("메일머지를 지원하지 않습니다.");
+      return method(id);
+    },
+    getMailMergeStatus: () => {
+      const method = current().getMailMergeStatus;
+      if (!method) throw new Error("메일머지를 지원하지 않습니다.");
+      return method();
+    },
+    exportMailMerge: (id) => {
+      const method = current().exportMailMerge;
+      if (!method) throw new Error("메일머지를 지원하지 않습니다.");
+      return method(id);
+    },
+    previewQuickAction: (request) => {
+      const method = current().previewQuickAction;
+      if (!method) throw new Error("빠른 작업을 지원하지 않습니다.");
+      return method(request);
+    },
+    applyQuickAction: (request) => {
+      const method = current().applyQuickAction;
+      if (!method) throw new Error("빠른 작업을 지원하지 않습니다.");
+      return method(request);
+    },
     previewTableColumn: async (request) => {
       const method = current().previewTableColumn;
       if (!method) throw new Error("표 열 편집을 지원하지 않습니다.");

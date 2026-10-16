@@ -49,7 +49,11 @@ export function nativeHistoryPlugin() {
     this.textarea.value = '';
   }
 
-  executeFormattingGroup(run: () => void): void {
+  executeDocumentStudioTextGroup(run: () => void): void {
+    this.executeFormattingGroup(run, false);
+  }
+
+  executeFormattingGroup(run: () => void, preserveSelection = true): void {
     const before = this.cursor.getPosition();
     const selection = this.getSelection();
     const cur = this.cursor;
@@ -58,6 +62,7 @@ export function nativeHistoryPlugin() {
       : cur.isInFootnote() ? {mode:'footnote',sectionIdx:cur.fnSectionIdx,paraIdx:cur.fnParaIdx,controlIdx:cur.fnControlIdx,footnoteIndex:cur.fnFootnoteIndex,pageNum:cur.fnPageNum,innerParaIdx:cur.fnInnerParaIdx,charOffset:cur.fnCharOffset} : null;
     const hf = this.getNonEmptyHeaderFooterSelection();
     const selectionSnapshot = hf ? this.headerFooterSelectionSnapshot(hf) : selection ? {...selection,blockPhase:cur.blockSelectionPhase()} : null;
+    let selectionAfterSnapshot = selectionSnapshot;
     const capturePending = () => ({shape: this.pendingCharShape ? {...this.pendingCharShape} : null, anchor: this.pendingCharShapeAnchor ? {...this.pendingCharShapeAnchor} : null});
     const restorePending = (state: ReturnType<typeof capturePending>) => {this.pendingCharShape = state.shape; this.pendingCharShapeAnchor = state.anchor;};
     const pendingBefore = capturePending();
@@ -67,11 +72,15 @@ export function nativeHistoryPlugin() {
       let changed = false;
       try { run(); } finally { changed = this.history.endDocumentStudioGroup(); }
       pendingAfter = capturePending();
+      if (!preserveSelection) {
+        const next = this.getSelection(), nextHf = this.getNonEmptyHeaderFooterSelection();
+        selectionAfterSnapshot = nextHf ? this.headerFooterSelectionSnapshot(nextHf) : next ? {...next,blockPhase:cur.blockSelectionPhase()} : null;
+      }
       return changed || JSON.stringify(pendingBefore) !== JSON.stringify(pendingAfter) ? this.cursor.getPosition() : null;
     });
     command.editContext = () => context;
     command.selectionBefore = () => selectionSnapshot;
-    command.selectionAfter = () => selectionSnapshot;
+    command.selectionAfter = () => selectionAfterSnapshot;
     const nativeUndo = command.undo.bind(command), nativeExecute = command.execute.bind(command);
     let replay = false;
     command.undo = wasm => {const position = nativeUndo(wasm); restorePending(pendingBefore); return position;};

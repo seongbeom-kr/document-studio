@@ -17,6 +17,9 @@ import {
   type EditorDocument,
   TABLE_COLUMN_SCHEMA,
   type TableColumnRequest,
+  type QuickActionRequest,
+  MAIL_MERGE_SCHEMA,
+  type MailMergeRequest,
 } from "./index";
 import type {
   EditorController,
@@ -67,6 +70,20 @@ export function createAgentBridge(
     {
       fingerprint: string;
       task: ReturnType<NonNullable<EditorController["applyTableColumn"]>>;
+    }
+  >();
+  const quickOperations = new Map<
+    string,
+    {
+      fingerprint: string;
+      task: ReturnType<NonNullable<EditorController["applyQuickAction"]>>;
+    }
+  >();
+  const mailOperations = new Map<
+    string,
+    {
+      fingerprint: string;
+      task: ReturnType<NonNullable<EditorController["generateMailMerge"]>>;
     }
   >();
   const previews = new Map<
@@ -197,6 +214,136 @@ export function createAgentBridge(
     return cached.result;
   };
   return {
+    listMailMergeActions: () => ({
+      inputSchema: structuredClone(MAIL_MERGE_SCHEMA),
+      supported: Boolean(
+        getEditor()?.getState().ready &&
+          getEditor()?.previewMailMerge &&
+          getEditor()?.generateMailMerge,
+      ),
+      workflow:
+        "registerCurrentMailMergeTemplate or a user-uploaded template → listMailMergeTemplates → previewMailMerge → inspect all files/empty values/issues → generateMailMerge. Generated files stay in browser session memory. Server saving/delivery requires the host's exportMailMerge integration; never claim they are already saved.",
+    }),
+    registerCurrentMailMergeTemplate: async (request: AgentTarget) => {
+      const started = target(request);
+      if (!started.handle.registerCurrentMailMergeTemplate)
+        throw new Error("서식 등록을 지원하지 않습니다.");
+      const result = await started.handle.registerCurrentMailMergeTemplate();
+      complete(started);
+      return result;
+    },
+    listMailMergeTemplates: (request: AgentTarget) => {
+      const started = target(request);
+      if (!started.handle.listMailMergeTemplates)
+        throw new Error("메일머지를 지원하지 않습니다.");
+      return started.handle.listMailMergeTemplates();
+    },
+    previewMailMerge: (
+      request: AgentTarget & { mergeRequest: MailMergeRequest },
+    ) => {
+      const started = target(request);
+      if (!started.handle.previewMailMerge)
+        throw new Error("메일머지를 지원하지 않습니다.");
+      return started.handle.previewMailMerge(request.mergeRequest);
+    },
+    generateMailMerge: async (
+      request: AgentWriteTarget & { previewId: string; operationId: string },
+    ) => {
+      if (
+        typeof request.operationId !== "string" ||
+        !/^[a-zA-Z0-9._:-]{1,128}$/.test(request.operationId)
+      )
+        throw new Error("유효한 operationId가 필요합니다.");
+      identify(request);
+      const fingerprint = JSON.stringify([
+          request.documentId,
+          request.expectedSessionId,
+          request.expectedRevision,
+          request.expectedVersion,
+          request.previewId,
+        ]),
+        previous = mailOperations.get(request.operationId);
+      if (previous) {
+        if (previous.fingerprint !== fingerprint)
+          throw new Error("다른 생성 요청에 사용한 작업 ID입니다.");
+        return structuredClone(await previous.task);
+      }
+      const started = target(request, true);
+      if (!started.handle.generateMailMerge)
+        throw new Error("메일머지를 지원하지 않습니다.");
+      if (mailOperations.size >= 64)
+        throw new Error("생성 작업 기록 한도에 도달했습니다.");
+      const task = started.handle.generateMailMerge({
+        previewId: request.previewId,
+        operationId: request.operationId,
+      });
+      mailOperations.set(request.operationId, { fingerprint, task });
+      return structuredClone(await task);
+    },
+    getMailMergeStatus: (request: AgentTarget) => {
+      const started = target(request);
+      if (!started.handle.getMailMergeStatus)
+        throw new Error("메일머지를 지원하지 않습니다.");
+      return started.handle.getMailMergeStatus();
+    },
+    cancelMailMerge: (request: AgentTarget & { operationId: string }) => {
+      const started = target(request);
+      if (!started.handle.cancelMailMerge)
+        throw new Error("메일머지를 지원하지 않습니다.");
+      started.handle.cancelMailMerge(request.operationId);
+      return { cancelRequested: true };
+    },
+    listQuickActions: () => {
+      const method = editor().listQuickActions;
+      if (!method) throw new Error("빠른 작업을 지원하지 않습니다.");
+      return method();
+    },
+    previewQuickAction: (
+      request: AgentTarget & { action: QuickActionRequest },
+    ) => {
+      const started = target(request);
+      if (!started.handle.previewQuickAction)
+        throw new Error("빠른 작업을 지원하지 않습니다.");
+      return started.handle.previewQuickAction(request.action);
+    },
+    applyQuickAction: async (
+      request: AgentSelectionTarget & {
+        previewId: string;
+        operationId: string;
+      },
+    ) => {
+      if (
+        typeof request.operationId !== "string" ||
+        !/^[a-zA-Z0-9._:-]{1,128}$/.test(request.operationId)
+      )
+        throw new Error("유효한 operationId가 필요합니다.");
+      identify(request);
+      const fingerprint = JSON.stringify([
+        request.documentId,
+        request.expectedSessionId,
+        request.expectedRevision,
+        request.expectedSelectionKey,
+        request.expectedVersion,
+        request.previewId,
+      ]);
+      const previous = quickOperations.get(request.operationId);
+      if (previous) {
+        if (previous.fingerprint !== fingerprint)
+          throw new Error("다른 빠른 작업 요청에 사용한 ID입니다.");
+        return structuredClone(await previous.task);
+      }
+      const { handle } = selectionTarget(request);
+      if (!handle.applyQuickAction)
+        throw new Error("빠른 작업을 지원하지 않습니다.");
+      if (quickOperations.size >= 128)
+        throw new Error("빠른 작업 기록 한도에 도달했습니다.");
+      const task = handle.applyQuickAction({
+        previewId: request.previewId,
+        operationId: request.operationId,
+      });
+      quickOperations.set(request.operationId, { fingerprint, task });
+      return structuredClone(await task);
+    },
     listTableColumnActions: () => ({
       supported: Boolean(
         getEditor()?.getState().tableColumnEditing &&

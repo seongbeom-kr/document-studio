@@ -27,6 +27,8 @@ export * from "./office-automation";
 export * from "./automation-forms";
 export * from "./automation-runner";
 export * from "./table-column";
+export * from "./quick-actions";
+export * from "./mail-merge";
 export * from "./image-dimensions";
 export * from "./templates";
 export * from "./archive";
@@ -89,6 +91,8 @@ export interface EditorSnapshot {
   automationDraftError?: string;
   /** The adapter commits a preset as one native undo unit, without partial writes. */
   atomicPresets?: boolean;
+  /** Replacing a selected range with inserted text is one undo transaction. */
+  atomicTextInsertion?: boolean;
   /** Selected-table reads and atomic column edits are available in this runtime. */
   tableColumnEditing?: boolean;
 }

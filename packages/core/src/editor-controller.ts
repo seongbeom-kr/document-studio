@@ -28,6 +28,33 @@ export type EditorControllerState = EditorSnapshot & {
 };
 
 export interface EditorController {
+  registerMailMergeTemplate?(
+    document: import("./index").EditorDocument,
+  ): Promise<import("./mail-merge").MailMergeTemplateInfo>;
+  registerCurrentMailMergeTemplate?(): Promise<
+    import("./mail-merge").MailMergeTemplateInfo
+  >;
+  listMailMergeTemplates?(): import("./mail-merge").MailMergeTemplateInfo[];
+  previewMailMerge?(
+    request: import("./mail-merge").MailMergeRequest,
+  ): import("./mail-merge").MailMergePreview;
+  generateMailMerge?(request: {
+    previewId: string;
+    operationId: string;
+  }): Promise<import("./mail-merge").MailMergeReceipt>;
+  cancelMailMerge?(operationId: string): void;
+  getMailMergeStatus?(): import("./mail-merge").MailMergeStatus;
+  exportMailMerge?(operationId: string): import("./index").EditorDocument[];
+  listQuickActions?(): ReturnType<
+    ReturnType<typeof import("./quick-actions").createQuickActionEditor>["list"]
+  >;
+  previewQuickAction?(
+    request: import("./quick-actions").QuickActionRequest,
+  ): import("./quick-actions").QuickActionPreview;
+  applyQuickAction?(request: {
+    previewId: string;
+    operationId: string;
+  }): Promise<import("./quick-actions").QuickActionReceipt>;
   readTable?(): Promise<
     import("./table-column").TableSnapshot &
       import("./table-column").TableEditIdentity

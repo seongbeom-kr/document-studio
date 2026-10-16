@@ -1,6 +1,6 @@
 {
   "name": "@document-studio/browser",
-  "version": "0.2.21",
+  "version": "0.2.22",
   "type": "module",
   "license": "Apache-2.0",
   "files": [

@@ -4,6 +4,8 @@ React 19 앱에 Document Studio를 연결할 때 필요한 저장·전환·복�
 
 ## React에서 사용
 
+0.2.22는 `quick`(빠른 작업), `mailMerge`(서식·메일머지) 도구 탭과 공통 controller/agent 메서드를 추가합니다. 호스트 툴바에서는 `context.openTools("quick")` 또는 `context.openTools("mailMerge")`로 기존 패널을 열 수 있습니다. 메일머지 결과는 세션 메모리에만 생성되며 서버 저장·목록 반영은 호스트가 `exportMailMerge()`로 받아 별도로 처리합니다. [빠른 작업·메일머지 계약](office-workflows-0.2.22.txt)에 예제와 제한이 있습니다.
+
 0.2.21의 표 도구는 선택한 열의 쉼표 처리와 문자열 치환에 대해 변경 전후·제외 사유를 미리 보여줍니다. React 컨트롤러와 DOM 어댑터의 `readTable()` → `previewTableColumn()` → `applyTableColumn()`이 UI와 에이전트의 공통 경로입니다. [표 열 편집 계약](table-column-editing-0.2.21.txt)에 보호 규칙, 오류 효과와 에이전트 예제가 있습니다. 저장은 별도입니다.
 
 ```tsx

@@ -57,6 +57,19 @@ function table(
   };
 }
 describe("safe table column preview", () => {
+  it.each([
+    [{ kind: "prefix", text: "앞 " }, ["앞   가  나  ", "앞 다"]],
+    [{ kind: "suffix", text: " 뒤" }, ["  가  나   뒤", "다 뒤"]],
+    [{ kind: "trim" }, ["가  나"]],
+    [{ kind: "collapseSpaces" }, ["가 나"]],
+  ] as const)("transforms only safe cells with %j", (operation, expected) => {
+    const result = planTableColumn(
+      table(["항목", "  가  나  ", "다", "001234", "2026-10-16"]),
+      { ...request, columnKind: "text", operation },
+    );
+    expect(result.changes.map((c) => c.after)).toEqual(expected);
+    expect(result.excluded.map((c) => c.row)).toEqual([1, 4, 5]);
+  });
   it("shows precise targets, preserves whitespace/decimal precision and protects IDs and dates", () => {
     const source = table(),
       before = structuredClone(source),

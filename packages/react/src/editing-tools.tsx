@@ -9,6 +9,8 @@ import type {
 } from "./automation-session";
 import { NumericField } from "./numeric-field";
 import { TableColumnTools } from "./table-column-tools";
+import { QuickActionTools } from "./quick-actions-tools";
+import { MailMergeTools } from "./mail-merge-tools";
 import {
   COMMAND_LABELS,
   REPORT_PRESETS,
@@ -27,6 +29,15 @@ import {
   type EditorDocument,
 } from "@document-studio/core";
 interface Props {
+  quickActions?: ReturnType<
+    typeof import("@document-studio/core").createQuickActionEditor
+  >;
+  mailMerge?: ReturnType<
+    typeof import("@document-studio/core").createMailMergeSession
+  >;
+  registerCurrentMailMergeTemplate?: () => Promise<
+    import("@document-studio/core").MailMergeTemplateInfo
+  >;
   tableColumn?: ReturnType<
     typeof import("@document-studio/core").createTableColumnEditor
   >;
@@ -65,6 +76,8 @@ const TABS = [
   "찾기와 바꾸기",
   "보고서 서식",
   "업무 자동화",
+  "빠른 작업",
+  "서식·메일머지",
 ] as const;
 export function EditingTools(props: Props) {
   const { snapshot, execute, onError, disabled } = props;
@@ -89,7 +102,11 @@ export function EditingTools(props: Props) {
   const expanded = useRef(Boolean(props.expanded));
   expanded.current = Boolean(props.expanded);
   useEffect(() => {
-    if (tab !== "업무 자동화" || !props.onExpandedChange) return;
+    if (
+      !["업무 자동화", "빠른 작업", "서식·메일머지"].includes(tab) ||
+      !props.onExpandedChange
+    )
+      return;
     const area = toolsElement.current?.closest(".ds-work-area");
     if (!area) return;
     const ensureInputSpace = () => {
@@ -551,9 +568,31 @@ export function EditingTools(props: Props) {
             </p>
           </details>
         )}
-        {tab === "업무 자동화" &&
-        props.automationStatus &&
-        !props.automationStatus.ready ? (
+        {tab === "서식·메일머지" &&
+        props.mailMerge &&
+        props.registerCurrentMailMergeTemplate &&
+        props.automationSession &&
+        props.automationStatus ? (
+          <MailMergeTools
+            key={props.documentKey}
+            actions={props.mailMerge}
+            registerCurrent={props.registerCurrentMailMergeTemplate}
+            session={props.automationSession}
+            draftStatus={props.automationStatus}
+            snapshot={snapshot}
+            disabled={disabled}
+            readOnly={props.readOnly}
+          />
+        ) : tab === "빠른 작업" && props.quickActions ? (
+          <QuickActionTools
+            actions={props.quickActions}
+            snapshot={snapshot}
+            disabled={disabled}
+            readOnly={props.readOnly}
+          />
+        ) : tab === "업무 자동화" &&
+          props.automationStatus &&
+          !props.automationStatus.ready ? (
           <div className="ds-tools-panel" role="status">
             {props.automationStatus.error ||
               "보관한 자동화 입력을 불러오는 중…"}

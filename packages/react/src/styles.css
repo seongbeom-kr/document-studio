@@ -764,6 +764,120 @@
   padding: 0 0 16px;
   margin-bottom: 16px;
 }
+.ds-quick-actions fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0 0 18px;
+  min-width: 0;
+}
+.ds-quick-actions fieldset legend {
+  position: static;
+  width: auto;
+  height: auto;
+  clip-path: none;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.ds-quick-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ds-quick-actions label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ds-quick-actions select {
+  border: 1px solid var(--ds-border);
+  border-radius: 5px;
+  padding: 6px;
+  font: inherit;
+  color: inherit;
+  background: var(--ds-background, #fff);
+}
+.ds-quick-preview {
+  border-top: 1px solid var(--ds-border);
+  padding-top: 12px;
+  overflow-wrap: anywhere;
+}
+.ds-quick-preview output {
+  display: block;
+  padding: 8px 0;
+  white-space: pre-wrap;
+}
+.ds-mail-merge fieldset {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 12px 0;
+}
+.ds-mail-merge fieldset legend {
+  position: static;
+  width: auto;
+  height: auto;
+  clip-path: none;
+  font-weight: 600;
+  margin: 10px 0;
+}
+.ds-mail-merge label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 8px 0;
+  min-width: 0;
+}
+.ds-mail-merge .ds-check {
+  flex-direction: row;
+  white-space: normal;
+}
+.ds-mail-merge :is(select, input:not([type="checkbox"]), textarea) {
+  max-width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--ds-border);
+  border-radius: 5px;
+  padding: 6px 8px;
+  font: inherit;
+  color: inherit;
+  background: var(--ds-background, #fff);
+}
+.ds-mail-merge textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+}
+.ds-mail-merge p,
+.ds-mail-merge li {
+  overflow-wrap: anywhere;
+}
+.ds-mail-mapping {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 8px;
+}
+.ds-mail-table-scroll {
+  overflow: auto;
+  max-height: 360px;
+}
+.ds-mail-preview {
+  margin-top: 16px;
+  border-top: 1px solid var(--ds-border);
+  padding-top: 12px;
+}
+.ds-mail-preview table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+.ds-mail-preview :is(th, td) {
+  padding: 6px;
+  border: 1px solid var(--ds-border);
+  text-align: left;
+  overflow-wrap: anywhere;
+  min-width: 60px;
+  max-width: 260px;
+  white-space: pre-wrap;
+}
 .ds-table-column p {
   margin: 8px 0;
 }

@@ -3,6 +3,7 @@ import {
   automationDefault,
   type CellTransform,
   type AutomationDraftStatus,
+  MAIL_MERGE_DRAFT_NAME,
 } from "@document-studio/core";
 import type {
   AutomationDraftState,
@@ -199,6 +200,8 @@ export class AutomationSession {
     await this.start();
   }
   defaults(utility: string): AutomationDraft {
+    if (utility === MAIL_MERGE_DRAFT_NAME)
+      return { input: "", argument: "", transform: "trim", delimiter: "auto" };
     const form = OFFICE_AUTOMATION_FORMS.find((item) => item.name === utility)!;
     return {
       input: form.example,
@@ -210,13 +213,17 @@ export class AutomationSession {
   get(utility: string): AutomationDraft {
     return { ...(this.drafts.get(utility) ?? this.defaults(utility)) };
   }
-  put(utility: string, draft: AutomationDraft): void {
+  put(
+    utility: string,
+    draft: AutomationDraft,
+    options: { activate?: boolean } = {},
+  ): void {
     if (
-      this.utility === utility &&
+      (options.activate === false || this.utility === utility) &&
       JSON.stringify(this.get(utility)) === JSON.stringify(draft)
     )
       return;
-    this.utility = utility;
+    if (options.activate !== false) this.utility = utility;
     this.drafts.set(utility, { ...draft });
     this.revision++;
     const error = this.validationError();

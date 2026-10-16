@@ -18,6 +18,8 @@ export const EDITOR_TOOL_TABS = {
   search: "찾기와 바꾸기",
   presets: "보고서 서식",
   automation: "업무 자동화",
+  quick: "빠른 작업",
+  mailMerge: "서식·메일머지",
 } as const;
 export type EditorToolTab = keyof typeof EDITOR_TOOL_TABS;
 export type EditorUIRegion = "toolbar" | "statusBar" | "tools";

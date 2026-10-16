@@ -9,7 +9,9 @@
 ## 지원 기능
 
 - 글자·문단 서식, 행간, 페이지 설정, 표·그림, 검색·치환
-- 선택한 표 열의 쉼표 처리·문자열 치환: 변경 미리보기, 식별자·날짜 보호, 일괄 Undo
+- 날짜·기간과 보고서 서식을 미리 확인하고 적용하는 빠른 작업
+- 선택한 표 열의 쉼표 처리·문자열 치환·접두/접미사·공백 정리: 변경 미리보기, 식별자·날짜 보호, 일괄 Undo
+- 사용자 DOCX·HWPX 서식과 CSV/TSV를 연결해 새 문서를 만드는 메일머지
 - 원본 형식으로 내보내기, 저장 충돌 처리, 초안 복구
 - 보고서 생성·업무 자동화와 문서·세션·선택 범위를 확인하는 에이전트 명령
 
@@ -102,6 +104,7 @@ yarn verify:packages
 
 - [호스트 앱 통합](docs/integration.md) · [연결 예제](examples/sandbox-agent/README.md)
 - [지원 기능](docs/feature-support.md) · [범정부 오피스 기능 대응](docs/government-office-reference.md)
-- [검증 기록](docs/practical-validation.md) · [최근 수정·검증 결과](docs/review-fixes-0.2.19-2026-10-15.txt)
+- [빠른 작업·서식 메일머지 계약](docs/office-workflows-0.2.22.txt)
+- [검증 기록](docs/practical-validation.md) · [최근 구현·검증 결과](docs/beomoffice-verification-0.2.22-2026-10-16.txt)
 
 버그 제보에는 공개 가능한 최소 재현 문서, 기대·실제 결과와 브라우저 버전을 포함해 주세요. 업무·고객 문서는 올리지 마세요.

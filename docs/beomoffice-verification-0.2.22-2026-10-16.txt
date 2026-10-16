@@ -1,0 +1,87 @@
+Document Studio 0.2.22 — 범피스 참고 기능 구현·검증
+작성일: 2026-10-16
+
+구현 범위
+1. 빠른 작업: 오늘/어제/내일, 주간·월간·연간 기간, 기존 보고서/호스트 서식.
+   기준일·주간 범위·대상·결과를 미리 확인하며 UI와 agent가 동일 API를 사용한다.
+2. 기존 표의 선택한 열: 접두사·접미사·앞뒤 공백·연속 공백 정리를 추가했다.
+   기존 쉼표/치환의 변경·제외 미리보기, 사번/날짜 보호, 한 번 Undo 계약을 유지한다.
+3. 사용자 서식: DOCX/HWPX 텍스트 필드와 CSV/TSV 열 매핑, 전체 출력 미리보기,
+   배치 생성/취소/ZIP 다운로드. 원본을 유지하고 전체 성공한 사본만 공개한다.
+   생성은 서버 저장이 아니다. 최대 20개이며 등록 서식과 결과 bytes는 세션 메모리에 보관한다.
+
+자료 및 라이선스
+- 사용자가 제공한 범피스 실제 사용 보고서 3쪽과 현재 SDK 기능을 비교했다.
+- 보고서의 실제 성공 5항목과 메뉴/코드 관찰·시험 미완료를 구분했다.
+- 범피스 바이너리·코드·이미지·기관 서식을 배포물에 복사하지 않았다.
+- 새 런타임 의존성 없이 자체 Apache-2.0 코드로 구현했다.
+- 라이선스 gate 통과: npm 105개, 고정 Rust registry crate 393개.
+- production dependency audit: 보고 항목 없음. 개별 업무 문서의 이용 권한까지 검사하는 것은 아니다.
+
+확인한 검증
+- TypeScript 검사: 통과.
+- SDK 단위 테스트: 26파일, 454개 통과.
+- 전체 Chrome/Edge 첫 실행: 808개 중 802개 통과, 6개 실패, skip/flaky 없음.
+  4개는 병렬 시험이 같은 trace 출력 폴더를 정리하면서 발생한 ENOENT였다.
+  2개는 전체 실행 시작 때 만든 번들에 이후의 observer 예외 격리 수정이 없어서 실패했다.
+  최종 소스로 출력 폴더를 분리한 아래 56개 재검증에 실패 6개를 모두 포함했고 전부 통과했다.
+  최초 전체 실행이 한 번에 모두 성공했다고 표시하지 않는다.
+- 신규 기능 집중 Chrome/Edge: DOCX/HWPX 36개 통과.
+- 이후 추가한 알림 콜백 실패 주입·권한/revision 경합: 4개 통과.
+- 실제 IndexedDB 입력/필드 매핑 복구와 손상 설정 보존: 4개 통과.
+- 최종 소스의 집중 Chrome/Edge 재검증: 56개 모두 통과.
+  신규 워크플로 40개와 복구/서식 관련 기존 회귀 16개를 함께 실행했다.
+- SDK 5개 패키지 빌드, playground 빌드, immutable install: 통과.
+- 최종 tarball을 별도 npm 소비 앱에 설치: Next.js 빌드/브라우저 4개 통과,
+  일반 JavaScript·Vue × DOCX/HWPX × Chrome/Edge 8개 통과.
+- 1366×900, 390×900: 두 형식의 빠른 작업/메일머지 화면 캡처 직접 검사.
+  적용 버튼 hit test 통과, 문서 body 가로 넘침 없음. 좁은 도구 패널은 확대 영역을 사용한다.
+- 프론트 단위: 90파일, 731개 통과. 최종 패키지 연결 집중 검사: 2파일, 19개 통과.
+- 프론트 타입 검사, ESLint(--fix 미사용), 프로덕션 빌드, 순환 참조 검사: 통과.
+  madge unresolved import 경고와 기존 테스트 TimeoutNaNWarning은 로그에 유지했다.
+- General 후보 transport: 격리 Linux 컨테이너에서 16개 통과.
+  새 명령의 허용 목록, 세션/lease 계약, 서버 operationId, 실패 효과/재전달을 확인했다.
+
+초기 실패와 수정
+- HWPX에서 선택 문자열을 날짜로 교체하면 삭제/삽입이 두 Undo로 분리됐다.
+  native history 그룹에 텍스트 삽입 경로를 추가해 한 번 Undo/Redo와 저장·재열기로 확인했다.
+- 시험용 1×1 PNG 데이터가 정상 이미지가 아니어서 8×8 정상 PNG fixture로 수정했다.
+- 생성 파일을 현재 편집기의 미저장 문서 위에 바로 열려던 시험은 정상 전환 가드에 차단됐다.
+  별도 편집기에 생성 사본을 재열어 원본 보존과 사본 내용을 동시에 확인하도록 고쳤다.
+- 상태 observer가 예외를 던져도 완료한 생성 결과를 실패로 바꾸지 않도록 알림 오류를 격리했다.
+- 병렬 Playwright 작업의 출력 폴더 충돌은 각 작업의 --output 경로를 분리해 재검증했다.
+
+로컬 프론트 반영
+- 작업 트리: D:\dev\_worktrees\document-studio-0.2.11
+- 로컬 브랜치: codex/document-studio-0.2.18. dev 병합이나 원격 푸시 없음.
+- 최종 SDK 0.2.22 tarball 4개를 설치하고 dist/index.js 및 HWPX 확장 자산 해시 일치를 확인했다.
+- 호스트 툴바에 빠른 작업, 서식·메일머지 메뉴를 연결했다. 호스트 기존 디자인을 사용한다.
+- sandbox-agent:10129, settings:10001을 함께 재시작했다.
+- 두 앱의 bootstrap 완료 및 scope=sblim SSE 연결 로그와 포트 리스닝을 확인했다.
+  이는 로그인 화면·문서 저장·실제 모델 명령 왕복의 합격 판정을 대신하지 않는다.
+
+General 후보와 검증 한계
+- 후보 경로: D:\dev\_worktrees\document-studio-general-0.2.20, feat/sandbox.
+- 신규 빠른 작업/메일머지 명령 계약과 모델 설명을 추가했다. PM-0098/PM-0099에 기록했다.
+- 운영 중인 General 컨테이너와 설정/볼륨을 교체하지 않았다. General 커밋·푸시·배포 없음.
+- 실제 로그인된 프록시 origin은 이 세션의 브라우저 보안 검토에서 접근 거부되어 재검증하지 못했다.
+  다른 브라우저·localhost·인증 헤더로 우회하지 않았다. SDK 합성 fixture 시험은 독립 localhost에서 수행했다.
+- 신규 기능을 실제 LLM과 운영 SSO/BFF/lease로 왕복 검증한 것은 아니다.
+- Windows 물리 IME, 설치형 한컴/Word 조판, 실제 기관 업무 문서 전체 호환성은 별도 시험이 필요하다.
+- 이번 범위에 기존 표의 계산/합계/구조 일괄 변경, 목차/메모 객체, HWP/XLSX/PPTX 편집은 포함하지 않았다.
+
+관련 자료
+docs/office-workflows-0.2.22.txt — API와 데이터 보관·실패·형식 제한
+docs/beomoffice-followup-plan-0.2.22.txt — 구현 범위
+.build/beomoffice-0.2.22/ — Git 제외 로그·결과 JSON·화면 캡처·패키지/실행 정보
+
+재현
+yarn typecheck
+yarn test
+yarn assets:prepare
+yarn test:e2e
+yarn build
+yarn build:playground
+yarn verify:packages
+yarn audit:licenses
+yarn audit:security

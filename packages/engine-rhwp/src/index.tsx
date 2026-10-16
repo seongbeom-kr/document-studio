@@ -73,6 +73,7 @@ interface NativeState {
   revision: number;
   selectionKey?: string;
   tableColumnEditing?: boolean;
+  atomicTextInsertion?: boolean;
   selectionGuardedCommands?: boolean;
   selectionDescription?: string;
   pageCount: number;
@@ -131,6 +132,7 @@ function formatFields(native: NativeState) {
     selectionStateScope: "caret" as const,
     selectionKey: native.selectionKey,
     tableColumnEditing: native.tableColumnEditing === true,
+    atomicTextInsertion: native.atomicTextInsertion === true,
     selectionDescription: native.selectionDescription,
     selectionGuardedCommands: native.selectionGuardedCommands === true,
     paragraph: {

@@ -138,6 +138,7 @@ export function DocxView({
         );
         store.update({
           atomicPresets: true,
+          atomicTextInsertion: true,
           tableColumnEditing: true,
           ready: !native.isLoading && !native.isOpening,
           revision,

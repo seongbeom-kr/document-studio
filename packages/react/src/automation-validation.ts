@@ -1,6 +1,7 @@
 import {
   OFFICE_AUTOMATION_FORMS,
   AUTOMATION_INPUT_LIMIT,
+  MAIL_MERGE_DRAFT_NAME,
 } from "@document-studio/core";
 import type { AutomationDraft } from "./automation-session";
 import type { AutomationDraftState } from "./automation-drafts";
@@ -21,6 +22,7 @@ const transforms = new Set([
   "sequence",
 ]);
 const utilities = new Set(OFFICE_AUTOMATION_FORMS.map((form) => form.name));
+const draftNames = new Set([...utilities, MAIL_MERGE_DRAFT_NAME]);
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -29,7 +31,7 @@ function validateDraft(
   value: unknown,
   allowOversize: boolean,
 ): asserts value is AutomationDraft {
-  if (!utilities.has(name) || !record(value))
+  if (!draftNames.has(name) || !record(value))
     throw new Error("자동화 초안 값이 올바르지 않습니다.");
   for (const [field, label] of [
     ["input", "원본 입력"],
@@ -61,7 +63,7 @@ function validate(
     typeof value.utility !== "string" ||
     !utilities.has(value.utility) ||
     !record(value.drafts) ||
-    Object.keys(value.drafts).length > utilities.size
+    Object.keys(value.drafts).length > draftNames.size
   )
     throw new Error("자동화 초안 형식이 올바르지 않습니다.");
   for (const [name, draft] of Object.entries(value.drafts))

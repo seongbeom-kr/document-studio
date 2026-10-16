@@ -30,7 +30,9 @@ export interface TableEditIdentity {
 }
 export type TableColumnOperation =
   | { kind: "commas" }
-  | { kind: "replace"; find: string; replacement: string };
+  | { kind: "replace"; find: string; replacement: string }
+  | { kind: "prefix" | "suffix"; text: string }
+  | { kind: "trim" | "collapseSpaces" };
 export interface TableColumnRequest {
   column: number;
   /** Explicit semantic choice. A numeric-looking string alone is never sufficient. */
@@ -105,6 +107,21 @@ export const TABLE_COLUMN_SCHEMA = {
           type: "object",
           additionalProperties: false,
           required: ["kind"],
+          properties: { kind: { enum: ["trim", "collapseSpaces"] } },
+        },
+        {
+          type: "object",
+          additionalProperties: false,
+          required: ["kind", "text"],
+          properties: {
+            kind: { enum: ["prefix", "suffix"] },
+            text: { type: "string", minLength: 1, maxLength: 1000 },
+          },
+        },
+        {
+          type: "object",
+          additionalProperties: false,
+          required: ["kind"],
           properties: { kind: { const: "commas" } },
         },
         {
@@ -140,6 +157,25 @@ export function validateTableColumnRequest(value: TableColumnRequest): void {
       "none",
     );
   const op = value.operation;
+  if (op && ["trim", "collapseSpaces"].includes(op.kind)) {
+    if (!ownKeys(op, ["kind"]))
+      throw new TableEditError("공백 처리 입력이 올바르지 않습니다.", "none");
+    return;
+  }
+  if (op && (op.kind === "prefix" || op.kind === "suffix")) {
+    if (
+      !ownKeys(op, ["kind", "text"]) ||
+      typeof op.text !== "string" ||
+      !op.text.length ||
+      op.text.length > 1000 ||
+      /[\u0000-\u001f\u007f]/.test(op.text)
+    )
+      throw new TableEditError(
+        "붙일 문구는 제어 문자가 없는 1~1,000자여야 합니다.",
+        "none",
+      );
+    return;
+  }
   if (
     !op ||
     typeof op !== "object" ||
@@ -245,6 +281,14 @@ export function planTableColumn(
       after = cell.text
         .split(request.operation.find)
         .join(request.operation.replacement);
+    else if (!reason && request.operation.kind === "prefix")
+      after = request.operation.text + cell.text;
+    else if (!reason && request.operation.kind === "suffix")
+      after = cell.text + request.operation.text;
+    else if (!reason && request.operation.kind === "trim")
+      after = cell.text.trim();
+    else if (!reason && request.operation.kind === "collapseSpaces")
+      after = cell.text.replace(/[ \u00a0\u3000]+/g, " ").trim();
     if (after.length > 10000) reason = "변경 후 셀 길이 제한 초과";
     if (reason)
       excluded.push({

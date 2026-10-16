@@ -5,6 +5,7 @@ import {
   browserDraftStore,
   draftKey,
   inspectExport,
+  createMailMergeSession,
   type EditorCommand,
   type EditorDocument,
   type EditorSnapshot,
@@ -95,11 +96,22 @@ declare global {
     documentStudioTest: {
       state(): ReturnType<DocumentEditorHandle["getState"]> | undefined;
       agent: ReturnType<typeof createAgentBridge>;
+      createMailMergeSession: typeof createMailMergeSession;
       execute(
         command: EditorCommand,
         options?: { expectedRevision?: string },
       ): Promise<void>;
       export(): Promise<number[]>;
+      registerMailMerge(
+        bytes: number[],
+        format: "docx" | "hwpx",
+      ): Promise<import("@document-studio/core").MailMergeTemplateInfo>;
+      exportMailMerge(operationId: string): {
+        id: string;
+        fileName: string;
+        format: "docx" | "hwpx";
+        bytes: number[];
+      }[];
       inspectBytes(
         bytes: number[],
         format: "docx" | "hwpx",
@@ -283,6 +295,19 @@ function Harness() {
         if (!editor.current) throw new Error("Missing editor");
         return Array.from((await editor.current.exportDocument()).bytes);
       },
+      createMailMergeSession,
+      registerMailMerge: (bytes, format) =>
+        editor.current!.registerMailMergeTemplate!({
+          id: crypto.randomUUID(),
+          fileName: `외부서식.${format}`,
+          format,
+          bytes: new Uint8Array(bytes),
+        }),
+      exportMailMerge: (operationId) =>
+        editor.current!.exportMailMerge!(operationId).map((file) => ({
+          ...file,
+          bytes: Array.from(file.bytes),
+        })),
       save: async (options) => {
         if (!editor.current) throw new Error("Missing editor");
         await editor.current.save(options);

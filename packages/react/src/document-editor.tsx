@@ -47,6 +47,12 @@ import {
   TableEditError,
   type TableSnapshot,
   type TableCellChange,
+  createQuickActionEditor,
+  REPORT_PRESETS,
+  QuickActionError,
+  createMailMergeSession,
+  MAIL_MERGE_DRAFT_NAME,
+  MailMergeError,
 } from "@document-studio/core";
 import type { EngineDefinition } from "./types";
 import { ModalDialog } from "./modal-dialog";
@@ -942,6 +948,7 @@ export const DocumentEditor = forwardRef<
   tablePort.current = {
     state: () => {
       if (
+        !mounted.current ||
         !session?.getSnapshot().ready ||
         editingSource.current !== document ||
         !matchesAcceptedSource(latest.current.document)
@@ -1110,6 +1117,55 @@ export const DocumentEditor = forwardRef<
     },
     [session, document],
   );
+  const quickPort = useRef<Parameters<typeof createQuickActionEditor>[0]>(
+    null!,
+  );
+  quickPort.current = {
+    state: () => ({ ...liveSnapshot(), ...tablePort.current.state() }),
+    presets: () => [
+      ...REPORT_PRESETS,
+      ...(props.presets ?? []).filter(
+        (preset) => !REPORT_PRESETS.some((p) => p.id === preset.id),
+      ),
+    ],
+    apply: async (commands, identity) => {
+      if (
+        latest.current.readOnly ||
+        busyRef.current ||
+        !session?.getSnapshot().ready
+      )
+        throw new QuickActionError(
+          "현재 문서는 빠른 작업을 적용할 수 없습니다.",
+          "none",
+        );
+      if (commands.length === 1)
+        await execute(commands[0]!, {
+          expectedRevision: identity.revision,
+          expectedSelectionKey: identity.selectionKey,
+        });
+      else {
+        if (!session.getSnapshot().atomicPresets)
+          throw new QuickActionError(
+            "일괄 서식을 안전하게 적용할 수 없는 엔진입니다.",
+            "none",
+          );
+        await applyPreset(
+          { id: "quick-action", name: "빠른 서식", description: "", commands },
+          identity.revision,
+          identity.selectionKey,
+        );
+      }
+    },
+  };
+  const quickActionsRef = useRef<ReturnType<
+    typeof createQuickActionEditor
+  > | null>(null);
+  quickActionsRef.current ??= createQuickActionEditor({
+    state: () => quickPort.current.state(),
+    presets: () => quickPort.current.presets(),
+    apply: (...args) => quickPort.current.apply(...args),
+  });
+  const quickActions = quickActionsRef.current;
   const exportDocument = useCallback(async () => {
     if (!session?.getSnapshot().ready || editingSource.current !== document)
       throw new Error("편집기를 준비하는 중입니다.");
@@ -1134,6 +1190,59 @@ export const DocumentEditor = forwardRef<
     assertSession();
     return exported;
   }, [session, document]);
+  const mailPort = useRef<Parameters<typeof createMailMergeSession>[0]>(null!);
+  mailPort.current = {
+    state: () => tablePort.current.state(),
+    assertWritable: () => {
+      if (latest.current.readOnly || busyRef.current || !mounted.current)
+        throw new MailMergeError(
+          "문서 생성 권한 또는 편집 상태가 변경됐습니다.",
+        );
+    },
+    onPreview: (request, template) =>
+      automationSession.put(
+        MAIL_MERGE_DRAFT_NAME,
+        {
+          input: request.data,
+          delimiter: request.delimiter,
+          transform: "trim",
+          argument: JSON.stringify({
+            mapping: request.mapping,
+            fileNamePattern: request.fileNamePattern,
+            allowEmpty: request.allowEmpty,
+            sourceName: template.fileName,
+          }),
+        },
+        { activate: false },
+      ),
+  };
+  const mailMerge = useMemo(
+    () =>
+      createMailMergeSession({
+        state: () => mailPort.current.state(),
+        assertWritable: () => mailPort.current.assertWritable(),
+        onPreview: (...args) => mailPort.current.onPreview?.(...args),
+      }),
+    [automationSession, sessionId.current],
+  );
+  const registerCurrentMailMergeTemplate = async () => {
+    const started = tablePort.current.state(),
+      exported = await exportDocument(),
+      current = tablePort.current.state();
+    if (
+      started.documentId !== current.documentId ||
+      started.sessionId !== current.sessionId ||
+      started.revision !== exported.revision ||
+      current.revision !== exported.revision
+    )
+      throw new MailMergeError("서식을 등록하는 동안 문서가 변경됐습니다.");
+    return mailMerge.register({
+      id: crypto.randomUUID(),
+      fileName: displayed.fileName,
+      format: exported.format,
+      bytes: exported.bytes,
+    });
+  };
   const flushDraft = useCallback(async () => {
     if (!session || !document || !session.getSnapshot().ready) {
       // A never-ready mount cannot accept native edits. Existing recovery bytes
@@ -1477,6 +1586,17 @@ export const DocumentEditor = forwardRef<
       },
       readDocument,
       readTable: tableColumn.read,
+      registerMailMergeTemplate: mailMerge.register,
+      registerCurrentMailMergeTemplate,
+      listMailMergeTemplates: mailMerge.list,
+      previewMailMerge: mailMerge.preview,
+      generateMailMerge: mailMerge.generate,
+      cancelMailMerge: mailMerge.cancel,
+      getMailMergeStatus: mailMerge.getSnapshot,
+      exportMailMerge: mailMerge.results,
+      listQuickActions: quickActions.list,
+      previewQuickAction: quickActions.preview,
+      applyQuickAction: quickActions.apply,
       previewTableColumn: tableColumn.preview,
       applyTableColumn: tableColumn.apply,
       search,
@@ -1507,6 +1627,9 @@ export const DocumentEditor = forwardRef<
       error,
       sourceBlocked,
       inputMismatch,
+      mailMerge,
+      quickActions,
+      registerCurrentMailMergeTemplate,
     ],
   );
   useEffect(() => {
@@ -1893,6 +2016,17 @@ export const DocumentEditor = forwardRef<
               문단·표·그림
             </button>
             <button
+              type="button"
+              className="ds-button"
+              disabled={!snapshot.ready || busy}
+              onClick={() => {
+                setToolsTab("빠른 작업");
+                setToolsOpen(true);
+              }}
+            >
+              빠른 작업
+            </button>
+            <button
               className="ds-button"
               disabled={!snapshot.ready || busy}
               aria-expanded={nativeTools}
@@ -2206,6 +2340,11 @@ export const DocumentEditor = forwardRef<
               replace={replace}
               applyPreset={applyPreset}
               tableColumn={tableColumn}
+              quickActions={quickActions}
+              mailMerge={mailMerge}
+              registerCurrentMailMergeTemplate={
+                registerCurrentMailMergeTemplate
+              }
               presets={props.presets}
               onError={reportError}
               createDocument={engine?.createDocument}
