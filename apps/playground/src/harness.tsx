@@ -258,7 +258,16 @@ function Harness() {
   });
   useEffect(() => {
     window.documentStudioTest = {
-      agent: createAgentBridge(() => editor.current),
+      agent: createAgentBridge(() => editor.current, {
+        createDocument: async (template) => {
+          const format = editor.current?.getState().format;
+          const engine = engines.find((entry) =>
+            entry.formats.some((supported) => supported === format),
+          );
+          if (!engine?.createDocument) throw new Error("Missing factory");
+          return engine.createDocument(template);
+        },
+      }),
       inspectBytes: (bytes, format) =>
         inspectExport({
           bytes: new Uint8Array(bytes),

@@ -149,6 +149,48 @@ Vue의 `onBeforeUnmount`나 다른 프레임워크의 unmount callback은 비동
 
 `EditorController`, `EditorControllerState`, 저장 영수증과 `createAgentBridge`는 `@document-studio/core`에서 가져올 수 있습니다. 기존 React의 `DocumentEditorHandle`과 브리지 export는 호환됩니다. `const agent = createAgentBridge(() => editor)`로 DOM controller에도 같은 문서·세션·revision·선택 보호를 사용합니다. 이 브리지는 브라우저에 연결된 controller를 제어하며 서버에서 화면 없이 실행하는 Office 엔진이나 실제 LLM transport를 제공하지 않습니다.
 
+## 업무 자동화의 공통 실행 API
+
+0.2.20의 `previewAutomation(request)`는 UI와 에이전트가 함께 사용하는 순수 함수입니다. `AUTOMATION_ACTIONS` 또는 `agent.listAutomationActions()`에서 20개 기능의 안정적인 ID, 입력 스키마, 예제와 지원 범위를 확인합니다. 입력과 추가 인수는 각각 UTF-16 길이 1,000,000자까지 받으며 잘못된 옵션과 초과 입력은 거절합니다. 계산·서식 변환·추첨 결과를 생성할 뿐 문서를 수정하거나 저장하지 않습니다.
+
+에이전트 브리지는 미리보기를 문서·편집 세션·revision에 묶습니다. 다음 예제의 `selectionKey`는 적용할 범위를 검색하고 선택한 뒤의 상태에서 가져옵니다. 사용자가 다른 곳을 선택하거나 내용을 수정하면 적용을 거절합니다.
+
+```ts
+const state = agent.getState();
+const preview = agent.previewAutomation({
+  documentId: state.documentId,
+  expectedSessionId: state.sessionId,
+  automation: { actionId: "amount-korean", input: "1250000" },
+});
+const applied = await agent.applyAutomation({
+  documentId: state.documentId,
+  expectedSessionId: state.sessionId,
+  expectedRevision: state.revision,
+  expectedSelectionKey: state.selectionKey!,
+  previewId: preview.previewId,
+  mode: "text",
+  operationId: "request-42-apply",
+});
+// applied.committed is false. Inspect the document, then commit separately.
+const current = agent.getState();
+const receipt = await agent.commit({
+  documentId: current.documentId,
+  expectedSessionId: current.sessionId,
+  expectedRevision: current.revision,
+  operationId: "request-42-save",
+});
+```
+
+`text` 모드는 표·그림·서식을 포함하지 않는다고 결과에 명시합니다. 구조를 유지하는 새 문서가 필요하면 `createAgentBridge(getEditor, { createDocument: template => engine.createDocument!(template) })`로 순수 factory를 연결하고 `createAutomationDocument({ documentId, expectedSessionId, expectedRevision, previewId, fileName })`를 호출합니다. 반환된 `EditorDocument`는 아직 저장되지 않았으며 호스트가 별도로 업로드·열기를 수행해야 합니다. factory에는 저장이나 라우팅 부작용을 넣지 마세요. 생성 도중 원본이 바뀌면 결과 전달을 거절합니다.
+
+브리지는 미리보기 최대 16개/합계 8,000,000자, 적용 작업 최대 128개를 보관합니다. 오래된 미리보기는 다시 생성해야 합니다. 같은 `operationId`와 요청을 재전달하면 이전 적용 결과를 돌려주며 다른 요청에 ID를 재사용하면 거절합니다. `AutomationOperationError.effect === "unknown"`은 적용 여부를 확정하지 못했다는 뜻입니다. 문서를 조회하고 판단해야 하며 새 ID로 자동 재적용하지 마세요. 호스트 transport는 사용자·작업 공간·문서·SDK 세션·편집권을 확인하고 요청/결과를 보관해야 합니다. 브리지를 새로 만들거나 페이지가 새로고침되면 메모리 작업 기록은 유지되지 않습니다.
+
+## HWPX 연결 실패 진단
+
+실패 상태의 `initialization.error.diagnostics`는 마지막 단계, 전체 경과 시간, 단계별 경과 시간과 연결 방식(`message-port`/`legacy`)을 제공합니다. UI의 `연결 진단 정보`에서도 확인할 수 있습니다. iframe 로딩, 통신 연결, 엔진 시작, 편집 기능 연결, 문서 열기, 상태 확인을 구분합니다. 진단에는 문서 내용·파일 경로·인증 정보가 포함되지 않습니다.
+
+초기화 실패 시 `원본 다운로드` 또는 `복구본 다운로드`는 현재 보관 중인 문서 bytes를 내려받습니다. 준비되지 않은 엔진의 내보내기를 호출하지 않습니다. 호스트의 자산 URL, iframe 응답 및 CSP/프록시 문제는 해당 origin의 브라우저 네트워크 기록과 함께 확인해야 하며, 진단만으로 실패 원인을 단정할 수 없습니다. 기본 전체 제한 시간은 30초입니다.
+
 ## 앱의 UI 구성에 연결
 
 0.2.19의 `ui.containers`는 툴바·상태 표시·추가 편집 도구를 앱이 만든 HTML 요소에 배치합니다. React와 DOM API에서 같은 옵션을 사용합니다. `tools`에는 문단·표·그림·찾기·보고서·업무 자동화 탭이 들어갑니다. 지정하지 않은 영역은 편집기 내부의 기본 위치에 표시합니다.
@@ -171,7 +213,17 @@ await editor.update({ ui: { ...ui, theme: { ...ui.theme, accent: "#005c53" } } }
 
 `update({ ui })`는 `ui` 객체 전체를 교체합니다. 일부 테마나 대상만 바꿀 때는 위 예제처럼 유지할 설정도 함께 전달하세요.
 
-외부 `tools`의 크기와 화면 전환은 호스트가 소유합니다. SDK의 도킹 크기 슬라이더·자동 전체 확장은 적용하지 않습니다. 좁은 화면에서는 원본 입력이 가려지지 않도록 충분한 높이와 세로 스크롤을 제공하세요. [일반 JavaScript·Vue 예제](../examples/browser/main.ts)는 도구 영역을 조건부로 열고 모바일에서 520px 높이로 문서 아래에 배치합니다. 이 수치는 모든 글꼴·배율·호스트에서의 최소 높이를 보증하는 값은 아닙니다.
+외부 영역의 폭은 호스트가 지정해야 합니다. SDK 영역은 컨테이너 쿼리를 위해 `container-type: inline-size`를 사용하므로 자식 내용으로 부모의 폭이 결정되지 않습니다. 특히 flex footer에 상태 표시 영역을 넣을 때 빈 `div`만 사용하면 폭이 0이 될 수 있습니다. 아래처럼 flex 기준 폭을 주고 좁은 화면에서는 한 줄 전체를 사용하세요. 상태 문구·확대 선택·저장 버튼을 함께 배치한 실제 앱 구조에서 줄바꿈과 겹침을 검사해야 합니다.
+
+```css
+.document-footer { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.document-status-host { flex: 1 1 16rem; min-width: 0; max-width: 100%; }
+@media (max-width: 640px) {
+  .document-status-host { flex-basis: 100%; }
+}
+```
+
+외부 `tools`의 높이와 화면 전환도 호스트가 소유합니다. SDK의 도킹 크기 슬라이더·자동 전체 확장은 적용하지 않습니다. 좁은 화면에서는 원본 입력이 가려지지 않도록 충분한 높이와 세로 스크롤을 제공하세요. [일반 JavaScript·Vue 예제](../examples/browser/main.ts)는 도구 영역을 조건부로 열고 모바일에서 520px 높이로 문서 아래에 배치합니다. 이 수치는 모든 글꼴·배율·호스트에서의 최소 높이를 보증하는 값은 아닙니다.
 
 `ui.theme`의 선택 항목은 `accent`, `accentForeground`, `background`, `panel`, `text`, `muted`, `border`, `radius`, `fontFamily`입니다. 색과 길이는 CSS 값으로 전달하며, 편집기와 분리된 영역에 함께 적용됩니다. `appearance="embedded"`는 기본적으로 앱의 `--primary`, `--foreground`, `--background`, `--border`, `--radius` 등 디자인 토큰을 따릅니다. 문서 내용 자체의 글꼴·색·용지 확대를 바꾸는 옵션은 아닙니다.
 

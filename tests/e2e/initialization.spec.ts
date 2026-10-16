@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 type Fault = "html" | "handshake" | "ready" | "loadFile" | "loadFile-error";
 async function faultHost(page: Page, fault: Fault) {
@@ -88,6 +89,25 @@ async function failed(page: Page, code = "engine-initialization-timeout") {
       error: { code, retryable: true },
     },
   });
+  if (state.initialization?.status !== "failed")
+    throw new Error("Expected initialization failure");
+  expect(state.initialization.error.diagnostics?.elapsedMs).toBeGreaterThan(0);
+  expect(state.initialization.error.diagnostics?.steps[0]?.stage).toBe(
+    "iframe-loading",
+  );
+  await page.getByText("연결 진단 정보", { exact: true }).click();
+  await expect(
+    page.getByLabel("편집기 연결 진단", { exact: true }),
+  ).toContainText(code);
+  const original = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "원본 다운로드", exact: true })
+    .click();
+  const download = await original;
+  expect(download.suggestedFilename()).toBe("blank.hwpx");
+  expect(await readFile((await download.path())!)).toEqual(
+    await readFile("fixtures/blank.hwpx"),
+  );
   const rejected = await page.evaluate(async () => {
     const host = window.documentStudioTest;
     const results = await Promise.allSettled([
@@ -175,6 +195,15 @@ for (const fault of [
         body: JSON.stringify(before),
         contentType: "application/json",
       });
+      if (before.initialization?.status !== "failed")
+        throw new Error("Expected failed initialization");
+      expect(before.initialization.error.diagnostics?.stage).toBe(
+        fault === "html"
+          ? "iframe-loading"
+          : fault === "handshake" || fault === "ready"
+            ? "engine-starting"
+            : "document-opening",
+      );
       host.recover();
       await page
         .getByRole("button", { name: "편집기 다시 시도", exact: true })

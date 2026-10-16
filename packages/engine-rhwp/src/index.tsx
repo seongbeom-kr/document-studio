@@ -13,6 +13,8 @@ import {
   SaveConflictError,
   SelectionConflictError,
   EngineInitializationError,
+  type EngineInitializationStage,
+  type EngineInitializationDiagnostics,
   captureExportSnapshot,
   validateSearch,
   validateReplace,
@@ -245,6 +247,29 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
     };
     useEffect(() => {
       let active = true;
+      const startedAt = performance.now();
+      let stage: EngineInitializationStage = "iframe-loading";
+      let transport: EngineInitializationDiagnostics["transport"];
+      const steps: EngineInitializationDiagnostics["steps"] = [];
+      const recordStage = (
+        next: EngineInitializationStage,
+        mode?: EngineInitializationDiagnostics["transport"],
+      ) => {
+        if (!active) return;
+        stage = next;
+        transport = mode ?? transport;
+        if (steps.at(-1)?.stage !== next)
+          steps.push({
+            stage: next,
+            elapsedMs: Math.max(0, Math.round(performance.now() - startedAt)),
+          });
+      };
+      const diagnostics = (): EngineInitializationDiagnostics => ({
+        stage,
+        transport,
+        elapsedMs: Math.max(0, Math.round(performance.now() - startedAt)),
+        steps: steps.map((step) => ({ ...step })),
+      });
       const abort = new AbortController();
       let initializationTimer: ReturnType<typeof setTimeout> | undefined;
       let editor: RhwpEditor | null = null;
@@ -426,7 +451,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
             : new EngineInitializationError(
                 "HWPX 편집기를 준비하지 못했습니다. 다시 시도해 주세요.",
                 "engine-initialization-failed",
-                { cause },
+                { cause, diagnostics: diagnostics() },
               );
         dispose(failure);
         callbacks.current.onError(failure);
@@ -437,6 +462,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
             new EngineInitializationError(
               "HWPX 편집기 연결 시간이 초과됐습니다. 다시 시도해 주세요.",
               "engine-initialization-timeout",
+              { diagnostics: diagnostics() },
             ),
           ),
         initializationTimeoutMs,
@@ -454,6 +480,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
             studioUrl: studioUrl.href,
             chrome: { menu: false, toolbar: false, statusbar: false },
             signal: abort.signal,
+            onInitializationStage: recordStage,
           };
           const created = await createStudio(container.current!, studioOptions);
           if (!active) {
@@ -469,8 +496,10 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
           editor.element.title = "HWPX 문서 편집 영역";
           abort.signal.throwIfAborted();
           callbacks.current.onInitializationPhase?.("opening");
+          recordStage("document-opening");
           await editor.loadFile(document.bytes, document.fileName);
           abort.signal.throwIfAborted();
+          recordStage("state-connecting");
           for (let attempt = 0; attempt < 100; attempt++) {
             if (!active) return;
             if (await editor.commands.isEnabled("ext:document-studio:state"))

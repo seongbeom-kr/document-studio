@@ -21,6 +21,7 @@ import {
   SelectionConflictError,
   PresetApplicationError,
   EngineInitializationError,
+  INITIALIZATION_STAGE_LABELS,
   type EngineInitializationPhase,
   type EngineInitializationState,
   type CommandId,
@@ -340,6 +341,9 @@ export const DocumentEditor = forwardRef<
               code: engineFailure.current.code,
               message: engineFailure.current.message,
               retryable: true,
+              diagnostics: engineFailure.current.diagnostics
+                ? structuredClone(engineFailure.current.diagnostics)
+                : undefined,
             },
           }
         : !document && error && !offer
@@ -1918,19 +1922,63 @@ export const DocumentEditor = forwardRef<
         <div className="ds-notice ds-error" role="alert">
           <span>{error}</span>
           {initializationError && (
-            <button
-              type="button"
-              className="ds-button"
-              onClick={() => {
-                try {
-                  retryInitialization();
-                } catch (cause) {
-                  reportError(cause as Error);
+            <>
+              <button
+                type="button"
+                className="ds-button"
+                onClick={() => {
+                  try {
+                    retryInitialization();
+                  } catch (cause) {
+                    reportError(cause as Error);
+                  }
+                }}
+              >
+                편집기 다시 시도
+              </button>
+              <button
+                type="button"
+                className="ds-button"
+                onClick={() =>
+                  downloadDocument(
+                    displayed.bytes,
+                    displayed.fileName,
+                    displayed.format,
+                  )
                 }
-              }}
-            >
-              편집기 다시 시도
-            </button>
+              >
+                {displayed.recovered ? "복구본 다운로드" : "원본 다운로드"}
+              </button>
+              <details className="ds-initialization-diagnostics">
+                <summary>연결 진단 정보</summary>
+                <p>편집 시작 전 준비에 실패했습니다. 입력 파일은 유지됩니다.</p>
+                {initializationError.diagnostics && (
+                  <p>
+                    실패 단계:{" "}
+                    {
+                      INITIALIZATION_STAGE_LABELS[
+                        initializationError.diagnostics.stage
+                      ]
+                    }{" "}
+                    · 경과 시간:{" "}
+                    {(initializationError.diagnostics.elapsedMs / 1000).toFixed(
+                      1,
+                    )}
+                    초
+                  </p>
+                )}
+                <pre tabIndex={0} aria-label="편집기 연결 진단">
+                  {JSON.stringify(
+                    {
+                      code: initializationError.code,
+                      ...initializationError.diagnostics,
+                    },
+                    null,
+                    2,
+                  )}
+                </pre>
+              </details>
+            </>
           )}
           {recoveryUnavailable && (
             <button

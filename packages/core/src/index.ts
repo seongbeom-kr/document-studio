@@ -25,6 +25,7 @@ export { REPORT_PRESETS } from "./presets";
 export type { DocumentPreset } from "./presets";
 export * from "./office-automation";
 export * from "./automation-forms";
+export * from "./automation-runner";
 export * from "./image-dimensions";
 export * from "./templates";
 export * from "./archive";
@@ -361,9 +362,10 @@ export type {
   DocumentSavedEvent,
   AutomationDraftStatus,
 } from "./editor-controller";
-export { createAgentBridge } from "./agent-bridge";
+export { createAgentBridge, AutomationOperationError } from "./agent-bridge";
 export type {
   AgentTarget,
   AgentWriteTarget,
   AgentSelectionTarget,
+  AgentBridgeOptions,
 } from "./agent-bridge";

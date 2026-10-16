@@ -1,9 +1,12 @@
-import { OFFICE_AUTOMATION_FORMS } from "@document-studio/core";
+import {
+  OFFICE_AUTOMATION_FORMS,
+  AUTOMATION_INPUT_LIMIT,
+} from "@document-studio/core";
 import type { AutomationDraft } from "./automation-session";
 import type { AutomationDraftState } from "./automation-drafts";
 
 /** Same UTF-16 length measure as browser text controls and JavaScript strings. */
-export const AUTOMATION_FIELD_LIMIT = 1_000_000;
+export const AUTOMATION_FIELD_LIMIT = AUTOMATION_INPUT_LIMIT;
 const transforms = new Set([
   "trim",
   "collapseSpaces",

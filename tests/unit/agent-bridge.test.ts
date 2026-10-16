@@ -60,6 +60,185 @@ function fixture() {
     },
   };
 }
+
+describe("agent automation workflow", () => {
+  function setup() {
+    const test = fixture();
+    test.snapshot.commands.insertText = { supported: true, enabled: true };
+    return test;
+  }
+  function target(
+    test: ReturnType<typeof setup>,
+    previewId: string,
+    operationId = "automation-1",
+  ) {
+    const state = test.agent.getState();
+    return {
+      documentId: state.documentId,
+      expectedSessionId: state.sessionId,
+      expectedVersion: state.version,
+      expectedRevision: state.revision,
+      expectedSelectionKey: state.selectionKey!,
+      previewId,
+      operationId,
+      mode: "text" as const,
+    };
+  }
+  function preview(test: ReturnType<typeof setup>) {
+    return test.agent.previewAutomation({
+      documentId: "first-document",
+      automation: { actionId: "amount-korean", input: "12340" },
+    });
+  }
+  it("previews without mutation, applies with guards, and replays the receipt without a second insertion", async () => {
+    const test = setup(),
+      result = preview(test);
+    expect(result.changed).toBe(false);
+    expect(test.execute).not.toHaveBeenCalled();
+    const request = target(test, result.previewId);
+    const first = await test.agent.applyAutomation(request);
+    expect(first).toMatchObject({
+      applied: true,
+      committed: false,
+      dirty: true,
+      revision: "8",
+    });
+    expect(test.execute).toHaveBeenCalledWith(
+      { id: "insertText", value: "금12,340원(금일만이천삼백사십원)" },
+      { expectedRevision: "7", expectedSelectionKey: "range-1" },
+    );
+    expect(await test.agent.applyAutomation(request)).toEqual(first);
+    expect(test.execute).toHaveBeenCalledTimes(1);
+    expect(test.handle.save).not.toHaveBeenCalled();
+  });
+  it("rejects stale preview, selection, session, mode and readonly targets", async () => {
+    const test = setup(),
+      result = preview(test),
+      request = target(test, result.previewId);
+    await expect(
+      test.agent.applyAutomation({ ...request, mode: "image" } as never),
+    ).rejects.toThrow("text 모드");
+    await expect(
+      test.agent.applyAutomation({ ...request, expectedSelectionKey: "old" }),
+    ).rejects.toThrow("선택");
+    test.snapshot.commands.insertText = {
+      supported: true,
+      enabled: false,
+      reason: "읽기 전용",
+    };
+    await expect(test.agent.applyAutomation(request)).rejects.toThrow(
+      "읽기 전용",
+    );
+    test.snapshot.commands.insertText.enabled = true;
+    test.snapshot.revision = "8";
+    await expect(
+      test.agent.applyAutomation({ ...request, expectedRevision: "8" }),
+    ).rejects.toThrow("미리보기 이후");
+    test.reload();
+    await expect(test.agent.applyAutomation(request)).rejects.toThrow("세션");
+    expect(test.execute).not.toHaveBeenCalled();
+  });
+  it("does not reroll a random preview or accept a mutated caller-owned result", async () => {
+    const test = setup();
+    const result = test.agent.previewAutomation({
+      documentId: "first-document",
+      automation: {
+        actionId: "draw-names",
+        input: "가\n나\n다",
+        argument: "2",
+      },
+    });
+    const text = result.text;
+    result.text = "forged replacement";
+    await test.agent.applyAutomation(target(test, result.previewId));
+    expect(test.execute).toHaveBeenCalledWith(
+      { id: "insertText", value: text },
+      expect.any(Object),
+    );
+  });
+  it("retains an uncertain native failure so the same operation cannot duplicate a write", async () => {
+    const test = setup(),
+      result = preview(test),
+      request = target(test, result.previewId);
+    test.execute.mockImplementation(async () => {
+      test.snapshot.revision = "8";
+      throw new Error("Native response lost after mutation");
+    });
+    await expect(test.agent.applyAutomation(request)).rejects.toMatchObject({
+      effect: "unknown",
+      retryable: false,
+    });
+    await expect(test.agent.applyAutomation(request)).rejects.toMatchObject({
+      effect: "unknown",
+      retryable: false,
+    });
+    expect(test.execute).toHaveBeenCalledTimes(1);
+  });
+  it("rejects reuse of an operation ID with a different request", async () => {
+    const test = setup(),
+      result = preview(test),
+      request = target(test, result.previewId);
+    await test.agent.applyAutomation(request);
+    await expect(
+      test.agent.applyAutomation({ ...request, previewId: "different" }),
+    ).rejects.toThrow("다른 요청");
+  });
+  it("expires bounded previews explicitly instead of applying an unknown result", async () => {
+    const test = setup(),
+      old = preview(test);
+    for (let i = 0; i < 16; i++) preview(test);
+    await expect(
+      test.agent.applyAutomation(target(test, old.previewId)),
+    ).rejects.toThrow("만료");
+    expect(test.execute).not.toHaveBeenCalled();
+  });
+  it("generates a structured file without claiming it was saved, and rejects a changed source during generation", async () => {
+    const test = setup();
+    const createDocument = vi.fn(async (template) => ({
+      id: "generated",
+      fileName: template.fileName,
+      bytes: new Uint8Array([1, 2, 3]),
+      format: "docx" as const,
+    }));
+    const agent = createAgentBridge(() => test.handle, { createDocument });
+    const result = agent.previewAutomation({
+      documentId: "first-document",
+      automation: {
+        actionId: "markdown-report",
+        input: "# 보고\n\n| 항목 | 결과 |\n|---|---|\n| 하나 | 둘 |",
+      },
+    });
+    const request = {
+      ...target(test, result.previewId),
+      fileName: "보고.docx",
+    };
+    const created = await agent.createAutomationDocument(request);
+    expect(created).toMatchObject({
+      created: true,
+      committed: false,
+      document: { fileName: "보고.docx" },
+    });
+    expect(
+      createDocument.mock.calls[0]?.[0].blocks.some(
+        (block: { kind: string }) => block.kind === "table",
+      ),
+    ).toBe(true);
+    expect(test.execute).not.toHaveBeenCalled();
+    expect(test.handle.save).not.toHaveBeenCalled();
+    createDocument.mockImplementation(async (template) => {
+      test.reload();
+      return {
+        id: "late",
+        fileName: template.fileName,
+        bytes: new Uint8Array([1]),
+        format: "docx",
+      };
+    });
+    await expect(agent.createAutomationDocument(request)).rejects.toThrow(
+      "편집 세션",
+    );
+  });
+});
 describe("agent document targeting", () => {
   it("keeps the React export compatible with the framework-neutral core bridge", () => {
     expect(legacyAgentBridge).toBe(createAgentBridge);

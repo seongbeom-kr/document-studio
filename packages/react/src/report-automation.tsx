@@ -8,26 +8,9 @@ import {
   type AutomationDraft,
 } from "./automation-session";
 import {
-  formatAccountingAmount,
-  formatOfficeDate,
-  ageOn,
-  datePeriod,
-  safeCalculate,
-  parseDelimited,
-  serializeDelimited,
-  transformCells,
-  percentageAnalysis,
-  reverseTotals,
-  consolidateRows,
-  sortByOrganization,
-  markdownTemplate,
-  meetingTemplate,
-  organizationTemplate,
-  buildReportPrompt,
-  buildChartSvg,
-  buildOrganizationSvg,
-  drawNames,
-  assignTeams,
+  previewAutomation,
+  AUTOMATION_ACTIONS,
+  AUTOMATION_CELL_ARGUMENTS,
   OFFICE_AUTOMATION_FORMS,
   type CellTransform,
   type DocumentTemplate,
@@ -189,18 +172,7 @@ export function ReportAutomation(props: Props) {
         : "이 앱에서는 새 문서 생성을 지원하지 않습니다. 미리보기 결과를 표·서식을 제외한 텍스트로 현재 문서에 삽입할 수 있습니다."
       : "결과 텍스트를 확인·수정한 뒤 현재 문서에 삽입할 수 있습니다.";
   const form = OFFICE_AUTOMATION_FORMS.find((item) => item.name === utility)!;
-  const cellArguments: Partial<
-    Record<
-      CellTransform,
-      { label: string; defaultValue: string; type?: "number" | "text" }
-    >
-  > = {
-    prefix: { label: "앞에 붙일 문구", defaultValue: "", type: "text" },
-    suffix: { label: "뒤에 붙일 문구", defaultValue: "", type: "text" },
-    multiply: { label: "곱할 수", defaultValue: "1", type: "number" },
-    divide: { label: "나눌 수", defaultValue: "1", type: "number" },
-    sequence: { label: "순번 시작 값", defaultValue: "1", type: "number" },
-  };
+  const cellArguments = AUTOMATION_CELL_ARGUMENTS;
   const argumentField =
     utility === "표 데이터 정리" ? cellArguments[transform] : form.argument;
   const tableInput = [
@@ -214,11 +186,6 @@ export function ReportAutomation(props: Props) {
     "차트",
     "조직도 그림",
   ].includes(utility);
-  const parseRows = (text: string) =>
-    parseDelimited(
-      text,
-      delimiter === "auto" ? (text.includes("\t") ? "\t" : ",") : delimiter,
-    );
   const invalidate = () => {
     generated.current = null;
     setMessage("");
@@ -246,192 +213,16 @@ export function ReportAutomation(props: Props) {
     setOutput("");
     setTemplate(null);
     setGraphic("");
-    if (!input.trim())
-      throw new Error(`${form.inputLabel}을 입력하세요. ${form.help}`);
-    if (argumentField && argumentField.type !== "text" && !argument.trim())
-      throw new Error(`${argumentField.label}을 입력하세요. ${form.help}`);
-    let text = "",
-      document: DocumentTemplate | null = null;
-    switch (utility) {
-      case "금액 한글화":
-        text = input
-          .split(/\r?\n/)
-          .filter(Boolean)
-          .map(formatAccountingAmount)
-          .join("\n");
-        break;
-      case "날짜 변환":
-        text = input
-          .split(/\r?\n/)
-          .filter(Boolean)
-          .map((value) => formatOfficeDate(value))
-          .join("\n");
-        break;
-      case "만 나이":
-        text = String(ageOn(input.trim(), argument.trim()));
-        break;
-      case "기간 계산": {
-        const period = datePeriod(
-          input.trim(),
-          argument.trim() === "다음달" ? "nextMonth" : "nextWeek",
-        );
-        text = `${formatOfficeDate(period.from)} ~ ${formatOfficeDate(period.to)}`;
-        break;
-      }
-      case "산출근거 계산":
-        text = input
-          .split(/\r?\n/)
-          .filter(Boolean)
-          .map((value) => `${value}\t${safeCalculate(value)}`)
-          .join("\n");
-        break;
-      case "표 데이터 정리":
-        text = serializeDelimited(
-          transformCells(parseRows(input), transform, argument),
-        );
-        break;
-      case "비율 분석":
-        text = percentageAnalysis(
-          input
-            .split(/[\s,\t]+/)
-            .filter(Boolean)
-            .map(Number),
-        )
-          .map((value) => `${value.value}\t${value.percentage}%`)
-          .join("\n");
-        break;
-      case "역합계":
-        text = reverseTotals(
-          input
-            .split(/\s+/)
-            .filter(Boolean)
-            .map((value) => Number(value.replaceAll(",", ""))),
-        ).join("\n");
-        break;
-      case "자료 취합":
-        text = serializeDelimited(
-          consolidateRows(input.split(/\r?\n---\r?\n/).map(parseRows), {
-            startRow: Number(argument),
-          }),
-        );
-        break;
-      case "직제순 정렬":
-        text = serializeDelimited(
-          sortByOrganization(
-            parseRows(input),
-            0,
-            argument.split(/\r?\n/).filter(Boolean),
-          ),
-        );
-        break;
-      case "마크다운 보고서":
-        document = markdownTemplate(input, "보고서.docx");
-        text = document.blocks
-          .map((block) =>
-            block.kind === "table"
-              ? serializeDelimited(block.rows)
-              : block.text,
-          )
-          .join("\n");
-        break;
-      case "참석자 명단":
-      case "회의명패":
-      case "명찰": {
-        const people = parseRows(input).map((row) => ({
-          name: row[0] ?? "",
-          organization: row[1],
-          role: row[2],
-        }));
-        document = meetingTemplate(
-          people,
-          utility === "참석자 명단"
-            ? "attendance"
-            : utility === "회의명패"
-              ? "nameCards"
-              : "nameTags",
-          `${utility}.docx`,
-        );
-        text = document.blocks
-          .map((block) =>
-            block.kind === "table"
-              ? serializeDelimited(block.rows)
-              : block.text,
-          )
-          .join("\n");
-        break;
-      }
-      case "조직도":
-        document = organizationTemplate(
-          parseRows(input).map((row) => ({
-            id: row[0] ?? "",
-            parentId: row[1] || undefined,
-            label: row[2] ?? row[0] ?? "",
-          })),
-          "조직도.docx",
-        );
-        text = document.blocks
-          .map((block) =>
-            block.kind === "table"
-              ? serializeDelimited(block.rows)
-              : block.text,
-          )
-          .join("\n");
-        break;
-      case "보고서 작성 프롬프트":
-        text = buildReportPrompt({
-          title: argument || "보고서",
-          purpose: "제공된 사실을 보고서로 정리",
-          facts: input,
-        });
-        break;
-      case "차트": {
-        const data = parseRows(input)
-          .filter((row) => row.some(Boolean))
-          .map((row) => ({
-            label: row[0]!,
-            value: Number(row[1]?.replaceAll(",", "")),
-          }));
-        const kind =
-          argument === "line" || argument === "pie" ? argument : "bar";
-        setGraphic(buildChartSvg(data, kind));
-        text = serializeDelimited(
-          data.map((item) => [item.label, String(item.value)]),
-        );
-        break;
-      }
-      case "조직도 그림": {
-        const nodes = parseRows(input).map((row) => ({
-          id: row[0]!,
-          parentId: row[1] || undefined,
-          label: row[2] || row[0]!,
-        }));
-        setGraphic(buildOrganizationSvg(nodes));
-        text = serializeDelimited(
-          nodes.map((n) => [n.id, n.parentId ?? "", n.label]),
-        );
-        break;
-      }
-      case "추첨":
-        text = drawNames(
-          input
-            .split(/\r?\n/)
-            .map((name) => name.trim())
-            .filter(Boolean),
-          Number(argument),
-        ).join("\n");
-        break;
-      case "조 편성":
-        text = assignTeams(
-          input
-            .split(/\r?\n/)
-            .map((name) => name.trim())
-            .filter(Boolean),
-          Number(argument),
-        )
-          .map((names, index) => `${index + 1}조\t${names.join(" · ")}`)
-          .join("\n");
-        break;
-    }
+    const preview = previewAutomation({
+      actionId: AUTOMATION_ACTIONS.find((entry) => entry.name === utility)!.id,
+      input,
+      argument,
+      transform,
+      delimiter: delimiter as "auto" | "," | "\t",
+    });
+    const text = preview.text;
+    const document = preview.template ?? null;
+    setGraphic(preview.svg ?? "");
     setOutput(text);
     setTemplate(document);
     if (document) {

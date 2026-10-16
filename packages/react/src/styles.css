@@ -659,6 +659,22 @@
   color: inherit;
   font-size: 20px;
 }
+.ds-error:has(.ds-initialization-diagnostics) {
+  flex-wrap: wrap;
+}
+.ds-initialization-diagnostics {
+  flex-basis: 100%;
+  min-width: 0;
+  font-size: 12px;
+}
+.ds-initialization-diagnostics summary {
+  cursor: pointer;
+}
+.ds-initialization-diagnostics pre {
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
 .ds-loading {
   text-align: center;
   padding: 80px 20px;

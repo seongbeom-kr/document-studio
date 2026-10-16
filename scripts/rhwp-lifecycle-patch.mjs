@@ -35,6 +35,7 @@ export function patchRhwpLifecycle(code) {
   signal?.addEventListener('abort', onAbort, { once: true });
   try {
     signal?.throwIfAborted();
+    options.onInitializationStage?.('iframe-loading');
     await new Promise((resolve, reject) => {
       const cleanup = () => {
         iframe.removeEventListener('load', onLoad);
@@ -49,12 +50,14 @@ export function patchRhwpLifecycle(code) {
       try { el.appendChild(iframe); } catch (error) { rejectLoad(error); }
     });
     signal?.throwIfAborted();
+    options.onInitializationStage?.('transport-connecting');
     transport = new EditorTransport(iframe, studioUrl, {
       requestTimeoutMs: options.requestTimeoutMs,
       handshakeTimeoutMs: options.handshakeTimeoutMs,
     });
     await transport.connect();
     signal?.throwIfAborted();
+    options.onInitializationStage?.('engine-starting', transport._legacy ? 'legacy' : 'message-port');
     const editor = new RhwpEditor(iframe, transport);
     await editor._waitReady(signal);
     signal?.throwIfAborted();
@@ -103,6 +106,7 @@ export function patchRhwpLifecycle(code) {
   signal?.addEventListener('abort', onAbort, { once: true });
   try {
     signal?.throwIfAborted();
+    options.onInitializationStage?.('controls-connecting');
     if (options.chrome) await studio.chrome.set(options.chrome);
     for (const id of options.plugins ?? []) {
       signal?.throwIfAborted();
@@ -126,7 +130,13 @@ export function rhwpLifecyclePatch() {
   return {
     name: "document-studio-rhwp-initialization",
     transform(code, id) {
-      if (!id.replaceAll("\\", "/").endsWith("/@rhwp/editor/index.js")) return;
+      if (
+        !id
+          .split("?")[0]
+          .replaceAll("\\", "/")
+          .endsWith("/@rhwp/editor/index.js")
+      )
+        return;
       applied = true;
       return { code: patchRhwpLifecycle(code), map: null };
     },

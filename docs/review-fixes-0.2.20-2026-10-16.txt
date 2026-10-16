@@ -1,0 +1,72 @@
+Document Studio 0.2.20 — 업무 자동화 실행 API와 초기화 진단
+2026-10-16 / Asia/Seoul
+
+판정
+SDK 공통 자동화 실행과 호스트 상태 표시 영역을 보완했다.
+실제 서비스의 HWPX 초기화 시간 초과 원인과 실제 LLM 통합 완료는
+이번 로컬 검증 결과로 확정하지 않는다.
+
+SDK 변경
+- 20개 업무 편의기능의 입력 검증과 결과 생성 코드를 공통 함수로 추출했다.
+  UI와 에이전트가 동일한 함수와 스키마를 사용한다.
+- listAutomationActions, previewAutomation, applyAutomation,
+  createAutomationDocument를 제공한다. 미리보기/적용/생성/저장은 구분된다.
+  문서·SDK 세션·revision·선택을 확인하며 동일 operationId의 재전달은
+  중복 삽입하지 않는다. 결과가 불확실한 적용은 자동 재실행하지 않는다.
+- 표·보고서 구조를 유지하는 생성은 호스트의 순수 engine factory로 연결한다.
+  현재 문서에 적용하는 에이전트 API는 명시적인 text 모드다.
+  에이전트 그림 삽입과 명찰·명패의 인쇄 배치는 지원하지 않는다.
+- HWPX 연결 실패 시 마지막 단계·단계별 경과 시간·연결 방식을 제공한다.
+  실패 UI에 원본 또는 복구본 bytes 다운로드를 추가했다.
+- Vite 개발 요청의 ?v= 쿼리 때문에 RHWP 초기화 수명 관리 패치를 건너뛰던
+  문제를 수정했다. 소비 앱의 기존 프로덕션 번들에는 이미 패치가 포함돼
+  있었으므로 이 결함을 실제 origin 장애의 원인이라고 단정하지 않는다.
+- 외부 상태 표시 영역의 폭을 호스트가 지정해야 하는 계약을 문서화했다.
+  임베드 호스트의 footer에는 flex 기준 폭과 좁은 화면의 전체 줄 배치를 적용했다.
+
+검증
+- TypeScript, SDK 단위 테스트 354개 통과.
+- Chrome/Edge 전체 E2E 742개 통과(각 371개, 실패·skip 없음). 총 25.6분.
+- HWPX 초기화 중단·정리·재시도·권한·진단·원본 다운로드 20개 통과.
+- 새 자동화 API의 실제 DOCX/HWPX 적용·저장·재열기와 표 생성 8개 통과.
+  위 두 묶음은 전체 E2E와 겹치므로 별도 합산하지 않는다.
+- 다섯 SDK 패키지 빌드 및 별도 npm 소비 앱 Next.js 프로덕션 빌드 통과.
+  소비 앱 Chrome/Edge × DOCX/HWPX 4개, 일반 JS/Vue × 두 형식 × 두 브라우저
+  8개 조합 통과. 소스 alias 없이 tarball을 설치했다.
+- 라이선스 검사 npm 105개, 고정 Rust 의존성 393개 통과. 신규 의존성 없음.
+  production dependency audit에 보고 항목 없음.
+- 독립적인 실제 호스트 footer 컴포넌트 검사 24개 통과:
+  Chrome/Edge × 2560/1366/480/390px × 준비/로딩/실패.
+  이전 빈 host div의 폭 0px도 두 브라우저에서 대조 재현했다.
+- 호스트 전체 단위 725개 통과. 추가 연결 모드·BFF 경계 2개를 포함한
+  관련 파일 92개 재검사 통과. 타입·lint·프로덕션 빌드·순환 참조 검사 통과.
+  비동기 편집권 검사 중 요청 변경 방지 1개 추가 후 연결 검사 17개 통과.
+  knip의 기존 미사용 항목 경고는 별도이며 무경고 통과로 보고하지 않는다.
+
+호스트 에이전트 연결 작업의 범위
+별도 로컬 General 작업 트리와 호스트 앱에 사용자·작업 공간·문서·SDK 세션·
+편집권을 확인하는 요청/결과 보관 및 명시적인 연결 모드를 구현했다.
+일반 파일 도구의 편집권 보호는 유지하며 문서 전용 턴에서는 편집기 도구만
+노출한다. 서버가 해당 capability를 광고할 때만 호스트 연결 버튼을 표시한다.
+General 전체 테스트 1253개 통과, 43개 skip, CI와 동일한 1개 deselect.
+추가 endpoint/auth/lease/session/timeout/모의 모델 턴 검사 12개 통과.
+새 연결 검사는 SQLite와 모의 provider를 사용했다. 실제 PostgreSQL 및
+운영 BFF·모델·샌드박스 통합 검증은 별도로 남아 있다.
+이는 SDK 배포물에 포함된 서버나 실제 LLM 연결 완료를 의미하지 않는다.
+General 및 프론트는 푸시·배포하지 않았다.
+
+남은 실제 서비스 검증
+- 이 대화의 브라우저 도구가 실제 origin 접근을 거부했다. 사용자의 차단목록이
+  원인이라는 증거는 없다. 다른 데스크톱 세션의 접속 성공과 구분한다.
+- 실제 HWPX 실패 단계와 자산/iframe/네트워크 응답의 상관관계가 필요하다.
+  기본 제한 시간은 30초로 유지했다.
+- 실제 사용자 인증을 거친 LLM → 편집기 → 검사 → 저장 receipt → 재열기
+  시나리오는 미검증이다. 모의 모델/호스트 테스트로 대체하지 않는다.
+- 실제 한컴 프로그램 호환성, 물리 IME, 업무 문서 전체의 보존은 보장하지 않는다.
+
+근거
+.build/fixes-0.2.20/ 아래 unit.log, e2e.json, initialization.json,
+agent-automation.json, footer-layout.json, packages.log, security.log,
+frontend-tests-final.log, frontend-mode-tests.log, frontend-build.log,
+general-full-tests.log, general-editor-final.log, preservation.json.
+실행 산출물은 Git에서 제외되며 리뷰 원문 4개는 수정하지 않았다.

@@ -2,13 +2,30 @@ import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { rhwpEngine } from "../../packages/engine-rhwp/src/index";
 // @ts-expect-error Checked build-time JS transform.
-import { patchRhwpLifecycle } from "../../scripts/rhwp-lifecycle-patch.mjs";
+import {
+  patchRhwpLifecycle,
+  rhwpLifecyclePatch,
+} from "../../scripts/rhwp-lifecycle-patch.mjs";
 
 const sourceUrl = new URL(
   "../../node_modules/@rhwp/editor/index.js",
   import.meta.url,
 );
 const source = await readFile(sourceUrl, "utf8");
+it.each([
+  "D:/sdk/node_modules/@rhwp/editor/index.js",
+  "D:/sdk/node_modules/@rhwp/editor/index.js?v=dependency-version",
+  "/home/runner/node_modules/@rhwp/editor/index.js?v=dependency-version",
+])(
+  "applies the initialization patch to production and versioned dev module %s",
+  (id) => {
+    const plugin = rhwpLifecyclePatch();
+    const result = plugin.transform(source, id);
+    expect(result?.code).toContain("onInitializationStage");
+    expect(result?.code).toContain("rejectLoad");
+    expect(() => plugin.generateBundle()).not.toThrow();
+  },
+);
 const patched = patchRhwpLifecycle(source).replaceAll(
   /from '(\.\/[^']+)'/g,
   (_: string, relative: string) =>

@@ -1,6 +1,9 @@
 import {
   AGENT_COMMAND_CATALOG,
   OFFICE_AUTOMATION_FORMS,
+  AUTOMATION_ACTIONS,
+  previewAutomation,
+  validateTemplate,
   SaveConflictError,
   SelectionConflictError,
   inspectExport,
@@ -8,6 +11,10 @@ import {
   type SearchOptions,
   type ReplaceRequest,
   type DocumentPreset,
+  type AutomationRequest,
+  type AutomationPreview,
+  type DocumentTemplate,
+  type EditorDocument,
 } from "./index";
 import type {
   EditorController,
@@ -28,11 +35,57 @@ export interface AgentSelectionTarget extends AgentWriteTarget {
   expectedSelectionKey: string;
 }
 
+export interface AgentBridgeOptions {
+  /** Pure document generation only. Saving/uploading remains a separate host operation. */
+  createDocument?(template: DocumentTemplate): Promise<EditorDocument>;
+}
+export class AutomationOperationError extends Error {
+  constructor(
+    message: string,
+    readonly effect: "none" | "unknown",
+    readonly retryable: boolean,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "AutomationOperationError";
+  }
+}
+
 /** The host supplies transport/auth. Mutations require the identity returned by getState/search. */
-export function createAgentBridge(getEditor: () => EditorController | null) {
+export function createAgentBridge(
+  getEditor: () => EditorController | null,
+  options: AgentBridgeOptions = {},
+) {
   const commits = new Map<
     string,
     { fingerprint: string; task: Promise<DocumentCommitReceipt> }
+  >();
+  const previews = new Map<
+    string,
+    {
+      documentId: string;
+      sessionId: string;
+      version?: string;
+      revision: string;
+      result: AutomationPreview;
+      characters: number;
+    }
+  >();
+  const applied = new Map<
+    string,
+    {
+      fingerprint: string;
+      task: Promise<{
+        applied: true;
+        committed: false;
+        documentId: string;
+        sessionId: string;
+        version?: string;
+        revision: string;
+        dirty: boolean;
+        warnings: string[];
+      }>;
+    }
   >();
   const editor = () => {
     const handle = getEditor();
@@ -114,6 +167,26 @@ export function createAgentBridge(getEditor: () => EditorController | null) {
       throw new SelectionConflictError();
     return started;
   };
+  const cachedPreview = (
+    id: string,
+    state: ReturnType<EditorController["getState"]>,
+  ) => {
+    const cached = previews.get(id);
+    if (!cached)
+      throw new Error(
+        "미리보기가 없거나 만료됐습니다. 다시 미리보기해 주세요.",
+      );
+    if (
+      cached.documentId !== state.documentId ||
+      cached.sessionId !== state.sessionId ||
+      cached.version !== state.version ||
+      cached.revision !== state.revision
+    )
+      throw new SaveConflictError(
+        "미리보기 이후 문서 상태가 변경됐습니다. 다시 미리보기해 주세요.",
+      );
+    return cached.result;
+  };
   return {
     getState: () => editor().getState(),
     retryInitialization: (
@@ -131,6 +204,167 @@ export function createAgentBridge(getEditor: () => EditorController | null) {
       handle.retryInitialization();
     },
     listAutomationForms: () => structuredClone(OFFICE_AUTOMATION_FORMS),
+    listAutomationActions: () => {
+      const state = getEditor()?.getState();
+      return AUTOMATION_ACTIONS.map((action) => ({
+        ...structuredClone(action),
+        preview: Boolean(state?.ready),
+        applyModes: ["text"] as const,
+        applyEnabled: Boolean(
+          state?.ready && !state.busy && state.commands.insertText?.enabled,
+        ),
+        createDocument:
+          action.createsDocument && Boolean(options.createDocument),
+        imageApply: false,
+        imageApplyReason:
+          "에이전트의 비동기 그림 삽입은 권한·범위 보장을 지원하지 않습니다.",
+      }));
+    },
+    previewAutomation: (
+      request: AgentTarget & { automation: AutomationRequest },
+    ) => {
+      const started = target(request);
+      const result = previewAutomation(request.automation);
+      const identity = complete(started);
+      if (identity.revision !== started.state.revision)
+        throw new SaveConflictError("미리보기 중 문서가 변경됐습니다.");
+      const characters = JSON.stringify(result).length;
+      if (characters > 8_000_000)
+        throw new RangeError("에이전트 미리보기 보관 크기를 넘었습니다.");
+      while (
+        previews.size >= 16 ||
+        [...previews.values()].reduce((n, value) => n + value.characters, 0) +
+          characters >
+          8_000_000
+      )
+        previews.delete(previews.keys().next().value!);
+      const previewId = crypto.randomUUID();
+      previews.set(previewId, { ...identity, result, characters });
+      return {
+        ...identity,
+        previewId,
+        ...structuredClone(result),
+        changed: false,
+        committed: false,
+      };
+    },
+    applyAutomation: async (
+      request: AgentSelectionTarget & {
+        previewId: string;
+        mode: "text";
+        operationId: string;
+      },
+    ) => {
+      if (request.mode !== "text")
+        throw new TypeError(
+          "현재 문서 적용은 명시적인 text 모드만 지원합니다. 구조 보존은 새 문서 생성을 사용하세요.",
+        );
+      if (
+        typeof request.operationId !== "string" ||
+        !/^[a-zA-Z0-9._:-]{1,128}$/.test(request.operationId)
+      )
+        throw new TypeError("유효한 operationId가 필요합니다.");
+      const fingerprint = JSON.stringify([
+        request.documentId,
+        request.expectedSessionId,
+        request.expectedVersion,
+        request.expectedRevision,
+        request.expectedSelectionKey,
+        request.previewId,
+        request.mode,
+      ]);
+      const previous = applied.get(request.operationId);
+      if (previous) {
+        if (previous.fingerprint !== fingerprint)
+          throw new Error("operationId가 다른 요청에 이미 사용됐습니다.");
+        return structuredClone(await previous.task);
+      }
+      if (applied.size >= 128)
+        throw new Error(
+          "자동화 작업 기록 한도에 도달했습니다. 호스트가 기록을 보관한 뒤 새 브리지를 연결해 주세요.",
+        );
+      const started = selectionTarget(request);
+      const result = cachedPreview(request.previewId, started.state);
+      if (
+        !started.state.commands.insertText?.supported ||
+        !started.state.commands.insertText?.enabled
+      )
+        throw new Error(
+          started.state.commands.insertText?.reason ??
+            "현재 문서에 텍스트를 적용할 수 없습니다.",
+        );
+      const task = (async () => {
+        try {
+          await started.handle.execute(
+            { id: "insertText", value: result.text },
+            {
+              expectedRevision: request.expectedRevision,
+              expectedSelectionKey: request.expectedSelectionKey,
+            },
+          );
+          return {
+            applied: true as const,
+            committed: false as const,
+            ...complete(started),
+            warnings: [
+              ...result.warnings,
+              ...(result.kind === "text"
+                ? []
+                : ["텍스트로 적용했습니다. 표·그림·서식 구조는 제외됐습니다."]),
+            ],
+          };
+        } catch (cause) {
+          // A rejected/late native response cannot prove that no write happened.
+          // Keep this operation ID recorded so retrying it never duplicates text.
+          throw new AutomationOperationError(
+            "자동화 적용 결과를 확정하지 못했습니다. 문서를 조회한 뒤 새 작업으로 진행하세요.",
+            "unknown",
+            false,
+            { cause },
+          );
+        }
+      })();
+      applied.set(request.operationId, { fingerprint, task });
+      try {
+        return structuredClone(await task);
+      } catch (cause) {
+        if (cause instanceof AutomationOperationError && cause.retryable)
+          applied.delete(request.operationId);
+        throw cause;
+      }
+    },
+    createAutomationDocument: async (
+      request: AgentWriteTarget & {
+        previewId: string;
+        fileName: string;
+      },
+    ) => {
+      const started = target(request, true);
+      const preview = cachedPreview(request.previewId, started.state);
+      if (!options.createDocument || !preview.template)
+        throw new Error(
+          "이 기능 또는 호스트는 구조를 유지하는 문서 생성을 지원하지 않습니다.",
+        );
+      const template = {
+        ...structuredClone(preview.template),
+        fileName: request.fileName,
+      };
+      validateTemplate(template);
+      const document = await options.createDocument(template);
+      const identity = complete(started);
+      if (identity.revision !== started.state.revision)
+        throw new SaveConflictError("문서 생성 중 원본이 변경됐습니다.");
+      return {
+        ...identity,
+        created: true,
+        committed: false,
+        document,
+        warnings: [
+          ...preview.warnings,
+          "파일을 생성했습니다. 저장 또는 업로드는 호스트가 별도로 수행해야 합니다.",
+        ],
+      };
+    },
     listCommands: () => {
       const state = editor().getState();
       return AGENT_COMMAND_CATALOG.map((command) => ({
