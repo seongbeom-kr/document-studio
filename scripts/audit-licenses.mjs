@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { permittedLicense } from "./license-policy.mjs";
+import { lockfileSha256 } from "./lockfile-hash.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const output = path.join(root, ".build/licenses");
 await mkdir(output, { recursive: true });
@@ -121,8 +122,11 @@ if (missing.length)
 const rust = JSON.parse(
   await readFile(path.join(root, "third_party/rust-sbom.json"), "utf8"),
 );
-const lock = await readFile(path.join(root, ".cache/rhwp-source/Cargo.lock"));
-if (createHash("sha256").update(lock).digest("hex") !== rust.lockSha256)
+const lock = await readFile(
+  path.join(root, ".cache/rhwp-source/Cargo.lock"),
+  "utf8",
+);
+if (lockfileSha256(lock) !== rust.lockSha256)
   throw new Error("Pinned Rust dependency inventory is stale.");
 for (const pkg of rust.packages) {
   if (!permittedLicense(pkg.license))

@@ -4,6 +4,7 @@ import { gunzipSync } from "node:zlib";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { permittedLicense } from "./license-policy.mjs";
+import { lockfileSha256 } from "./lockfile-hash.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const lock = await readFile(
   path.join(root, ".cache/rhwp-source/Cargo.lock"),
@@ -196,7 +197,7 @@ await writeFile(
     {
       scope:
         "Conservative inventory of all registry entries in pinned RHWP Cargo.lock; includes optional and native-only crates, not a WASM linker trace.",
-      lockSha256: createHash("sha256").update(lock).digest("hex"),
+      lockSha256: lockfileSha256(lock),
       packages: results,
     },
     null,
