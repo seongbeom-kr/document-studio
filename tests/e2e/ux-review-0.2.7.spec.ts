@@ -4,6 +4,7 @@ import {
   Document,
   Paragraph,
   TextRun,
+  LineRuleType,
   Table,
   TableRow,
   TableCell,
@@ -358,7 +359,9 @@ for (const context of ["title", "body", "table", "page-boundary"] as const)
             (_, i) =>
               new Paragraph({
                 text: `페이지 경계 앞 본문 ${i + 1}`,
-                spacing: { line: 320, after: 0 },
+                // Exact twip spacing puts the insertion near the page boundary
+                // regardless of the operating system's fallback font metrics.
+                spacing: { line: 320, lineRule: LineRuleType.EXACT, after: 0 },
               }),
           )
         : [];
@@ -403,6 +406,21 @@ for (const context of ["title", "body", "table", "page-boundary"] as const)
     await expect
       .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
       .toBe(true);
+    if (context === "page-boundary") {
+      // The text starts on the first page; inserting the taller image must
+      // actually move it across a page boundary, not start on a later page.
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            Array.from(document.querySelectorAll(".docx-page"))
+              .find((element) =>
+                element.textContent?.includes("공개 편집 검증 문서"),
+              )
+              ?.getAttribute("data-page-index"),
+          ),
+        )
+        .toBe("0");
+    }
     await page.evaluate(async () => {
       const agent = window.documentStudioTest.agent;
       const state = agent.getState();

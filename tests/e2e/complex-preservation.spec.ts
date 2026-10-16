@@ -89,7 +89,7 @@ for (const [format, file] of [
       expect(xml).toContain("w:footnoteReference");
     }
     await writeFile(
-      `.build/fixes-0.2.6/complex-edited-${test.info().project.name}.${format}`,
+      test.info().outputPath(`complex-edited.${format}`),
       new Uint8Array(bytes),
     );
     await page.evaluate(() => window.documentStudioTest.save());
