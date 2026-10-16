@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { rhwpEngine } from "../../packages/engine-rhwp/src/index";
-// @ts-expect-error Checked build-time JS transform.
 import {
   patchRhwpLifecycle,
   rhwpLifecyclePatch,
