@@ -4,6 +4,8 @@ React 19 앱에 Document Studio를 연결할 때 필요한 저장·전환·복�
 
 ## React에서 사용
 
+0.2.21의 표 도구는 선택한 열의 쉼표 처리와 문자열 치환에 대해 변경 전후·제외 사유를 미리 보여줍니다. React 컨트롤러와 DOM 어댑터의 `readTable()` → `previewTableColumn()` → `applyTableColumn()`이 UI와 에이전트의 공통 경로입니다. [표 열 편집 계약](table-column-editing-0.2.21.txt)에 보호 규칙, 오류 효과와 에이전트 예제가 있습니다. 저장은 별도입니다.
+
 ```tsx
 import { useRef } from "react";
 import type { EditorDocument, DocumentStorage } from "@document-studio/core";
@@ -206,7 +208,9 @@ const ui = {
 };
 // React: <DocumentEditor {...options} ui={ui} />
 // DOM: await mountDocumentEditor(host, { ...options, ui });
-await editor.update({ ui: { ...ui, theme: { ...ui.theme, accent: "#005c53" } } });
+await editor.update({
+  ui: { ...ui, theme: { ...ui.theme, accent: "#005c53" } },
+});
 ```
 
 대상은 같은 document에 연결된 호스트 소유 HTMLElement여야 합니다. SDK 내부 요소나 분리된 DOM을 지정하면 거절합니다. 대상의 기존 자식은 유지하고 SDK가 만든 영역만 추가·이동·제거합니다. 배치나 테마 변경으로 엔진을 재마운트하지 않으며, 도구 영역 이동에도 입력 중인 폼과 포커스를 유지합니다. 오류·저장 경고·초안 복구·확인창은 편집기 본체에 남습니다. 종료 전 `destroy()`를 기다린 뒤 앱의 대상 DOM을 제거하세요. React 호스트도 상위 라우트가 DOM을 제거하기 전에 `flushDraft()`로 종료를 준비해야 합니다.
@@ -216,10 +220,20 @@ await editor.update({ ui: { ...ui, theme: { ...ui.theme, accent: "#005c53" } } }
 외부 영역의 폭은 호스트가 지정해야 합니다. SDK 영역은 컨테이너 쿼리를 위해 `container-type: inline-size`를 사용하므로 자식 내용으로 부모의 폭이 결정되지 않습니다. 특히 flex footer에 상태 표시 영역을 넣을 때 빈 `div`만 사용하면 폭이 0이 될 수 있습니다. 아래처럼 flex 기준 폭을 주고 좁은 화면에서는 한 줄 전체를 사용하세요. 상태 문구·확대 선택·저장 버튼을 함께 배치한 실제 앱 구조에서 줄바꿈과 겹침을 검사해야 합니다.
 
 ```css
-.document-footer { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.document-status-host { flex: 1 1 16rem; min-width: 0; max-width: 100%; }
+.document-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.document-status-host {
+  flex: 1 1 16rem;
+  min-width: 0;
+  max-width: 100%;
+}
 @media (max-width: 640px) {
-  .document-status-host { flex-basis: 100%; }
+  .document-status-host {
+    flex-basis: 100%;
+  }
 }
 ```
 

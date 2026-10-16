@@ -15,6 +15,8 @@ import {
   type AutomationPreview,
   type DocumentTemplate,
   type EditorDocument,
+  TABLE_COLUMN_SCHEMA,
+  type TableColumnRequest,
 } from "./index";
 import type {
   EditorController,
@@ -59,6 +61,13 @@ export function createAgentBridge(
   const commits = new Map<
     string,
     { fingerprint: string; task: Promise<DocumentCommitReceipt> }
+  >();
+  const tableOperations = new Map<
+    string,
+    {
+      fingerprint: string;
+      task: ReturnType<NonNullable<EditorController["applyTableColumn"]>>;
+    }
   >();
   const previews = new Map<
     string,
@@ -188,6 +197,76 @@ export function createAgentBridge(
     return cached.result;
   };
   return {
+    listTableColumnActions: () => ({
+      supported: Boolean(
+        getEditor()?.getState().tableColumnEditing &&
+          getEditor()?.readTable &&
+          getEditor()?.previewTableColumn &&
+          getEditor()?.applyTableColumn,
+      ),
+      previewInputSchema: structuredClone(TABLE_COLUMN_SCHEMA),
+      workflow:
+        "readTable → previewTableColumn({documentId, columnRequest}) → inspect changes/excluded → applyTableColumn({documentId, expectedSessionId, expectedRevision, expectedSelectionKey, previewId, operationId}). Save separately with commit.",
+      description:
+        "현재 표의 한 열만 처리합니다. 쉼표와 대소문자를 구분하는 문자 그대로 치환을 지원합니다. 식별자·날짜·복잡한 셀은 미리보기에 제외 이유를 표시합니다.",
+    }),
+    readTable: async (request: AgentTarget) => {
+      const started = target(request);
+      if (!started.handle.readTable)
+        throw new Error("표 열 편집을 지원하지 않습니다.");
+      const result = await started.handle.readTable();
+      complete(started);
+      return result;
+    },
+    previewTableColumn: async (
+      request: AgentTarget & { columnRequest: TableColumnRequest },
+    ) => {
+      const started = target(request);
+      if (!started.handle.previewTableColumn)
+        throw new Error("표 열 편집을 지원하지 않습니다.");
+      const result = await started.handle.previewTableColumn(
+        request.columnRequest,
+      );
+      complete(started);
+      return result;
+    },
+    applyTableColumn: async (
+      request: AgentSelectionTarget & {
+        previewId: string;
+        operationId: string;
+      },
+    ) => {
+      if (
+        typeof request.operationId !== "string" ||
+        !/^[a-zA-Z0-9._:-]{1,128}$/.test(request.operationId)
+      )
+        throw new Error("유효한 operationId가 필요합니다.");
+      identify(request);
+      const fingerprint = JSON.stringify([
+        request.documentId,
+        request.expectedSessionId,
+        request.expectedRevision,
+        request.expectedSelectionKey,
+        request.previewId,
+      ]);
+      const previous = tableOperations.get(request.operationId);
+      if (previous) {
+        if (previous.fingerprint !== fingerprint)
+          throw new Error("작업 ID가 다른 표 요청에 사용됐습니다.");
+        return structuredClone(await previous.task);
+      }
+      const started = selectionTarget(request);
+      if (!started.handle.applyTableColumn)
+        throw new Error("표 열 편집을 지원하지 않습니다.");
+      if (tableOperations.size >= 128)
+        throw new Error("표 작업 기록 한도에 도달했습니다.");
+      const task = started.handle.applyTableColumn({
+        previewId: request.previewId,
+        operationId: request.operationId,
+      });
+      tableOperations.set(request.operationId, { fingerprint, task });
+      return structuredClone(await task);
+    },
     getState: () => editor().getState(),
     retryInitialization: (
       request: AgentTarget & { expectedSessionId: string },

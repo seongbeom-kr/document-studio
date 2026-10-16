@@ -9,6 +9,7 @@ export function docxSelectionKey(editor: Editor): string {
           scope: surface.storyScope(),
           range: surface.state().selection,
           drawing: surface.drawingSelectionIntent(),
+          cells: editor.getTableCellSelection(),
         }
       : null,
   );

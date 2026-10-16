@@ -1,0 +1,76 @@
+Document Studio 0.2.21 — 표 열 편집 구현·검증
+검증일: 2026-10-16
+
+완료한 범위
+- DOCX·HWPX의 선택한 본문 표 한 열에 숫자 쉼표 또는 문자열 치환.
+- 표 설명·열 제목·행열 좌표, 변경 전후 값, 제외 셀과 사유를 미리 표시.
+- 숫자 열을 명시해야 쉼표 처리. 식별자/날짜 표제와 값, 앞자리 0, 긴 숫자 번호 보호.
+- 병합된 제목은 해당 열 전체 제외. 병합 셀·다중 문단·중첩·특수 요소·혼합 서식 제외.
+- 동일한 readTable → previewTableColumn → applyTableColumn 경로를 UI와 에이전트가 사용.
+- 미리보기 이후 문서·세션·revision·선택 변경과 읽기 전용 권한을 검사.
+- 적용 중 입력 차단, native transaction/snapshot, 한 번 Undo/Redo.
+- 시도한 preview 재사용 금지와 operationId 결과 재전달. 알 수 없는 결과를 자동 재시도하지 않음.
+- 실패 효과 none / rolled-back / unknown. 저장은 별도이며 성공 영수증에 committed=false.
+- React 외 DOM 어댑터에도 같은 세 메서드를 제공.
+
+개발 중 발견해 수정한 사항
+- HWPX의 deferred 짧은 치환 API는 긴 문자열에 사용할 수 없었다. 전체 native 셀 삽입/삭제를
+  한 snapshot 명령 안에서 수행하도록 변경하고 긴 한글·이모지 치환을 확인했다.
+- HWPX 검색 결과의 빈 cellPath 배열 때문에 셀 서식 명령이 거절되는 경로를 수정했다.
+- HWPX 두 번째 셀 쓰기를 강제로 실패시켜 첫 셀까지 원복되고 이전 Undo 기록도 유지됨을 확인했다.
+- 엔진의 일반 예외 또는 적용 후 상태 조회 실패도 unknown으로 보고하고 재실행하지 않도록 보강했다.
+
+최종 검증
+- yarn install --immutable: 통과.
+- yarn typecheck: 통과.
+- yarn test: 24개 파일, 394개 통과.
+- 기존+신규 전체 Chrome·Edge E2E: 772개 통과 (20.5분).
+  전체 실행 중 추가한 보수적 보호 규칙·오류 분류·컨트롤 스타일은 최종 소스 대상으로
+  표 기능 30개를 다시 실행해 모두 통과. 추가 보호 경계는 위 단위 테스트에 포함.
+- 30개 표 브라우저 시험: 두 형식·두 브라우저, 쉼표/치환, 식별자·날짜 보호,
+  읽기 전용·revision·선택·문서 교체 거절, 재전달 중복 방지, 미리보기의 무변경,
+  한 번 Undo/Redo, 저장·재열기, 본문/다른 열/셀 속성 보존, 혼합 서식·병합 제외,
+  긴 Unicode 치환, HWPX 중간 실패 전체 원복과 기존 Undo 유지.
+- SDK 및 playground 빌드: 통과.
+- 별도 npm tarball 소비 앱: Next.js 빌드와 Chrome·Edge × DOCX·HWPX 4개 통과.
+- 일반 JavaScript·Vue 소비 앱: 빌드 및 8개 브라우저/호스트/형식 조합 통과.
+- 1366px·390px에서 자체 문서로 UI 캡처·확인. 작은 화면은 '도구 크게 보기'와 스크롤을
+  사용해 변경/제외 목록과 실제 클릭 가능한 적용 버튼을 확인. 가로 화면 넘침 없음.
+- 라이선스 gate: npm 105개, 고정 Rust registry crate 393개 통과.
+- production dependency audit: 보고 항목 없음. 새 생산 의존성 없음.
+
+로컬 프론트·General
+- 기존 프론트 작업 트리에 SDK 0.2.21 tarball 4개 설치. 최종 dist와 설치 파일 SHA-256 일치.
+- 복사한 HWPX document-studio-extension.js와 SDK 소스 SHA-256 일치.
+- 프론트 SDK 연결 allowlist에 표 조회·미리보기·적용 추가. rolled-back 오류 효과 보존.
+- 프론트 단위 테스트 90개 파일, 729개 통과. 최종 tarball 교체 후 관련 18개 재검사 통과.
+- 프론트 typecheck, lint(수정 옵션 없이), production build 통과. madge 순환 의존성 없음.
+  기존 madge 경고 254개는 별도 출력되며 경고 없음으로 해석하지 않는다.
+- sandbox-agent 10129, settings 10001을 sblim scope로 재시작. 두 앱 bootstrap/SSE 연결 확인.
+- 로컬 General 후보의 도구 allowlist·스키마·쓰기 가드에 새 명령 연결.
+  격리된 임시 Linux 컨테이너의 bridge/routes/turn 시험 14개 통과.
+- 기존 General 컨테이너 081fa70877be, 이미지 workspace-discovery-5cef433은 변경하지 않았다.
+  해당 컨테이너에는 editor bridge가 아직 배포되지 않았다. 프론트/General 원격 푸시 없음.
+
+검증 한계·후속 범위
+- 실제 인증된 샌드박스 SSO/BFF와 새 표 기능의 실제 LLM 대화는 이번에 검증하지 않았다.
+  이 세션의 보호된 origin 브라우저 접근 거절을 다른 접근 경로로 우회하지 않았다.
+- 모든 업무 문서, 실제 한컴 한글에서의 재열기, 물리 Windows IME 검증은 별도이다.
+- 헤더 없는 일반 숫자 사번 등의 의미를 자동 판별한다고 보장하지 않는다.
+  열 의미가 불명확하면 unknown을 유지하고 사람이 변경 미리보기를 확인해야 한다.
+- 기존 표의 합계·계산·복잡한 구조 변경은 후속 단계이다.
+- REA 자료의 기능 분류만 참고했으며 실행 파일 코드·이미지·기관 서식을 배포물에 복사하지 않았다.
+
+재현·기록
+tests/unit/table-column.test.ts
+tests/e2e/table-column.spec.ts
+docs/table-column-editing-0.2.21.txt
+.build/table-column-0.2.21/ (Git 제외: 전체/집중 E2E JSON, 로그, 화면 캡처, 패키지 해시)
+
+전체 브라우저 명령:
+$env:DOCUMENT_STUDIO_TEST_SERVER='bundle'
+$env:DOCUMENT_STUDIO_TEST_PORT='44222'
+yarn test:e2e
+
+표 기능만:
+yarn playwright test tests/e2e/table-column.spec.ts

@@ -22,6 +22,8 @@
 
 에이전트는 `createAgentBridge()`로 상태와 명령의 `valueSchema`, 지원·활성화 상태를 조회합니다. 쓰기에는 현재 documentId·expectedSessionId·expectedRevision이 필요합니다. 행간 1.6은 160%, 크기는 pt, 문단·용지·그림은 mm입니다. 엔진 내부 단위를 에이전트가 다시 계산하지 않습니다.
 
+0.2.21은 기존 문서의 선택한 표 열에 쉼표 처리·문자열 치환을 직접 적용합니다. 변경 위치와 전후 값·제외 사유를 미리 보여주며 사람의 버튼과 에이전트가 같은 SDK 경로를 사용합니다. 문서·선택·권한이 바뀌면 차단하고 성공한 변경은 한 번 Undo로 취소합니다. 식별자·날짜·병합 제목과 복잡한 셀을 보호하며, 기존 표의 합계·계산·구조 변경은 이번 기능에 포함하지 않습니다. [표 열 편집 계약](table-column-editing-0.2.21.txt)을 참고하세요.
+
 ```ts
 const agent = createAgentBridge(() => editorRef.current);
 const state = agent.getState();

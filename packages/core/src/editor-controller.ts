@@ -28,6 +28,17 @@ export type EditorControllerState = EditorSnapshot & {
 };
 
 export interface EditorController {
+  readTable?(): Promise<
+    import("./table-column").TableSnapshot &
+      import("./table-column").TableEditIdentity
+  >;
+  previewTableColumn?(
+    request: import("./table-column").TableColumnRequest,
+  ): Promise<import("./table-column").TableColumnPreview>;
+  applyTableColumn?(request: {
+    previewId: string;
+    operationId: string;
+  }): Promise<import("./table-column").TableColumnReceipt>;
   getState(): EditorControllerState;
   execute(
     command: EditorCommand,

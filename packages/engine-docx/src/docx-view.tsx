@@ -43,6 +43,7 @@ import {
 import { ko } from "./ko";
 import { applyDocxPreset } from "./apply-preset";
 import { docxSelectionKey } from "./selection";
+import { createDocxTableColumn } from "./table-column";
 import { koreanCommandReason } from "./command-reason";
 export function DocxView({
   document,
@@ -137,6 +138,7 @@ export function DocxView({
         );
         store.update({
           atomicPresets: true,
+          tableColumnEditing: true,
           ready: !native.isLoading && !native.isOpening,
           revision,
           dirty: revisions.dirty(revision),
@@ -193,7 +195,13 @@ export function DocxView({
           commands,
         });
       };
+      const tableColumn = createDocxTableColumn(editor);
       const session: EditorSession = {
+        readTable: tableColumn.read,
+        async applyTableChanges(table, changes, assertCurrent) {
+          await tableColumn.apply(table, changes, assertCurrent);
+          update();
+        },
         setInputBlocked,
         getSnapshot: store.getSnapshot,
         subscribe: store.subscribe,

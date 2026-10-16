@@ -1,0 +1,72 @@
+Document Studio 0.2.21 — 표 열 미리보기·일괄 적용
+
+범위
+- 현재 선택한 본문 표의 한 열을 대상으로 숫자 쉼표 또는 문자열 그대로 치환한다.
+- 합계·계산·행열 추가·템플릿/메일머지는 이번 단계에 포함하지 않는다.
+- 사람의 표 도구와 createAgentBridge는 같은 EditorController의 readTable,
+  previewTableColumn, applyTableColumn을 호출한다. UI에 별도 변환 구현이 없다.
+
+입력과 보호
+- 행/열은 모두 1부터 시작한다. 첫 행을 제목으로 제외할지 명시한다.
+- 쉼표 처리는 columnKind=number로 확인한 열에서만 허용한다.
+- 사번·번호·코드·날짜 등의 첫 행 표제, 앞자리 0, 날짜 형식, 12자리 이상
+  구분자 없는 숫자는 보호한다. 열의 자료 종류가 identifier/date이면 전체를 보호한다.
+- 이 판정은 모든 식별자 의미를 자동 인식한다는 보장이 아니다. 의미가 불명확하면
+  unknown을 유지하고 실제 숫자 열로 확인한 뒤 처리해야 한다.
+- 병합 셀, 다중 문단, 중첩 표, 그림/필드/수식 등 특수 요소, 혼합 글자 서식은
+  제외 사유와 원래 값을 보여준다. 단순한 셀만 수정하고 다른 열은 유지한다.
+- 첫 행 제목이 병합되어 열의 의미를 구분할 수 없으면 해당 열 전체를 제외한다.
+- 숫자는 문자열로 처리하여 소수점 이하와 앞뒤 공백을 보존한다.
+- 치환은 대소문자를 구분하고 정규식을 사용하지 않는다. 빈 결과는 허용하지만
+  줄바꿈·탭·제어 문자 삽입은 지원하지 않는다.
+- 표는 최대 2,000셀/50열, 조회 텍스트 합계 1,000,000 UTF-16 단위,
+  변경 후 셀은 최대 10,000 UTF-16 단위로 제한한다.
+
+흐름
+1. 문서에서 대상 표 안의 셀을 선택한다.
+2. readTable()로 표 설명, 행열 크기, 현재 열, 셀 내용을 조회한다.
+3. previewTableColumn({ column, columnKind, headerRows, operation })을 호출한다.
+4. 변경 위치·before/after·제외 셀/사유를 확인한다. 이때 문서는 바뀌지 않는다.
+5. applyTableColumn({ previewId, operationId })로 해당 미리보기만 적용한다.
+6. 저장은 save()/commit()으로 별도 수행한다.
+
+에이전트 예시 (agent = createAgentBridge(() => editor))
+const state = agent.getState();
+const table = await agent.readTable({ documentId: state.documentId });
+const preview = await agent.previewTableColumn({
+  documentId: state.documentId,
+  expectedSessionId: state.sessionId,
+  columnRequest: {
+    column: table.selectedColumn,
+    columnKind: 'number', // 실제 금액/수량 열로 확인한 경우
+    headerRows: 1,
+    operation: { kind: 'commas' }
+  }
+});
+// preview.changes와 preview.excluded를 모두 확인한다.
+const receipt = await agent.applyTableColumn({
+  documentId: preview.documentId,
+  expectedSessionId: preview.sessionId,
+  expectedRevision: preview.revision,
+  expectedSelectionKey: preview.selectionKey,
+  previewId: preview.previewId,
+  operationId: 'column-edit-unique-id'
+});
+
+치환 operation: { kind: 'replace', find: '변경 전', replacement: '변경 후' }
+listTableColumnActions()는 지원 여부, 입력 스키마, 호출 순서를 제공한다.
+
+실행 계약
+- 미리보기는 SDK 내부의 복제된 계획으로 보관한다. 반환 JSON을 수정해도 계획은 바뀌지 않는다.
+- 문서 ID·편집 세션·revision·선택 범위가 달라지면 적용을 거절한다.
+- 입력을 잠그고 기존 명령을 기다린 뒤, 실제 쓰기 직전에 권한과 대상을 다시 검사한다.
+- 모든 셀을 한 native transaction/snapshot으로 처리한다. 성공하면 한 번 Undo/Redo.
+- 같은 operationId 재전달은 기록된 결과만 돌려준다. 시도한 preview는 재사용하지 않는다.
+- TableEditError.effect는 none / rolled-back / unknown이다. 응답 유실 또는 복구 실패를
+  변경 없음으로 표시하지 않는다. unknown이면 현재 문서를 조회하고 중복 실행하지 않는다.
+- 성공 영수증의 committed=false는 파일 저장 전이라는 뜻이다.
+
+분석 자료 활용
+REA 범정부 오피스 분석의 표·셀 업무 기능 분류를 참고했다.
+해당 실행 파일의 코드·이미지·기관 서식을 SDK에 포함하지 않았다.
+새 생산 의존성은 추가하지 않았다.

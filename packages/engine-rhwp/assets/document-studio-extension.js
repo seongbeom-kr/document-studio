@@ -145,6 +145,7 @@ const poll = setInterval(() => {
         : undefined;
     return {
       revision: version,
+      tableColumnEditing: true,
       selectionKey: selectionKey(services),
       selectionGuardedCommands:
         Boolean(input) && !input.hasExcludedCellSelection(),
@@ -701,6 +702,88 @@ const poll = setInterval(() => {
     );
   });
   const searchCache = new Map();
+  const tableCache = new Map();
+  const readTable = (services) => {
+    const input = services.getInputHandler(),
+      pos = input?.getCursorPosition(),
+      wasm = services.wasm;
+    if (
+      !pos ||
+      pos.parentParaIndex === undefined ||
+      (pos.cellPath?.length ?? 0) > 1 ||
+      input.hasExcludedCellSelection()
+    )
+      throw new Error("본문의 단순한 표 셀을 선택해 주세요.");
+    const dims = wasm.getTableDimensions(
+      pos.sectionIndex,
+      pos.parentParaIndex,
+      pos.controlIndex,
+    );
+    if (!dims || dims.cellCount > 2000 || dims.colCount > 50)
+      throw new Error("표 크기 제한을 넘었습니다.");
+    const tableId = crypto.randomUUID();
+    const cells = Array.from({ length: dims.cellCount }, (_, index) => {
+      const location = [
+        pos.sectionIndex,
+        pos.parentParaIndex,
+        pos.controlIndex,
+        index,
+      ];
+      const info = wasm.getCellInfo(...location),
+        count = wasm.getCellParagraphCount(...location),
+        props = wasm.getCellProperties(...location);
+      const text = Array.from({ length: Math.min(count, 100) }, (_, p) =>
+        wasm.getTextInCell(...location, p, 0, 10001),
+      ).join("\n");
+      const reason =
+        info.rowSpan !== 1 || info.colSpan !== 1
+          ? "병합 셀 제외"
+          : props.cellProtect
+            ? "보호된 셀 제외"
+            : count !== 1
+              ? "여러 문단 셀 제외"
+              : text.length > 10000
+                ? "셀 길이 제한 초과"
+                : undefined;
+      return {
+        id: `${tableId}:${index}`,
+        row: info.row + 1,
+        column: info.col + 1,
+        rowSpan: info.rowSpan,
+        columnSpan: info.colSpan,
+        text,
+        editable: !reason,
+        reason,
+      };
+    });
+    if (cells.reduce((n, c) => n + c.text.length, 0) > 1_000_000)
+      throw new Error("표 텍스트 크기 제한을 넘었습니다.");
+    const selected = wasm.getCellInfo(
+      pos.sectionIndex,
+      pos.parentParaIndex,
+      pos.controlIndex,
+      pos.cellIndex,
+    );
+    const table = {
+      tableId,
+      label: `본문 ${pos.sectionIndex + 1}구역 ${pos.parentParaIndex + 1}문단 표 (${dims.rowCount}행 × ${dims.colCount}열)`,
+      revision: String(revision),
+      selectionKey: selectionKey(services),
+      rows: dims.rowCount,
+      columns: dims.colCount,
+      selectedColumn: selected.col + 1,
+      cells,
+      location: {
+        section: pos.sectionIndex,
+        paragraph: pos.parentParaIndex,
+        control: pos.controlIndex,
+      },
+    };
+    if (tableCache.size >= 12)
+      tableCache.delete(tableCache.keys().next().value);
+    tableCache.set(tableId, { table, pos: { ...pos } });
+    return table;
+  };
   let searchSequence = 0;
   const textAt = (wasm, hit, start, count) => {
     if (hit.cellPath?.length > 1)
@@ -772,10 +855,117 @@ const poll = setInterval(() => {
     "rpc",
     "문서 탐색",
     (services, payload) => {
+      let tableWriteStarted = false;
       try {
         const params = payload.params ?? {};
         let result;
-        if (payload.method === "search") {
+        if (payload.method === "readTable") {
+          result = readTable(services);
+        } else if (payload.method === "applyTableChanges") {
+          checkExpected(params);
+          assertSelection(services, params);
+          if (!editable(services.getContext()))
+            throw new Error("현재 문서는 표 편집을 허용하지 않습니다.");
+          const cached = tableCache.get(params.tableId);
+          if (
+            !cached ||
+            cached.table.revision !== String(revision) ||
+            cached.table.selectionKey !== selectionKey(services)
+          )
+            throw new Error("표 미리보기가 만료됐습니다.");
+          if (!Array.isArray(params.changes) || params.changes.length > 2000)
+            throw new Error("셀 변경 목록이 올바르지 않습니다.");
+          const ids = new Set(),
+            position = cached.pos;
+          const targets = params.changes.map((change) => {
+            const index = cached.table.cells.findIndex(
+                (c) => c.id === change.cellId,
+              ),
+              cell = cached.table.cells[index];
+            if (
+              !cell?.editable ||
+              ids.has(cell.id) ||
+              cell.text !== change.before ||
+              typeof change.after !== "string" ||
+              change.after.length > 10000 ||
+              /[\u0000-\u001f\u007f]/.test(change.after)
+            )
+              throw new Error("셀 변경 값이 올바르지 않습니다.");
+            ids.add(cell.id);
+            return {
+              index,
+              ...change,
+              length: services.wasm.getCellParagraphLength(
+                position.sectionIndex,
+                position.parentParaIndex,
+                position.controlIndex,
+                index,
+                0,
+              ),
+            };
+          });
+          const textAtCell = (target) =>
+            services.wasm.getTextInCell(
+              position.sectionIndex,
+              position.parentParaIndex,
+              position.controlIndex,
+              target.index,
+              0,
+              0,
+              10001,
+            );
+          if (targets.some((t) => textAtCell(t) !== t.before))
+            throw new Error("셀 값이 미리보기와 다릅니다.");
+          if (targets.length)
+            try {
+              tableWriteStarted = true;
+              operation(services, "table-column", (wasm) => {
+                for (const target of targets) {
+                  const location = [
+                    position.sectionIndex,
+                    position.parentParaIndex,
+                    position.controlIndex,
+                    target.index,
+                    0,
+                  ];
+                  // The deferred replacement lane accepts only 1..8 characters. Use full native edits,
+                  // inside the enclosing snapshot transaction, and retain the original first run.
+                  if (target.after) {
+                    const raw = wasm.insertTextInCell(
+                        ...location,
+                        0,
+                        target.after,
+                      ),
+                      inserted =
+                        typeof raw === "string" ? JSON.parse(raw) : raw;
+                    if (!inserted.ok)
+                      throw new Error("셀 삽입이 거절됐습니다.");
+                  }
+                  const insertedLength =
+                    wasm.getCellParagraphLength(...location) - target.length;
+                  if (target.length) {
+                    const raw = wasm.deleteTextInCell(
+                        ...location,
+                        insertedLength,
+                        target.length,
+                      ),
+                      deleted = typeof raw === "string" ? JSON.parse(raw) : raw;
+                    if (!deleted.ok) throw new Error("셀 치환이 거절됐습니다.");
+                  }
+                }
+              });
+            } catch (cause) {
+              const error =
+                cause instanceof Error ? cause : new Error(String(cause));
+              error.effect =
+                !(error instanceof AggregateError) &&
+                targets.every((t) => textAtCell(t) === t.before)
+                  ? "rolled-back"
+                  : "unknown";
+              throw error;
+            }
+          result = { changedCells: targets.length };
+        } else if (payload.method === "search") {
           const found = search(services, params);
           searchCache.clear();
           const limit = Math.min(500, Math.max(1, params.maxResults ?? 100));
@@ -820,7 +1010,19 @@ const poll = setInterval(() => {
                   cellParaIndex: c.cellPara,
                 }
               : {}),
-            ...(hit.cellPath ? { cellPath: hit.cellPath } : {}),
+            ...(hit.cellPath?.length
+              ? { cellPath: hit.cellPath }
+              : c
+                ? {
+                    cellPath: [
+                      {
+                        controlIndex: c.ctrlIdx,
+                        cellIndex: c.cellIdx,
+                        cellParaIndex: c.cellPara,
+                      },
+                    ],
+                  }
+                : {}),
           };
           // The pinned upstream FindDialog uses this same cursor path for cell-aware navigation.
           input.cursor.clearSelection();
@@ -884,6 +1086,11 @@ const poll = setInterval(() => {
             requestId: payload.requestId,
             error: error instanceof Error ? error.message : String(error),
             conflict: Boolean(error.conflict),
+            effect:
+              error.effect ??
+              (payload.method === "applyTableChanges" && !tableWriteStarted
+                ? "none"
+                : undefined),
           },
           parentOrigin,
         );

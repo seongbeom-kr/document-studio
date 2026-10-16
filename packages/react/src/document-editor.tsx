@@ -43,6 +43,10 @@ import {
   validateReplace,
   validateDocumentAsync,
   validateSaveResult,
+  createTableColumnEditor,
+  TableEditError,
+  type TableSnapshot,
+  type TableCellChange,
 } from "@document-studio/core";
 import type { EngineDefinition } from "./types";
 import { ModalDialog } from "./modal-dialog";
@@ -872,6 +876,95 @@ export const DocumentEditor = forwardRef<
     },
     [runSessionTask],
   );
+  const readTableNative = useCallback(
+    () =>
+      runSessionTask((active) => {
+        if (!active.readTable)
+          throw new TableEditError(
+            "이 엔진은 표 열 편집을 지원하지 않습니다.",
+            "none",
+          );
+        return active.readTable();
+      }),
+    [runSessionTask],
+  );
+  const applyTableNative = async (
+    table: TableSnapshot,
+    changes: readonly TableCellChange[],
+  ) => {
+    assertNewMutation();
+    if (!session?.applyTableChanges || busyRef.current)
+      throw new TableEditError(
+        "표 편집을 준비한 뒤 다시 적용해 주세요.",
+        "none",
+      );
+    const identity = sessionId.current,
+      scope = acceptedScope.current,
+      permission = permissionGeneration.current;
+    const assertCurrent = () => {
+      if (
+        !mounted.current ||
+        identity !== sessionId.current ||
+        scope !== acceptedScope.current ||
+        permission !== permissionGeneration.current ||
+        latest.current.readOnly ||
+        editingSource.current !== document ||
+        !matchesAcceptedSource(latest.current.document)
+      )
+        throw new SaveConflictError("문서 또는 편집 권한이 변경됐습니다.");
+    };
+    assertCurrent();
+    busyRef.current = true;
+    setBusy(true);
+    if (body.current) body.current.inert = true;
+    const earlier = [...commandTasks.current];
+    const task = (async () => {
+      await syncInputBlock();
+      await Promise.all(earlier);
+      assertCurrent();
+      await session.applyTableChanges!(table, changes, assertCurrent);
+    })();
+    commandTasks.current.add(task);
+    setPendingCommands(commandTasks.current.size);
+    try {
+      await task;
+    } finally {
+      commandTasks.current.delete(task);
+      if (mounted.current) setPendingCommands(commandTasks.current.size);
+      busyRef.current = false;
+      setBusy(false);
+      await syncInputBlock().catch(reportError);
+    }
+  };
+  const tablePort = useRef<Parameters<typeof createTableColumnEditor>[0]>(
+    null!,
+  );
+  tablePort.current = {
+    state: () => {
+      if (
+        !session?.getSnapshot().ready ||
+        editingSource.current !== document ||
+        !matchesAcceptedSource(latest.current.document)
+      )
+        throw new SaveConflictError("표의 문서 세션이 변경됐습니다.");
+      return {
+        ...liveSnapshot(),
+        documentId: displayed.id,
+        sessionId: sessionId.current,
+      };
+    },
+    read: readTableNative,
+    apply: applyTableNative,
+  };
+  const tableActions = useRef<ReturnType<
+    typeof createTableColumnEditor
+  > | null>(null);
+  tableActions.current ??= createTableColumnEditor({
+    state: () => tablePort.current.state(),
+    read: () => tablePort.current.read(),
+    apply: (...args) => tablePort.current.apply(...args),
+  });
+  const tableColumn = tableActions.current;
   const applyPreset = useCallback(
     async (
       preset: DocumentPreset,
@@ -1383,6 +1476,9 @@ export const DocumentEditor = forwardRef<
         };
       },
       readDocument,
+      readTable: tableColumn.read,
+      previewTableColumn: tableColumn.preview,
+      applyTableColumn: tableColumn.apply,
       search,
       selectMatch,
       replace,
@@ -2109,6 +2205,7 @@ export const DocumentEditor = forwardRef<
               selectMatch={selectMatch}
               replace={replace}
               applyPreset={applyPreset}
+              tableColumn={tableColumn}
               presets={props.presets}
               onError={reportError}
               createDocument={engine?.createDocument}

@@ -26,6 +26,7 @@ export type { DocumentPreset } from "./presets";
 export * from "./office-automation";
 export * from "./automation-forms";
 export * from "./automation-runner";
+export * from "./table-column";
 export * from "./image-dimensions";
 export * from "./templates";
 export * from "./archive";
@@ -88,6 +89,8 @@ export interface EditorSnapshot {
   automationDraftError?: string;
   /** The adapter commits a preset as one native undo unit, without partial writes. */
   atomicPresets?: boolean;
+  /** Selected-table reads and atomic column edits are available in this runtime. */
+  tableColumnEditing?: boolean;
 }
 export interface DocumentContent {
   revision: string;
@@ -164,6 +167,12 @@ export interface ExportSnapshot {
   format: DocumentFormat;
 }
 export interface EditorSession {
+  readTable?(): Promise<import("./table-column").TableSnapshot>;
+  applyTableChanges?(
+    table: import("./table-column").TableSnapshot,
+    changes: readonly import("./table-column").TableCellChange[],
+    assertCurrent: () => void,
+  ): Promise<void>;
   /** Freeze native user input; SDK-owned commands already in flight may finish. */
   setInputBlocked?(blocked: boolean): Promise<void>;
   getSnapshot(): EditorSnapshot;

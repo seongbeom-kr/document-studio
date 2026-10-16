@@ -228,6 +228,21 @@ export async function mountDocumentEditor(
     },
     acquireInputLock: async () => current().acquireInputLock(),
     readDocument: async () => current().readDocument(),
+    readTable: async () => {
+      const method = current().readTable;
+      if (!method) throw new Error("표 열 편집을 지원하지 않습니다.");
+      return method();
+    },
+    previewTableColumn: async (request) => {
+      const method = current().previewTableColumn;
+      if (!method) throw new Error("표 열 편집을 지원하지 않습니다.");
+      return method(request);
+    },
+    applyTableColumn: async (request) => {
+      const method = current().applyTableColumn;
+      if (!method) throw new Error("표 열 편집을 지원하지 않습니다.");
+      return method(request);
+    },
     search: async (...args) => current().search(...args),
     selectMatch: async (...args) => current().selectMatch(...args),
     replace: async (...args) => current().replace(...args),

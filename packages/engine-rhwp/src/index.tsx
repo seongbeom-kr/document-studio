@@ -12,6 +12,7 @@ import {
   type SearchResult,
   SaveConflictError,
   SelectionConflictError,
+  TableEditError,
   EngineInitializationError,
   type EngineInitializationStage,
   type EngineInitializationDiagnostics,
@@ -22,6 +23,7 @@ import {
 } from "@document-studio/core";
 import type { EngineDefinition, EngineViewProps } from "@document-studio/react";
 import { receiveResponse } from "./transport";
+import { createRhwpTableColumn } from "./table-column";
 
 const NATIVE: Partial<Record<CommandId, string>> = {
   selectAll: "edit:select-all",
@@ -70,6 +72,7 @@ const NATIVE: Partial<Record<CommandId, string>> = {
 interface NativeState {
   revision: number;
   selectionKey?: string;
+  tableColumnEditing?: boolean;
   selectionGuardedCommands?: boolean;
   selectionDescription?: string;
   pageCount: number;
@@ -127,6 +130,7 @@ function formatFields(native: NativeState) {
     selectionCollapsed: !native.context.hasSelection,
     selectionStateScope: "caret" as const,
     selectionKey: native.selectionKey,
+    tableColumnEditing: native.tableColumnEditing === true,
     selectionDescription: native.selectionDescription,
     selectionGuardedCommands: native.selectionGuardedCommands === true,
     paragraph: {
@@ -324,9 +328,12 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
           calls.delete(event.data.requestId);
           if (event.data.error)
             task.reject(
-              event.data.conflict
-                ? new SaveConflictError(event.data.error)
-                : new Error(event.data.error),
+              event.data.effect &&
+                ["none", "rolled-back", "unknown"].includes(event.data.effect)
+                ? new TableEditError(event.data.error, event.data.effect)
+                : event.data.conflict
+                  ? new SaveConflictError(event.data.error)
+                  : new Error(event.data.error),
             );
           else task.resolve(event.data.result);
           return;
@@ -712,6 +719,15 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
                 );
               await update();
             },
+            ...(() => {
+              const table = createRhwpTableColumn({
+                rpc,
+                exportBytes: () => editor!.exportHwpx(),
+                state: store.getSnapshot,
+                update,
+              });
+              return { readTable: table.read, applyTableChanges: table.apply };
+            })(),
             async readDocument() {
               await update();
               const revision = store.getSnapshot().revision;

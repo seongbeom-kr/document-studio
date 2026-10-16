@@ -8,6 +8,7 @@ import type {
   AutomationDraftStatus,
 } from "./automation-session";
 import { NumericField } from "./numeric-field";
+import { TableColumnTools } from "./table-column-tools";
 import {
   COMMAND_LABELS,
   REPORT_PRESETS,
@@ -26,6 +27,9 @@ import {
   type EditorDocument,
 } from "@document-studio/core";
 interface Props {
+  tableColumn?: ReturnType<
+    typeof import("@document-studio/core").createTableColumnEditor
+  >;
   creationContext?: unknown;
   format?: string;
   saveLocation?: string;
@@ -906,6 +910,15 @@ export function EditingTools(props: Props) {
             )}
             {tab === "표" && (
               <>
+                {props.tableColumn && (
+                  <TableColumnTools
+                    key={props.documentKey}
+                    actions={props.tableColumn}
+                    snapshot={snapshot}
+                    disabled={disabled}
+                    readOnly={props.readOnly}
+                  />
+                )}
                 <div className="ds-tools-row">
                   {numeric("표 행 수", rows, setRows, 1, 100, 1)}
                   {numeric("표 열 수", columns, setColumns, 1, 50, 1)}
