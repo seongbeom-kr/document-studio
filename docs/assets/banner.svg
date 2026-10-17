@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="340" viewBox="0 0 1280 340" role="img" aria-labelledby="title desc">
+  <title id="title">Document Studio</title>
+  <desc id="desc">An embeddable HWPX and DOCX editor SDK for human and agent workflows.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#101e2a"/><stop offset="1" stop-color="#1b343e"/></linearGradient>
+    <linearGradient id="paper" x2="0.9" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#dceae6"/></linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#c4e4de" stroke-opacity=".055"/></pattern>
+  </defs>
+  <rect width="1280" height="340" rx="20" fill="url(#bg)"/>
+  <rect width="1280" height="340" rx="20" fill="url(#grid)"/>
+  <circle cx="1160" cy="160" r="220" fill="#78d6be" opacity=".035"/>
+  <circle cx="1160" cy="160" r="165" fill="none" stroke="#78d6be" stroke-opacity=".13"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <rect x="56" y="50" width="8" height="8" rx="2" fill="#8ce4c9"/>
+    <text x="78" y="59" fill="#a8ccc4" font-size="14" font-weight="600" letter-spacing="2.6">EMBEDDABLE DOCUMENT EDITOR SDK</text>
+    <text x="54" y="146" fill="#f4faf8" font-size="66" font-weight="700" letter-spacing="-2.7">Document Studio</text>
+    <text x="58" y="194" fill="#c3d8d6" font-size="25">Bring office documents into your app.</text>
+    <path d="M58 232H698" stroke="#c3d8d6" stroke-opacity=".15"/>
+    <text x="58" y="274" fill="#8ce4c9" font-size="20" font-weight="600">HWPX + DOCX</text>
+    <circle cx="232" cy="267" r="2.5" fill="#5b7b7a"/>
+    <text x="253" y="274" fill="#d0dfdf" font-size="20">Human + agent workflows</text>
+  </g>
+  <g transform="translate(897 41)">
+    <rect x="72" y="21" width="192" height="248" rx="13" fill="#10232d" stroke="#557d7a" transform="rotate(9 168 145)"/>
+    <rect x="27" y="18" width="192" height="248" rx="13" fill="url(#paper)" transform="rotate(-7 123 142)"/>
+    <g transform="rotate(-7 123 142)">
+      <rect x="52" y="47" width="46" height="6" rx="3" fill="#296b5b"/>
+      <rect x="52" y="71" width="138" height="10" rx="3" fill="#173d3a"/>
+      <path d="M52 106H188M52 121H164M52 136H182" stroke="#9bb6b1" stroke-width="5" stroke-linecap="round"/>
+      <rect x="52" y="160" width="140" height="74" rx="4" fill="#fff" stroke="#abc4bd"/>
+      <path d="M53 183H191M53 207H191M108 161V233M151 161V233" stroke="#c6d7d1"/>
+      <path d="M53 161H191V183H53Z" fill="#69b29b" fill-opacity=".3"/>
+    </g>
+    <rect x="-17" y="197" width="106" height="44" rx="12" fill="#8ce4c9"/>
+    <text x="36" y="225" text-anchor="middle" fill="#183c35" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">HWPX</text>
+    <rect x="169" y="69" width="106" height="44" rx="12" fill="#bac9f7"/>
+    <text x="222" y="97" text-anchor="middle" fill="#28355e" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">DOCX</text>
+  </g>
+</svg>
