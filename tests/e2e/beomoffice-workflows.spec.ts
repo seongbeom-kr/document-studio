@@ -150,6 +150,15 @@ for (const format of ["docx", "hwpx"] as const) {
         operationId: "success",
       });
       const originalResult = session.results("success")[0]!.bytes;
+      session.acknowledgeDelivery({
+        operationId: "success",
+        files: good.files.map((file) => ({
+          id: file.id,
+          digest: file.digest,
+          destination: "storage",
+          version: "confirmed-test-version",
+        })),
+      });
       const cloned = session.results("success");
       cloned[0]!.bytes.fill(0);
       const preserved = session

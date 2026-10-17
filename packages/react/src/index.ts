@@ -1,4 +1,5 @@
 export { DocumentEditor, downloadDocument } from "./document-editor";
+export { GeneratedOutputActions } from "./generated-output-actions";
 export type {
   DocumentEditorHandle,
   DocumentEditorProps,

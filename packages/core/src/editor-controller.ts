@@ -35,6 +35,7 @@ export interface EditorController {
     import("./mail-merge").MailMergeTemplateInfo
   >;
   listMailMergeTemplates?(): import("./mail-merge").MailMergeTemplateInfo[];
+  removeMailMergeTemplate?(templateId: string): { removed: boolean };
   previewMailMerge?(
     request: import("./mail-merge").MailMergeRequest,
   ): import("./mail-merge").MailMergePreview;
@@ -45,6 +46,15 @@ export interface EditorController {
   cancelMailMerge?(operationId: string): void;
   getMailMergeStatus?(): import("./mail-merge").MailMergeStatus;
   exportMailMerge?(operationId: string): import("./index").EditorDocument[];
+  exportMailMergeArchive?(operationId: string): Uint8Array;
+  noteMailMergeDownload?(operationId: string): void;
+  acknowledgeMailMergeDelivery?(input: {
+    operationId: string;
+    files: readonly import("./generated-output").GeneratedFileDelivery[];
+  }): void;
+  discardMailMergeResults?(operationId: string): void;
+  /** Throws while generation is running or generated files still need delivery/discard confirmation. */
+  assertCanClose?(): void;
   listQuickActions?(): ReturnType<
     ReturnType<typeof import("./quick-actions").createQuickActionEditor>["list"]
   >;

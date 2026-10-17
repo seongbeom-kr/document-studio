@@ -7,6 +7,9 @@ export type EngineInitializationStage =
   | "document-opening"
   | "state-connecting";
 export interface EngineInitializationDiagnostics {
+  attemptId?: string;
+  frameUrl?: string;
+  frameReadyVia?: "load" | "runtime";
   stage: EngineInitializationStage;
   elapsedMs: number;
   transport?: "message-port" | "legacy";

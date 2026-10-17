@@ -238,6 +238,19 @@ export function createAgentBridge(
         throw new Error("메일머지를 지원하지 않습니다.");
       return started.handle.listMailMergeTemplates();
     },
+    removeMailMergeTemplate: (
+      request: AgentTarget & { expectedSessionId: string; templateId: string },
+    ) => {
+      if (
+        typeof request.expectedSessionId !== "string" ||
+        !request.expectedSessionId
+      )
+        throw new Error("현재 편집 세션 ID가 필요합니다.");
+      const started = target(request);
+      if (!started.handle.removeMailMergeTemplate)
+        throw new Error("서식 등록 해제를 지원하지 않습니다.");
+      return started.handle.removeMailMergeTemplate(request.templateId);
+    },
     previewMailMerge: (
       request: AgentTarget & { mergeRequest: MailMergeRequest },
     ) => {

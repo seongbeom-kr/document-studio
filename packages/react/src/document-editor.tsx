@@ -53,9 +53,11 @@ import {
   createMailMergeSession,
   MAIL_MERGE_DRAFT_NAME,
   MailMergeError,
+  type MailMergeStatus,
 } from "@document-studio/core";
 import type { EngineDefinition } from "./types";
 import { ModalDialog } from "./modal-dialog";
+import { GeneratedOutputActions } from "./generated-output-actions";
 import { EngineErrorBoundary } from "./engine-error-boundary";
 import { EditingTools } from "./editing-tools";
 import { AutomationSession } from "./automation-session";
@@ -216,6 +218,14 @@ export const DocumentEditor = forwardRef<
   const [viewportWidth, setViewportWidth] = useState(0);
   const [conflict, setConflict] = useState(false);
   const [closeDialog, setCloseDialog] = useState(false);
+  const mailMergeRef = useRef<ReturnType<typeof createMailMergeSession> | null>(
+    null,
+  );
+  const [mailStatus, setMailStatus] = useState<MailMergeStatus | null>(null);
+  const outputPending = () => {
+    const state = mailMergeRef.current?.getSnapshot();
+    return Boolean(state?.phase === "running" || state?.pendingOutput);
+  };
   const [pendingDocument, setPendingDocument] = useState<EditorDocument | null>(
     null,
   );
@@ -373,6 +383,8 @@ export const DocumentEditor = forwardRef<
     saving,
     pendingCommands,
     automationDraftPending: false,
+    generatedOutputPending: outputPending(),
+    generatedOutputCount: mailStatus?.pendingOutput?.receipt.files.length ?? 0,
   };
   const liveSnapshot = () =>
     readOnlySnapshot({
@@ -386,6 +398,10 @@ export const DocumentEditor = forwardRef<
       automationDraftPending: automationPending.current,
       automationDraftReady: automationSession.getSnapshot().ready,
       automationDraftError: automationSession.getSnapshot().error,
+      generatedOutputPending: outputPending(),
+      generatedOutputCount:
+        mailMergeRef.current?.getSnapshot().pendingOutput?.receipt.files
+          .length ?? 0,
     });
   const matchesAcceptedSource = (next: EditorDocument) => {
     const previous = acceptedInput.current;
@@ -429,6 +445,7 @@ export const DocumentEditor = forwardRef<
     scope: string,
     resolution: RecoveryResolution,
   ) => {
+    mailMergeRef.current?.assertCanLeave();
     acceptedInput.current = source;
     acceptedScope.current = scope;
     activeDrafts.current = store;
@@ -593,6 +610,7 @@ export const DocumentEditor = forwardRef<
                 (props.draftNamespace ?? "document-studio"));
           const approved =
             different &&
+            !outputPending() &&
             !automationPending.current &&
             automationReady.current &&
             (transitionPermit.current === current.revision || !current.dirty);
@@ -1192,9 +1210,21 @@ export const DocumentEditor = forwardRef<
   }, [session, document]);
   const mailPort = useRef<Parameters<typeof createMailMergeSession>[0]>(null!);
   mailPort.current = {
-    state: () => tablePort.current.state(),
+    state: () => {
+      if (!mounted.current || !session?.getSnapshot().ready || !document)
+        throw new MailMergeError("편집기를 준비하는 중입니다.");
+      return {
+        documentId: document.id,
+        sessionId: sessionId.current,
+        revision: session.getSnapshot().revision,
+      };
+    },
     assertWritable: () => {
-      if (latest.current.readOnly || busyRef.current || !mounted.current)
+      if (
+        mutationBlockReason() ||
+        !mounted.current ||
+        !matchesAcceptedSource(latest.current.document)
+      )
         throw new MailMergeError(
           "문서 생성 권한 또는 편집 상태가 변경됐습니다.",
         );
@@ -1216,15 +1246,16 @@ export const DocumentEditor = forwardRef<
         { activate: false },
       ),
   };
-  const mailMerge = useMemo(
-    () =>
-      createMailMergeSession({
-        state: () => mailPort.current.state(),
-        assertWritable: () => mailPort.current.assertWritable(),
-        onPreview: (...args) => mailPort.current.onPreview?.(...args),
-      }),
-    [automationSession, sessionId.current],
-  );
+  mailMergeRef.current ??= createMailMergeSession({
+    state: () => mailPort.current.state(),
+    assertWritable: () => mailPort.current.assertWritable(),
+    onPreview: (...args) => mailPort.current.onPreview?.(...args),
+  });
+  const mailMerge = mailMergeRef.current;
+  useEffect(() => {
+    setMailStatus(mailMerge.getSnapshot());
+    return mailMerge.subscribe(() => setMailStatus(mailMerge.getSnapshot()));
+  }, [mailMerge]);
   const registerCurrentMailMergeTemplate = async () => {
     const started = tablePort.current.state(),
       exported = await exportDocument(),
@@ -1244,6 +1275,7 @@ export const DocumentEditor = forwardRef<
     });
   };
   const flushDraft = useCallback(async () => {
+    mailMergeRef.current?.assertCanLeave();
     if (!session || !document || !session.getSnapshot().ready) {
       // A never-ready mount cannot accept native edits. Existing recovery bytes
       // remain in their store; closing must neither export nor delete them.
@@ -1589,11 +1621,17 @@ export const DocumentEditor = forwardRef<
       registerMailMergeTemplate: mailMerge.register,
       registerCurrentMailMergeTemplate,
       listMailMergeTemplates: mailMerge.list,
+      removeMailMergeTemplate: mailMerge.remove,
       previewMailMerge: mailMerge.preview,
       generateMailMerge: mailMerge.generate,
       cancelMailMerge: mailMerge.cancel,
       getMailMergeStatus: mailMerge.getSnapshot,
       exportMailMerge: mailMerge.results,
+      exportMailMergeArchive: mailMerge.archive,
+      noteMailMergeDownload: mailMerge.noteDownload,
+      acknowledgeMailMergeDelivery: mailMerge.acknowledgeDelivery,
+      discardMailMergeResults: mailMerge.discardResults,
+      assertCanClose: mailMerge.assertCanLeave,
       listQuickActions: quickActions.list,
       previewQuickAction: quickActions.preview,
       applyQuickAction: quickActions.apply,
@@ -1686,7 +1724,8 @@ export const DocumentEditor = forwardRef<
         snapshotRef.current.dirty ||
         automationPending.current ||
         commandTasks.current.size > 0 ||
-        busyRef.current
+        busyRef.current ||
+        outputPending()
       ) {
         event.preventDefault();
         event.returnValue = "";
@@ -1707,6 +1746,7 @@ export const DocumentEditor = forwardRef<
     busyRef.current = true;
     void (async () => {
       try {
+        mailMergeRef.current?.assertCanLeave();
         await automationSession.flush();
         await draftExport.current;
         await activeDraftStore()?.delete(activeKey);
@@ -1724,6 +1764,7 @@ export const DocumentEditor = forwardRef<
     setBusy(true);
     void (async () => {
       try {
+        mailMergeRef.current?.assertCanLeave();
         const target = pendingDocument;
         // The explicit source replacement must preserve separate inputs just like normal navigation.
         await automationSession.flush();
@@ -1884,6 +1925,12 @@ export const DocumentEditor = forwardRef<
       style={editorThemeStyle(props.ui?.theme)}
       aria-label={`${displayed.fileName} 편집기`}
       onKeyDownCapture={(event) => {
+        // ModalDialog owns Escape/Tab; the outer tools must not consume them first.
+        if (
+          event.target instanceof Element &&
+          event.target.closest(".ds-dialog")
+        )
+          return;
         if (event.key === "Escape" && toolsOpen) {
           event.preventDefault();
           event.stopPropagation();
@@ -1980,7 +2027,8 @@ export const DocumentEditor = forwardRef<
                   if (
                     liveSnapshot().dirty ||
                     automationPending.current ||
-                    commandTasks.current.size
+                    commandTasks.current.size ||
+                    outputPending()
                   ) {
                     modalBlocked.current = true;
                     setCloseDialog(true);
@@ -2487,8 +2535,21 @@ export const DocumentEditor = forwardRef<
           <p>
             {snapshot.dirty
               ? "현재 문서에 저장하지 않은 변경사항이 있습니다."
-              : "아직 보관하지 않은 자동화 입력이 있습니다."}
+              : outputPending()
+                ? "생성 사본은 원본 저장에 포함되지 않습니다. 보관 여부를 확인해 주세요."
+                : "아직 보관하지 않은 자동화 입력이 있습니다."}
           </p>
+          <GeneratedOutputActions
+            status={mailStatus ?? mailMerge.getSnapshot()}
+            controller={{
+              exportMailMergeArchive: mailMerge.archive,
+              noteMailMergeDownload: mailMerge.noteDownload,
+              acknowledgeMailMergeDelivery: mailMerge.acknowledgeDelivery,
+              discardMailMergeResults: mailMerge.discardResults,
+              cancelMailMerge: mailMerge.cancel,
+            }}
+            onError={reportError}
+          />
           {automationStatus.pending &&
             automationStatus.storage === "memory" && (
               <p role="alert">
@@ -2524,7 +2585,11 @@ export const DocumentEditor = forwardRef<
             <button className="ds-button" onClick={downloadDraft}>
               초안 다운로드
             </button>
-            <button className="ds-button ds-primary" onClick={discardAndClose}>
+            <button
+              className="ds-button ds-primary"
+              disabled={outputPending()}
+              onClick={discardAndClose}
+            >
               변경 버리고 닫기
             </button>
           </div>

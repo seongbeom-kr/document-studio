@@ -12,6 +12,7 @@ import {
 import { docxEngine } from "@document-studio/engine-docx";
 import { rhwpEngine } from "@document-studio/engine-rhwp";
 import "../../../packages/react/src/styles.css";
+import { browserAutomationDraftStore } from "@document-studio/react";
 
 const format =
   new URLSearchParams(location.search).get("format") === "hwpx"
@@ -72,6 +73,11 @@ const api = {
       document: await source(id),
       engines,
       draftNamespace: "browser-test",
+      automationDraftStore: new URLSearchParams(location.search).has(
+        "persistAutomation",
+      )
+        ? browserAutomationDraftStore()
+        : undefined,
       draftStore: noDraft ? false : store,
       storage: {
         async save({ document, bytes, expectedVersion }) {

@@ -146,7 +146,9 @@ const poll = setInterval(() => {
     return {
       revision: version,
       tableColumnEditing: true,
-      atomicTextInsertion: typeof services.getInputHandler()?.executeDocumentStudioTextGroup === "function",
+      atomicTextInsertion:
+        typeof services.getInputHandler()?.executeDocumentStudioTextGroup ===
+        "function",
       selectionKey: selectionKey(services),
       selectionGuardedCommands:
         Boolean(input) && !input.hasExcludedCellSelection(),
@@ -677,11 +679,17 @@ const poll = setInterval(() => {
     );
     if (!textarea) throw new Error("문서 입력을 준비하지 못했습니다.");
     if (!input.executeDocumentStudioTextGroup)
-      throw new Error("텍스트를 한 번에 되돌릴 수 있도록 HWPX 런타임 자산을 갱신해 주세요.");
+      throw new Error(
+        "텍스트를 한 번에 되돌릴 수 있도록 HWPX 런타임 자산을 갱신해 주세요.",
+      );
     input.executeDocumentStudioTextGroup(() => {
       textarea.value = params.value;
       textarea.dispatchEvent(
-        new InputEvent("input", { bubbles: true, inputType: "insertText", data: params.value }),
+        new InputEvent("input", {
+          bubbles: true,
+          inputType: "insertText",
+          data: params.value,
+        }),
       );
     });
   });
@@ -1181,4 +1189,14 @@ const poll = setInterval(() => {
       services.eventBus.emit("format-char", { fontId });
     },
   });
+  // The embed transport is installed by the same module that exposes automation.
+  // Do not make the parent wait for unrelated images/fonts to finish their load event.
+  const bootId = new URL(location.href).searchParams.get(
+    "documentStudioBootId",
+  );
+  if (bootId)
+    window.parent.postMessage(
+      { type: "document-studio:frame-ready", bootId },
+      parentOrigin,
+    );
 }, 20);

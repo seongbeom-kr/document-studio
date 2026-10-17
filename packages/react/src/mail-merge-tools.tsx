@@ -14,6 +14,7 @@ import type {
   AutomationSession,
   AutomationDraftStatus,
 } from "./automation-session";
+import { GeneratedOutputActions } from "./generated-output-actions";
 
 function download(bytes: Uint8Array, name: string, mime: string) {
   const url = URL.createObjectURL(
@@ -604,50 +605,20 @@ export function MailMergeTools({
           </button>
         </div>
       )}
-      {status.phase === "running" && (
-        <p role="status">
-          문서 생성 {status.completed}/{status.total}
-          <button
-            type="button"
-            className="ds-button"
-            onClick={() => actions.cancel(status.operationId!)}
-          >
-            생성 취소
-          </button>
-        </p>
-      )}
       {(status.phase === "failed" || status.phase === "cancelled") && (
         <p role="status">이번 생성 결과는 모두 폐기했습니다. {status.error}</p>
       )}
-      {status.lastResult && (
-        <div>
-          <p role="status">
-            {status.phase === "ready" ? "새 문서" : "이전 생성 문서"}{" "}
-            {status.lastResult.files.length}개 생성 완료 · 서버 미저장
-          </p>
-          <button
-            type="button"
-            className="ds-button"
-            disabled={busy}
-            onClick={() => {
-              try {
-                download(
-                  actions.archive(status.lastResult!.operationId),
-                  "메일머지-결과.zip",
-                  "application/zip",
-                );
-                setNotice("생성 파일 ZIP 다운로드를 요청했습니다.");
-              } catch (error) {
-                setNotice(
-                  error instanceof Error ? error.message : String(error),
-                );
-              }
-            }}
-          >
-            생성 파일 ZIP 내려받기
-          </button>
-        </div>
-      )}
+      <GeneratedOutputActions
+        status={status}
+        controller={{
+          exportMailMergeArchive: actions.archive,
+          noteMailMergeDownload: actions.noteDownload,
+          acknowledgeMailMergeDelivery: actions.acknowledgeDelivery,
+          discardMailMergeResults: actions.discardResults,
+          cancelMailMerge: actions.cancel,
+        }}
+        onError={(error) => setNotice(error.message)}
+      />
       {notice && <p role="status">{notice}</p>}
     </section>
   );

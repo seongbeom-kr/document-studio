@@ -6,7 +6,7 @@ export const RHWP_LIFECYCLE_PATCH = Object.freeze({
   inputSha256:
     "c9fab3743e713c46fd72c20f798333a4e70021ed7fcc7bdc56f0e144dd7b9431",
   change:
-    "Abort iframe load, transport negotiation, ready polling and initial chrome setup; release listeners, timers, channels and iframe on cancellation.",
+    "Accept an origin/source/attempt-bound runtime boot signal before full iframe load; abort loading, transport negotiation, ready polling and chrome setup with complete cleanup.",
 });
 
 // Bundle this checked modification of MIT-licensed @rhwp/editor. Consumers do
@@ -37,16 +37,25 @@ export function patchRhwpLifecycle(code) {
     signal?.throwIfAborted();
     options.onInitializationStage?.('iframe-loading');
     await new Promise((resolve, reject) => {
+      const frameUrl = new URL(studioUrl);
+      const bootId = frameUrl.searchParams.get('documentStudioBootId');
       const cleanup = () => {
         iframe.removeEventListener('load', onLoad);
         iframe.removeEventListener('error', onError);
+        window.removeEventListener('message', onRuntime);
         rejectLoad = undefined;
       };
-      const onLoad = () => { cleanup(); resolve(); };
+      const finish = (via) => { cleanup(); options.onFrameReady?.(via); resolve(); };
+      const onLoad = () => finish('load');
+      const onRuntime = (event) => {
+        if (bootId && event.source === iframe.contentWindow && event.origin === frameUrl.origin
+          && event.data?.type === 'document-studio:frame-ready' && event.data.bootId === bootId) finish('runtime');
+      };
       const onError = () => { cleanup(); reject(new Error('Editor iframe failed to load')); };
       rejectLoad = (error) => { cleanup(); reject(error); };
       iframe.addEventListener('load', onLoad, { once: true });
       iframe.addEventListener('error', onError, { once: true });
+      window.addEventListener('message', onRuntime);
       try { el.appendChild(iframe); } catch (error) { rejectLoad(error); }
     });
     signal?.throwIfAborted();

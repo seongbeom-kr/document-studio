@@ -253,6 +253,32 @@ export async function mountDocumentEditor(
       if (!method) throw new Error("메일머지를 지원하지 않습니다.");
       return method();
     },
+    removeMailMergeTemplate: (id) => {
+      const method = current().removeMailMergeTemplate;
+      if (!method) throw new Error("서식 등록 해제를 지원하지 않습니다.");
+      return method(id);
+    },
+    assertCanClose: () => current().assertCanClose?.(),
+    exportMailMergeArchive: (id) => {
+      const method = current().exportMailMergeArchive;
+      if (!method) throw new Error("메일머지를 지원하지 않습니다.");
+      return method(id);
+    },
+    noteMailMergeDownload: (id) => {
+      const method = current().noteMailMergeDownload;
+      if (!method) throw new Error("메일머지를 지원하지 않습니다.");
+      return method(id);
+    },
+    acknowledgeMailMergeDelivery: (request) => {
+      const method = current().acknowledgeMailMergeDelivery;
+      if (!method) throw new Error("메일머지를 지원하지 않습니다.");
+      return method(request);
+    },
+    discardMailMergeResults: (id) => {
+      const method = current().discardMailMergeResults;
+      if (!method) throw new Error("메일머지를 지원하지 않습니다.");
+      return method(id);
+    },
     previewMailMerge: (request) => {
       const method = current().previewMailMerge;
       if (!method) throw new Error("메일머지를 지원하지 않습니다.");

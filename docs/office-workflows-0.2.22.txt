@@ -79,7 +79,9 @@ cancelMailMerge({documentId, operationId})는 취소를 요청한다. 완료 상
 General 연결은 세션 가드를 추가하며 operationId를 서버에서 부여한다.
 생성 중 권한 또는 현재 문서/session/revision이 바뀌면 해당 배치의 출력 전체를 폐기한다.
 이전 성공 배치는 새 배치가 모두 성공할 때까지 보관한다. 실패/취소한 부분 출력은 공개하지 않는다.
-새 성공 배치가 생기면 이전 성공 배치의 bytes는 해제한다. 재요청 receipt 자체는 유지된다.
+0.2.23부터 이전 배치의 보관 확인 또는 명시적 폐기 전에는 새 배치를 거절한다.
+보관 확인 후 새 성공 배치가 생기면 이전 배치의 bytes는 해제한다. 재요청 receipt 자체는 유지된다.
+파일별 보관 영수증과 종료 가드는 generated-output-lifecycle-0.2.23.txt를 참고한다.
 UI는 ZIP 다운로드를 제공한다. 생성/다운로드 요청/서버 저장은 서로 다른 상태다.
 agent 결과에는 파일명·digest·byteLength만 전달한다. 기본 transport는 bytes를 보내지 않는다.
 읽기 전용에서는 미리보기는 가능하지만 생성은 허용하지 않는다.

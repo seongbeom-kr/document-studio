@@ -254,6 +254,8 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
     useEffect(() => {
       let active = true;
       const startedAt = performance.now();
+      const attemptId = crypto.randomUUID();
+      let frameReadyVia: "load" | "runtime" | undefined;
       let stage: EngineInitializationStage = "iframe-loading";
       let transport: EngineInitializationDiagnostics["transport"];
       const steps: EngineInitializationDiagnostics["steps"] = [];
@@ -271,6 +273,9 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
           });
       };
       const diagnostics = (): EngineInitializationDiagnostics => ({
+        attemptId,
+        frameUrl: studioUrl.origin + studioUrl.pathname,
+        frameReadyVia,
         stage,
         transport,
         elapsedMs: Math.max(0, Math.round(performance.now() - startedAt)),
@@ -299,6 +304,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
         }
       >();
       const studioUrl = new URL(options.studioUrl, window.location.href);
+      studioUrl.searchParams.set("documentStudioBootId", attemptId);
       // The host owns open/save and document identity; upstream embed mode disables native file replacement entry points.
       studioUrl.searchParams.set("chrome", "embed");
       studioUrl.searchParams.set(
@@ -490,6 +496,9 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
             chrome: { menu: false, toolbar: false, statusbar: false },
             signal: abort.signal,
             onInitializationStage: recordStage,
+            onFrameReady: (via: "load" | "runtime") => {
+              frameReadyVia = via;
+            },
           };
           const created = await createStudio(container.current!, studioOptions);
           if (!active) {

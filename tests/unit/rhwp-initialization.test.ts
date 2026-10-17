@@ -135,6 +135,36 @@ afterEach(() => {
 });
 
 describe("pinned RHWP initialization cancellation", () => {
+  it("accepts only the same frame, origin and boot attempt while load is still pending", async () => {
+    const f = fixture("load"),
+      stages: string[] = [];
+    const task = upstream.createStudio(f.container, {
+      studioUrl: "https://editor.test/?documentStudioBootId=current",
+      signal: f.abort.signal,
+      chrome: { menu: false },
+      onFrameReady: (via: string) => stages.push(via),
+    });
+    const send = (origin: string, source: unknown, bootId: string) =>
+      window.dispatchEvent(
+        Object.assign(new Event("message"), {
+          origin,
+          source,
+          data: { type: "document-studio:frame-ready", bootId },
+        }),
+      );
+    send("https://untrusted.test", f.frame.contentWindow, "current");
+    send("https://editor.test", {}, "current");
+    send("https://editor.test", f.frame.contentWindow, "expired");
+    await Promise.resolve();
+    expect(stages).toEqual([]);
+    expect(f.messages).toEqual([]);
+    send("https://editor.test", f.frame.contentWindow, "current");
+    const editor = await task;
+    expect(stages).toEqual(["runtime"]);
+    expect(f.messages).toEqual(["ready", "chrome.set"]);
+    expect(f.frame.listeners.size).toBe(0);
+    editor.destroy();
+  });
   it.each([0, -1, 999, 120001, 1000.5, Infinity, NaN])(
     "rejects an invalid whole-boot deadline: %s",
     (initializationTimeoutMs) => {

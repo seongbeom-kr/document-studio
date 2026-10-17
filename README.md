@@ -105,6 +105,7 @@ yarn verify:packages
 - [호스트 앱 통합](docs/integration.md) · [연결 예제](examples/sandbox-agent/README.md)
 - [지원 기능](docs/feature-support.md) · [범정부 오피스 기능 대응](docs/government-office-reference.md)
 - [빠른 작업·서식 메일머지 계약](docs/office-workflows-0.2.22.txt)
-- [검증 기록](docs/practical-validation.md) · [최근 구현·검증 결과](docs/beomoffice-verification-0.2.22-2026-10-16.txt)
+- [생성 사본 보관·종료 계약](docs/generated-output-lifecycle-0.2.23.txt)
+- [검증 기록](docs/practical-validation.md) · [최근 리뷰 대응·검증 결과](docs/review-fixes-0.2.23.txt)
 
 버그 제보에는 공개 가능한 최소 재현 문서, 기대·실제 결과와 브라우저 버전을 포함해 주세요. 업무·고객 문서는 올리지 마세요.

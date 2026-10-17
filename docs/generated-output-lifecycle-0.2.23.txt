@@ -1,0 +1,68 @@
+Document Studio 0.2.23 — 생성 사본 보관과 호스트 종료 계약
+
+메일머지의 입력 데이터, 원본 문서, 생성 사본은 각각 다른 상태다.
+save()/agent.commit()은 원본을 저장한다. flushAutomationDraft()는 입력과 필드 연결을 보관한다.
+둘 다 생성 사본 bytes를 서버나 다운로드 폴더에 보관하지 않는다.
+
+1. 보관 상태 조회
+editor.getState().generatedOutputPending: 생성 중이거나 미확인 사본이 있으면 true.
+editor.getState().generatedOutputCount: 보관 확인이 남은 파일 수. 생성 중에는 0일 수 있다.
+editor.getMailMergeStatus().pendingOutput: 현재 배치 receipt 중 미확인 파일과 downloadRequested.
+receipt의 committed:false는 생성이 원본/사본의 서버 저장을 수행하지 않았다는 의미다.
+보관 확인 후에도 과거 생성 receipt 자체를 committed:true로 바꾸지 않는다.
+
+2. 호스트 저장
+const receipt = await editor.generateMailMerge({ previewId, operationId });
+const files = editor.exportMailMerge(receipt.operationId);
+// 아래 saveGeneratedFile은 앱이 제공한다. 권한 및 경로 중복 정책도 앱 책임이다.
+for (const file of files) {
+  const saved = await saveGeneratedFile(file);
+  const metadata = receipt.files.find(item => item.id === file.id);
+  editor.acknowledgeMailMergeDelivery({
+    operationId: receipt.operationId,
+    files: [{ id: file.id, digest: metadata.digest,
+      destination: 'storage', version: saved.version }],
+  });
+}
+서버 저장을 확인한 파일만 보관 영수증을 전달한다. SDK는 파일 ID·digest와 비어 있지 않은
+version을 검증한다. 서버 API의 진실성/원자적 저장은 호스트 계약이다. 일부 파일만 성공하면
+나머지는 pendingOutput에 남는다. 잘못된 영수증 배열은 전체를 거절하고 상태를 바꾸지 않는다.
+
+3. 브라우저 다운로드
+exportMailMerge()/exportMailMergeArchive()는 bytes를 읽을 뿐이다.
+다운로드 요청 후 noteMailMergeDownload(operationId)를 호출해도 보관 완료로 처리하지 않는다.
+사용자가 실제 내려받은 파일을 확인한 뒤에만 destination:'download-confirmed' 영수증을 전달한다.
+SDK 기본 UI와 GeneratedOutputActions는 ZIP 요청 뒤 별도의 '다운로드한 파일 보관 확인'을 제공한다.
+브라우저 API로 사용자 디스크의 실제 파일 보관 성공을 자동 증명할 수 없으므로 이 단계는 사용자 확인이다.
+
+4. 명시적 폐기와 종료
+discardMailMergeResults(operationId)는 해당 현재 배치의 메모리 사본을 명시적으로 버린다.
+원본과 입력 데이터는 유지한다. 기본 UI는 파일명을 표시하는 추가 확인창을 제공한다.
+생성 중에는 취소 후 완료 상태를 기다려야 한다. 다른 배치 ID로 폐기/보관 확인을 요청하면 거절한다.
+미확인 사본이 있으면 새 배치 생성, 문서 교체, flushDraft(), DOM update()/destroy()를 거절한다.
+GeneratedOutputPendingError.effect는 'none'이다. 기존 문서와 사본을 유지한 채 오류를 표시한다.
+React 호스트는 SDK ref의 flushDraft()를 기다린 뒤 라우트/컴포넌트를 제거해야 한다.
+assertCanClose()는 생성 결과에 대한 동기 검사이며 원본/입력 초안 저장을 대신하지 않는다.
+상위 앱이 강제로 DOM을 제거하거나 브라우저/프로세스가 종료되면 메모리 사본은 복구되지 않는다.
+beforeunload 경고는 브라우저 정책에 따른 보조 장치다. 생성 사본의 자동 영속 저장은 이번 범위가 아니다.
+
+5. 호스트 UI와 에이전트
+@document-studio/react의 GeneratedOutputActions는 status, controller, onError를 받아 같은 경로를 사용한다.
+호스트의 저장 후 닫기/파일 전환/에이전트 handoff도 generatedOutputPending을 확인해야 한다.
+source dirty=false만으로 전체 작업이 보관됐다고 판단하면 안 된다.
+에이전트는 getMailMergeStatus로 보관 상태를 읽는다. 사용자 다운로드 확인과 폐기를 모델 명령으로
+공개하지 않는다. 호스트가 별도 파일 저장 도구를 제공한다면 실제 저장 결과로 영수증을 전달한다.
+
+6. 서식 등록 해제
+React ref/DOM controller: removeMailMergeTemplate(templateId) -> { removed: boolean }.
+agent.removeMailMergeTemplate({ documentId, expectedSessionId, templateId }).
+현재 SDK 세션을 요구한다. 등록되지 않은 ID는 removed:false로 안전하게 반복 가능하다.
+해당 서식의 기존 미리보기를 무효화하고 2개 등록 한도를 회수한다. 생성 도중에는 해제를 거절한다.
+
+7. HWPX 준비 신호와 버전
+HWPX iframe의 부가 자산이 전체 load 이벤트를 지연해도 실행 준비 신호로 통신 연결을 시작한다.
+신호의 origin, source window, 초기화 시도 ID가 모두 맞아야 한다. 실제 엔진 ready와 문서 열기
+RPC는 여전히 기다린다. 전체 제한 시간은 그대로이며 abort/실패 후 listener를 제거한다.
+initialization.error.diagnostics에 attemptId, frameUrl(origin/path만), frameReadyVia가 추가된다.
+실제 서비스 timeout의 원인은 해당 서비스 네트워크/진단 결과로 별도 확인해야 한다.
+DOCUMENT_STUDIO_VERSION은 @document-studio/core의 설치 manifest에서 빌드되며 호스트 진단에 사용한다.

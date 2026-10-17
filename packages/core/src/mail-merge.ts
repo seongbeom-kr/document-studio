@@ -3,6 +3,12 @@ import { validateDocumentAsync } from "./validation";
 import { parseDelimited } from "./office-automation";
 import type { DocumentFormat, EditorDocument } from "./index";
 import type { TableEditIdentity } from "./table-column";
+import {
+  GeneratedOutputLedger,
+  GeneratedOutputPendingError,
+  type GeneratedOutputPending,
+  type GeneratedFileDelivery,
+} from "./generated-output";
 
 export const MAIL_MERGE_LIMITS = Object.freeze({
   templates: 2,
@@ -71,6 +77,7 @@ export interface MailMergeStatus {
   operationId?: string;
   error?: string;
   lastResult?: MailMergeReceipt;
+  pendingOutput?: GeneratedOutputPending;
 }
 export class MailMergeError extends Error {
   readonly effect = "none";
@@ -618,6 +625,7 @@ export function createMailMergeSession(port: {
 }) {
   const templates = new Map<string, Registered>(),
     previews = new Map<string, MailMergePreview>();
+  const deliveries = new GeneratedOutputLedger();
   const operations = new Map<
     string,
     {
@@ -645,7 +653,14 @@ export function createMailMergeSession(port: {
       Object.freeze(lastResult.files);
       Object.freeze(lastResult);
     }
-    status = Object.freeze({ ...value, lastResult });
+    const pendingOutput = deliveries.pending();
+    if (pendingOutput) {
+      pendingOutput.receipt.files.forEach(Object.freeze);
+      Object.freeze(pendingOutput.receipt.files);
+      Object.freeze(pendingOutput.receipt);
+      Object.freeze(pendingOutput);
+    }
+    status = Object.freeze({ ...value, lastResult, pendingOutput });
     for (const listener of listeners) {
       try {
         listener();
@@ -662,6 +677,8 @@ export function createMailMergeSession(port: {
     const value = identity(port.state()),
       key = JSON.stringify([value.documentId, value.sessionId]);
     if (scope !== key) {
+      if (scope) deliveries.assertSettled();
+      deliveries.reset();
       for (const op of operations.values()) op.abort.abort();
       templates.clear();
       previews.clear();
@@ -690,6 +707,32 @@ export function createMailMergeSession(port: {
       };
     },
     getSnapshot: () => status,
+    assertCanLeave() {
+      if (status.phase === "running")
+        throw new GeneratedOutputPendingError(deliveries.pending(), true);
+      deliveries.assertSettled();
+    },
+    noteDownload(operationId: string) {
+      state();
+      deliveries.noteDownload(operationId);
+      publish({ ...status });
+    },
+    acknowledgeDelivery(input: {
+      operationId: string;
+      files: readonly GeneratedFileDelivery[];
+    }) {
+      state();
+      deliveries.acknowledge(input.operationId, input.files);
+      publish({ ...status });
+    },
+    discardResults(operationId: string) {
+      state();
+      if (status.phase === "running")
+        throw issue("생성 작업을 먼저 취소해 주세요.");
+      deliveries.discard(operationId);
+      outputs.delete(operationId);
+      publish({ phase: "idle", completed: 0, total: 0 });
+    },
     list() {
       state();
       return [...templates.values()].map((t) => structuredClone(t.info));
@@ -763,12 +806,19 @@ export function createMailMergeSession(port: {
     },
     remove(templateId: string) {
       state();
+      if (
+        typeof templateId !== "string" ||
+        !templateId ||
+        templateId.length > 128
+      )
+        throw issue("서식 ID가 올바르지 않습니다.");
       if (status.phase === "running")
         throw issue("생성 작업을 먼저 취소해 주세요.");
-      templates.delete(templateId);
+      const removed = templates.delete(templateId);
       for (const [id, p] of previews)
         if (p.template.templateId === templateId) previews.delete(id);
       publish({ ...status });
+      return { removed };
     },
     preview(request: MailMergeRequest): MailMergePreview {
       const started = state();
@@ -818,6 +868,7 @@ export function createMailMergeSession(port: {
         throw issue("생성 작업 기록 한도에 도달했습니다.");
       if (status.phase === "running")
         throw issue("현재 생성 작업을 마치거나 취소해 주세요.");
+      deliveries.assertSettled();
       const preview = previews.get(previewId);
       if (!preview) throw issue("미리보기가 만료됐습니다.");
       check(preview);
@@ -893,6 +944,7 @@ export function createMailMergeSession(port: {
             committed: false,
           };
           // Publish only the whole successful batch. Older bytes are replaced, never silently reused.
+          deliveries.retain(receipt);
           outputs.clear();
           outputs.set(operationId, { receipt, documents });
           update({

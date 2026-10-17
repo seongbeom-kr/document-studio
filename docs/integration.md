@@ -191,11 +191,13 @@ const receipt = await agent.commit({
 
 ## HWPX 연결 실패 진단
 
-실패 상태의 `initialization.error.diagnostics`는 마지막 단계, 전체 경과 시간, 단계별 경과 시간과 연결 방식(`message-port`/`legacy`)을 제공합니다. UI의 `연결 진단 정보`에서도 확인할 수 있습니다. iframe 로딩, 통신 연결, 엔진 시작, 편집 기능 연결, 문서 열기, 상태 확인을 구분합니다. 진단에는 문서 내용·파일 경로·인증 정보가 포함되지 않습니다.
+실패 상태의 `initialization.error.diagnostics`는 마지막 단계, 전체 경과 시간, 단계별 경과 시간과 연결 방식(`message-port`/`legacy`)을 제공합니다. 0.2.23부터 초기화 시도 ID(`attemptId`), 엔진 자산 URL의 origin/path(`frameUrl`), iframe 준비 신호의 종류(`frameReadyVia`)도 포함합니다. UI의 `연결 진단 정보`에서도 확인할 수 있습니다. iframe 로딩, 통신 연결, 엔진 시작, 편집 기능 연결, 문서 열기, 상태 확인을 구분합니다. 진단에는 문서 내용·문서 파일 경로·URL query·인증 정보가 포함되지 않습니다.
 
 초기화 실패 시 `원본 다운로드` 또는 `복구본 다운로드`는 현재 보관 중인 문서 bytes를 내려받습니다. 준비되지 않은 엔진의 내보내기를 호출하지 않습니다. 호스트의 자산 URL, iframe 응답 및 CSP/프록시 문제는 해당 origin의 브라우저 네트워크 기록과 함께 확인해야 하며, 진단만으로 실패 원인을 단정할 수 없습니다. 기본 전체 제한 시간은 30초입니다.
 
 ## 앱의 UI 구성에 연결
+
+생성한 메일머지 사본의 보관 상태는 원본 저장 상태와 별개입니다. 0.2.23부터 `getState().generatedOutputPending`과 `getMailMergeStatus().pendingOutput`으로 확인하고, 파일별 보관 확인 또는 명시적 폐기 전에는 종료와 문서 교체를 거절합니다. 호스트의 닫기·라우팅·에이전트 handoff에도 이 상태를 연결해야 합니다. [생성 사본 보관·종료 계약](generated-output-lifecycle-0.2.23.txt)에 영수증 API와 공통 UI 사용법이 있습니다.
 
 0.2.19의 `ui.containers`는 툴바·상태 표시·추가 편집 도구를 앱이 만든 HTML 요소에 배치합니다. React와 DOM API에서 같은 옵션을 사용합니다. `tools`에는 문단·표·그림·찾기·보고서·업무 자동화 탭이 들어갑니다. 지정하지 않은 영역은 편집기 내부의 기본 위치에 표시합니다.
 

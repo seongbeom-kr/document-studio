@@ -86,6 +86,9 @@ export interface EditorSnapshot {
   pendingCommands?: number;
   /** Automation source fields waiting for their separate draft store; not document-byte changes. */
   automationDraftPending?: boolean;
+  /** Generated copies have their own lifetime; saving the source does not deliver them. */
+  generatedOutputPending?: boolean;
+  generatedOutputCount?: number;
   /** Separate local automation storage status. A failed load must still block navigation. */
   automationDraftReady?: boolean;
   automationDraftError?: string;
@@ -382,3 +385,5 @@ export type {
   AgentSelectionTarget,
   AgentBridgeOptions,
 } from "./agent-bridge";
+export * from "./generated-output";
+export * from "./version";
