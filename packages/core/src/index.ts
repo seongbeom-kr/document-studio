@@ -392,4 +392,5 @@ export type {
 } from "./agent-bridge";
 export * from "./generated-output";
 export * from "./document-question";
+export * from "./search-result-expired";
 export * from "./version";

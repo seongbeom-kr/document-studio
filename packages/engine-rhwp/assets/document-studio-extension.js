@@ -954,7 +954,7 @@ const poll = setInterval(() => {
     const found = searchCache.get(params.id ?? params.matchId);
     if (!found || found.revision !== String(revision)) {
       const error = new Error("검색 결과가 만료됐습니다. 다시 검색해 주세요.");
-      error.conflict = true;
+      error.code = "search-result-expired";
       throw error;
     }
     return found.hit;
@@ -1134,7 +1134,8 @@ const poll = setInterval(() => {
           result = { changedCells: targets.length };
         } else if (payload.method === "search") {
           const found = search(services, params);
-          searchCache.clear();
+          for (const [id, entry] of searchCache)
+            if (entry.revision !== String(revision)) searchCache.delete(id);
           const limit = Math.min(500, Math.max(1, params.maxResults ?? 100));
           result = {
             revision: String(revision),
@@ -1143,6 +1144,8 @@ const poll = setInterval(() => {
             matches: found.slice(0, limit).map((hit) => {
               const id = `${revision}:${++searchSequence}`;
               searchCache.set(id, { revision: String(revision), hit });
+              while (searchCache.size > 1000)
+                searchCache.delete(searchCache.keys().next().value);
               return {
                 id,
                 text: textAt(services.wasm, hit, hit.charOffset, hit.length),
@@ -1253,6 +1256,8 @@ const poll = setInterval(() => {
             requestId: payload.requestId,
             error: error instanceof Error ? error.message : String(error),
             conflict: Boolean(error.conflict),
+            code:
+              error.code === "search-result-expired" ? error.code : undefined,
             effect:
               error.effect ??
               (payload.method === "applyTableChanges" && !tableWriteStarted

@@ -70,8 +70,12 @@ export function MailMergeTools({
   snapshot,
   disabled,
   readOnly,
+  onOpenStoredCopy,
 }: {
-  previewDocument?(previewId: string): Promise<void>;
+  previewDocument?(previewId: string, row?: number): Promise<void>;
+  onOpenStoredCopy?(
+    file: import("@document-studio/core").GeneratedStoredFile,
+  ): Promise<void>;
   actions: ReturnType<typeof createMailMergeSession>;
   registerCurrent: () => Promise<MailMergeTemplateInfo>;
   session: AutomationSession;
@@ -86,6 +90,7 @@ export function MailMergeTools({
     actions.getSnapshot,
   );
   const [formOpen, setFormOpen] = useState(true);
+  const [previewRow, setPreviewRow] = useState(0);
   useEffect(() => {
     if (status.lastResult) setFormOpen(false);
   }, [status.lastResult?.operationId]);
@@ -639,14 +644,40 @@ export function MailMergeTools({
             확인한 뒤 생성하세요.
           </p>
           {previewDocument && (
-            <button
-              type="button"
-              className="ds-button"
-              disabled={blocked || stale || !!preview.issues.length}
-              onClick={() => void run(() => previewDocument(preview.previewId))}
-            >
-              대표 사본 페이지 미리보기
-            </button>
+            <>
+              <label>
+                페이지로 확인할 데이터 행
+                <select
+                  aria-label="페이지로 확인할 데이터 행"
+                  value={previewRow < preview.files.length ? previewRow : 0}
+                  onChange={(event) =>
+                    setPreviewRow(Number(event.target.value))
+                  }
+                  disabled={blocked || stale}
+                >
+                  {preview.files.map((file, index) => (
+                    <option key={file.row} value={index}>
+                      {file.row}행 · {file.fileName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="ds-button"
+                disabled={blocked || stale || !!preview.issues.length}
+                onClick={() =>
+                  void run(() =>
+                    previewDocument(
+                      preview.previewId,
+                      previewRow < preview.files.length ? previewRow : 0,
+                    ),
+                  )
+                }
+              >
+                대표 사본 페이지 미리보기
+              </button>
+            </>
           )}
           {stale && (
             <p role="status">문서가 변경됐습니다. 다시 미리보기해 주세요.</p>
@@ -663,9 +694,7 @@ export function MailMergeTools({
                 });
                 if (alive.current) {
                   setPreview(null);
-                  setNotice(
-                    "새 문서를 생성했습니다. 아래 결과 카드에서 저장하거나 내려받아 보관해 주세요.",
-                  );
+                  setNotice("");
                 }
               })
             }
@@ -688,6 +717,14 @@ export function MailMergeTools({
           saveMailMergeResults: actions.saveResults,
         }}
         onError={(error) => setNotice(error.message)}
+        onOpenStoredCopy={
+          onOpenStoredCopy
+            ? async (file) => {
+                setNotice("");
+                await onOpenStoredCopy(file);
+              }
+            : undefined
+        }
       />
       {notice && <p role="status">{notice}</p>}
     </section>

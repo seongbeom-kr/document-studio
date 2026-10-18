@@ -1,6 +1,6 @@
 {
   "name": "@document-studio/engine-rhwp",
-  "version": "0.2.24",
+  "version": "0.2.25",
   "type": "module",
   "license": "Apache-2.0",
   "files": [

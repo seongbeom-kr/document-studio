@@ -3,10 +3,10 @@ import { expect, test, type Page } from "@playwright/test";
 async function batch(page: Page, format: "docx" | "hwpx") {
   await page.goto("/harness.html?generatedStorage=test");
   await page.waitForFunction(() => !!window.documentStudioTest);
-  await page.evaluate(
-    (format) => window.documentStudioTest.load(format, `blank.${format}`),
-    format,
-  );
+  await page.evaluate((format) => {
+    window.documentStudioTest.persistAutomation = true;
+    return window.documentStudioTest.load(format, `blank.${format}`);
+  }, format);
   await expect
     .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
     .toBe(true);
@@ -40,6 +40,60 @@ async function batch(page: Page, format: "docx" | "hwpx") {
   });
 }
 for (const format of ["docx", "hwpx"] as const) {
+  test(`${format}: stored-copy navigation uses the current host callback after draft flushing`, async ({
+    page,
+  }) => {
+    const { target } = await batch(page, format);
+    await page.evaluate(async (target) => {
+      const host = window.documentStudioTest;
+      await host.agent.saveMailMergeResults({
+        ...target,
+        batchOperationId: "storage-batch",
+      });
+      await host.agent.commit({
+        ...target,
+        expectedRevision: host.agent.getState().revision,
+        operationId: "save-before-host-change",
+      });
+      host.copyStore.onOpen = async () => {
+        host.copyStore.opened.push("old-host");
+      };
+      host.rerender();
+    }, target);
+    await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
+    await page.getByRole("tab", { name: "서식·메일머지", exact: true }).click();
+    await page.evaluate(() => {
+      window.documentStudioTest.pauseNextExport = true;
+    });
+    await page
+      .getByLabel("저장된 사본", { exact: true })
+      .getByRole("button")
+      .first()
+      .click();
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          Boolean(window.documentStudioTest.releasePausedExport),
+        ),
+      )
+      .toBe(true);
+    await page.evaluate(async () => {
+      const host = window.documentStudioTest;
+      host.copyStore.onOpen = async () => {
+        host.copyStore.opened.push("current-host");
+      };
+      host.rerender();
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+      host.releasePausedExport!();
+    });
+    await expect
+      .poll(() =>
+        page.evaluate(() => window.documentStudioTest.copyStore.opened),
+      )
+      .toEqual(["current-host"]);
+  });
   for (const width of [1366, 390])
     test(`${format}/${width}: page preview is read-only and UI stores copies through the shared path`, async ({
       page,
@@ -47,10 +101,10 @@ for (const format of ["docx", "hwpx"] as const) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/harness.html?generatedStorage=test");
       await page.waitForFunction(() => !!window.documentStudioTest);
-      await page.evaluate(
-        (format) => window.documentStudioTest.load(format, `blank.${format}`),
-        format,
-      );
+      await page.evaluate((format) => {
+        window.documentStudioTest.persistAutomation = true;
+        return window.documentStudioTest.load(format, `blank.${format}`);
+      }, format);
       await expect
         .poll(() =>
           page.evaluate(() => window.documentStudioTest.state()?.ready),
@@ -77,13 +131,21 @@ for (const format of ["docx", "hwpx"] as const) {
         .click();
       await page
         .getByLabel("메일머지 입력 데이터", { exact: true })
-        .fill("이름\n긴 이름의 줄바꿈과 표 배치를 확인하는 검증 사용자");
+        .fill(
+          "이름\n첫번째 사용자\n긴 이름의 줄바꿈과 표 배치를 확인하는 검증 사용자",
+        );
       await page
         .getByRole("button", { name: "같은 이름의 열 연결", exact: true })
         .click();
       await page
         .getByRole("button", { name: "메일머지 미리보기", exact: true })
         .click();
+      await page
+        .getByRole("combobox", {
+          name: "페이지로 확인할 데이터 행",
+          exact: true,
+        })
+        .selectOption("1");
       await page
         .getByRole("button", { name: "대표 사본 페이지 미리보기", exact: true })
         .click();
@@ -96,6 +158,10 @@ for (const format of ["docx", "hwpx"] as const) {
         dialog.locator('.ds-editor-body[aria-busy="false"]'),
       ).toBeVisible({ timeout: 35000 });
       await expect(dialog.locator(".ds-engine-loading")).toHaveCount(0);
+      if (format === "docx")
+        await expect(dialog).toContainText(
+          "긴 이름의 줄바꿈과 표 배치를 확인하는 검증 사용자",
+        );
       const box = await dialog.boundingBox();
       expect(box!.width).toBeLessThanOrEqual(width);
       await testInfo.attach("page-preview", {
@@ -112,7 +178,7 @@ for (const format of ["docx", "hwpx"] as const) {
       expect(after.sessionId).toBe(before.sessionId);
       expect(after.generatedOutputPending).toBe(false);
       await page
-        .getByRole("button", { name: "확인한 1개 문서 생성", exact: true })
+        .getByRole("button", { name: "확인한 2개 문서 생성", exact: true })
         .click();
       await page
         .getByRole("button", {
@@ -129,12 +195,46 @@ for (const format of ["docx", "hwpx"] as const) {
         .toBe(false);
       await expect(
         page.getByLabel("저장된 사본", { exact: true }),
-      ).toContainText("copies/");
+      ).toContainText("열기");
+      await page
+        .getByLabel("저장된 사본", { exact: true })
+        .getByRole("button")
+        .first()
+        .click();
+      await expect(
+        page.getByText("현재 원본의 편집을 저장한 뒤 사본을 열어 주세요.", {
+          exact: true,
+        }),
+      ).toBeVisible();
+      expect(
+        await page.evaluate(() => window.documentStudioTest.copyStore.opened),
+      ).toEqual([]);
+      await page.evaluate(() =>
+        window.documentStudioTest.agent.commit({
+          documentId: window.documentStudioTest.agent.getState().documentId,
+          expectedRevision: window.documentStudioTest.agent.getState().revision,
+          expectedSessionId:
+            window.documentStudioTest.agent.getState().sessionId,
+          operationId: "open-copy-source-save",
+        }),
+      );
+      await page
+        .getByLabel("저장된 사본", { exact: true })
+        .getByRole("button")
+        .first()
+        .click();
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => window.documentStudioTest.copyStore.opened.length,
+          ),
+        )
+        .toBe(1);
       expect(
         await page.evaluate(
           () => window.documentStudioTest.copyStore.calls.length,
         ),
-      ).toBe(1);
+      ).toBe(2);
     });
   test(`${format}: partial storage retries only pending copies through the public agent API`, async ({
     page,

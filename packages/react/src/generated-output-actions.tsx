@@ -1,11 +1,16 @@
 import { useId, useState } from "react";
-import type { EditorController, MailMergeStatus } from "@document-studio/core";
+import type {
+  EditorController,
+  MailMergeStatus,
+  GeneratedStoredFile,
+} from "@document-studio/core";
 import { ModalDialog } from "./modal-dialog";
 
 export function GeneratedOutputActions({
   status,
   controller,
   onError,
+  onOpenStoredCopy,
 }: {
   status: MailMergeStatus;
   controller: Pick<
@@ -18,8 +23,10 @@ export function GeneratedOutputActions({
     | "saveMailMergeResults"
   >;
   onError(error: Error): void;
+  onOpenStoredCopy?(file: GeneratedStoredFile): Promise<void>;
 }) {
   const [discarding, setDiscarding] = useState<string | null>(null);
+  const [opening, setOpening] = useState(false);
   const id = useId();
   const perform = (task: () => void) => {
     try {
@@ -62,7 +69,36 @@ export function GeneratedOutputActions({
         <ul aria-label="저장된 사본">
           {status.storedFiles!.map((file) => (
             <li key={file.id}>
-              {file.path}
+              {onOpenStoredCopy ? (
+                <button
+                  type="button"
+                  className="ds-button"
+                  title={file.path}
+                  disabled={opening || status.saving || Boolean(pending)}
+                  onClick={() => {
+                    setOpening(true);
+                    void Promise.resolve()
+                      .then(() => onOpenStoredCopy({ ...file }))
+                      .catch((cause: unknown) =>
+                        onError(
+                          cause instanceof Error
+                            ? cause
+                            : new Error(String(cause)),
+                        ),
+                      )
+                      .finally(() => setOpening(false));
+                  }}
+                >
+                  {result.files.find((item) => item.id === file.id)?.fileName ??
+                    file.path.split("/").at(-1)}{" "}
+                  열기
+                </button>
+              ) : (
+                <span title={file.path}>
+                  {result.files.find((item) => item.id === file.id)?.fileName ??
+                    file.path}
+                </span>
+              )}
               {file.warning && <span role="status"> · {file.warning}</span>}
             </li>
           ))}
@@ -76,15 +112,8 @@ export function GeneratedOutputActions({
           onClick={() => {
             void Promise.resolve()
               .then(() => controller.saveMailMergeResults!(result.operationId))
-              .then((saved) => {
-                if (!saved.complete)
-                  onError(
-                    new Error(
-                      saved.error ??
-                        `사본 ${saved.remaining}개가 남았습니다. 다시 저장해 주세요.`,
-                    ),
-                  );
-              })
+              // Partial-save details belong to storageError below. Reporting them
+              // as a second generic error leaves a stale failure after recovery.
               .catch((cause: unknown) =>
                 onError(
                   cause instanceof Error ? cause : new Error(String(cause)),

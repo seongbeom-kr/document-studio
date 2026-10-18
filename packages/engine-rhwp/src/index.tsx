@@ -11,6 +11,7 @@ import {
   type DocumentContent,
   type SearchResult,
   SaveConflictError,
+  SearchResultExpiredError,
   SelectionConflictError,
   TableEditError,
   EngineInitializationError,
@@ -386,12 +387,16 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
           calls.delete(event.data.requestId);
           if (event.data.error)
             task.reject(
-              event.data.effect &&
-                ["none", "rolled-back", "unknown"].includes(event.data.effect)
-                ? new TableEditError(event.data.error, event.data.effect)
-                : event.data.conflict
-                  ? new SaveConflictError(event.data.error)
-                  : new Error(event.data.error),
+              event.data.code === "search-result-expired"
+                ? new SearchResultExpiredError()
+                : event.data.effect &&
+                    ["none", "rolled-back", "unknown"].includes(
+                      event.data.effect,
+                    )
+                  ? new TableEditError(event.data.error, event.data.effect)
+                  : event.data.conflict
+                    ? new SaveConflictError(event.data.error)
+                    : new Error(event.data.error),
             );
           else task.resolve(event.data.result);
           return;

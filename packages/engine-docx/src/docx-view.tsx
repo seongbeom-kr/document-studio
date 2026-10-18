@@ -22,6 +22,7 @@ import {
   RevisionState,
   SessionStore,
   SaveConflictError,
+  SearchResultExpiredError,
   SelectionConflictError,
   captureExportSnapshot,
   type EditorCommand,
@@ -330,13 +331,16 @@ export function DocxView({
             matchCase: input.matchCase,
             wholeWord: input.wholeWord,
           });
-          matches.clear();
           const revision = currentRevision();
+          for (const [id, entry] of matches)
+            if (entry.revision !== revision) matches.delete(id);
           const selected = found
             .slice(0, input.maxResults ?? 100)
             .map((match) => {
               const id = `${revision}:${++matchSequence}`;
               matches.set(id, { revision, match });
+              while (matches.size > 1000)
+                matches.delete(matches.keys().next().value!);
               return {
                 id,
                 text: match.text,
@@ -355,9 +359,7 @@ export function DocxView({
           checkRevision(expected);
           const found = matches.get(id);
           if (!found || found.revision !== expected)
-            throw new SaveConflictError(
-              "검색 결과가 만료됐습니다. 다시 검색해 주세요.",
-            );
+            throw new SearchResultExpiredError();
           const result = editor.selectMatch(found.match);
           if (!result.ok) throw new Error(result.reason);
           editor.focus();
@@ -375,9 +377,7 @@ export function DocxView({
           } else {
             const found = matches.get(input.matchId!);
             if (!found || found.revision !== expected)
-              throw new SaveConflictError(
-                "검색 결과가 만료됐습니다. 다시 검색해 주세요.",
-              );
+              throw new SearchResultExpiredError();
             foundMatches = [found.match];
           }
           if (!foundMatches.length) return { count: 0 };

@@ -35,61 +35,87 @@ try {
           page.setDefaultTimeout(30000);
           const errors = [];
           page.on("pageerror", (error) => errors.push(error.message));
-          await page.goto(`http://127.0.0.1:4177/?host=${host}`);
-          await page
-            .getByLabel("문서 파일")
-            .setInputFiles(path.join(root, `fixtures/blank.${format}`));
-          const save = page.getByRole("button", {
-            name: "저장하고 다운로드",
-            exact: true,
-          });
-          await expect(save).toBeEnabled();
-          const target =
-            format === "docx"
-              ? page.getByRole("textbox", {
-                  name: "Document content",
-                  exact: true,
-                })
-              : page
-                  .frameLocator("iframe")
-                  .getByLabel("문서 편집 입력", { exact: true });
-          await target.focus();
-          await page.keyboard.insertText("범용 SDK 검증");
-          const download = page.waitForEvent("download");
-          await save.click();
-          const bytes = await readFile(await (await download).path());
-          const part =
-            format === "docx" ? "word/document.xml" : "Contents/section0.xml";
-          expect(strFromU8(unzipSync(bytes)[part])).toContain("범용 SDK 검증");
-          await expect(save).toBeEnabled();
-          await page
-            .getByLabel("문서 파일")
-            .setInputFiles({
+          try {
+            await page.goto(`http://127.0.0.1:4177/?host=${host}`);
+            await page
+              .getByLabel("문서 파일")
+              .setInputFiles(path.join(root, `fixtures/blank.${format}`));
+            const save = page.getByRole("button", {
+              name: "저장하고 다운로드",
+              exact: true,
+            });
+            await expect(save).toBeEnabled();
+            const target =
+              format === "docx"
+                ? page.getByRole("textbox", {
+                    name: "Document content",
+                    exact: true,
+                  })
+                : page
+                    .frameLocator("iframe")
+                    .getByLabel("문서 편집 입력", { exact: true });
+            await target.focus();
+            await page.keyboard.insertText("범용 SDK 검증");
+            const download = page.waitForEvent("download");
+            await save.click();
+            const bytes = await readFile(await (await download).path());
+            const part =
+              format === "docx" ? "word/document.xml" : "Contents/section0.xml";
+            expect(strFromU8(unzipSync(bytes)[part])).toContain(
+              "범용 SDK 검증",
+            );
+            await expect(save).toBeEnabled();
+            await page.getByLabel("문서 파일").setInputFiles({
               name: `reopened.${format}`,
               mimeType: "application/octet-stream",
               buffer: bytes,
             });
-          await expect(save).toBeEnabled();
-          const reopenedDownload = page.waitForEvent("download");
-          await save.click();
-          const reopened = await readFile(
-            await (await reopenedDownload).path(),
-          );
-          expect(strFromU8(unzipSync(reopened)[part])).toContain(
-            "범용 SDK 검증",
-          );
-          await expect(save).toBeEnabled();
-          await page
-            .getByRole("button", { name: "초안 보관 후 닫기", exact: true })
-            .click();
-          await expect(page.locator(".ds-browser-mount")).toHaveCount(0);
-          expect(errors).toEqual([]);
-          results.push({
-            browser: channel ?? "chromium",
-            host,
-            format,
-            passed: true,
-          });
+            await expect(save).toBeEnabled();
+            const reopenedDownload = page.waitForEvent("download");
+            await save.click();
+            const reopened = await readFile(
+              await (await reopenedDownload).path(),
+            );
+            expect(strFromU8(unzipSync(reopened)[part])).toContain(
+              "범용 SDK 검증",
+            );
+            await expect(save).toBeEnabled();
+            await page
+              .getByRole("button", { name: "초안 보관 후 닫기", exact: true })
+              .click();
+            await expect(page.locator(".ds-browser-mount")).toHaveCount(0);
+            expect(errors).toEqual([]);
+            results.push({
+              browser: channel ?? "chromium",
+              host,
+              format,
+              passed: true,
+            });
+          } catch (error) {
+            const evidence = path.join(
+              root,
+              ".build",
+              `dom-consumer-failed-${channel ?? "chromium"}-${host}-${format}`,
+            );
+            await page
+              .screenshot({ path: `${evidence}.png` })
+              .catch(() => undefined);
+            const body = await page
+              .locator("body")
+              .innerText()
+              .catch(() => "unavailable");
+            results.push({
+              browser: channel ?? "chromium",
+              host,
+              format,
+              passed: false,
+              errors,
+              error: String(error),
+              body,
+              url: page.url(),
+            });
+            throw error;
+          }
           await page.close();
         }
     } finally {

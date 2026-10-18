@@ -29,7 +29,10 @@ import {
   type EditorDocument,
 } from "@document-studio/core";
 interface Props {
-  previewMailMergeDocument?(previewId: string): Promise<void>;
+  previewMailMergeDocument?(previewId: string, row?: number): Promise<void>;
+  onOpenStoredCopy?(
+    file: import("@document-studio/core").GeneratedStoredFile,
+  ): Promise<void>;
   quickActions?: ReturnType<
     typeof import("@document-studio/core").createQuickActionEditor
   >;
@@ -576,6 +579,7 @@ export function EditingTools(props: Props) {
         props.automationStatus ? (
           <MailMergeTools
             previewDocument={props.previewMailMergeDocument}
+            onOpenStoredCopy={props.onOpenStoredCopy}
             key={props.documentKey}
             actions={props.mailMerge}
             registerCurrent={props.registerCurrentMailMergeTemplate}

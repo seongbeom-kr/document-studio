@@ -104,6 +104,10 @@ export interface DocumentEditorProps {
   generatedStorage?: GeneratedOutputStorage;
   /** Called only after the user explicitly submits a question about a verified paragraph. */
   onQuestion?(request: DocumentQuestionRequest): Promise<void>;
+  /** Open a confirmed stored copy through the host's navigation and permission checks. */
+  onOpenStoredCopy?(
+    file: import("@document-studio/core").GeneratedStoredFile,
+  ): Promise<void>;
   draftStore?: DraftStore | false;
   draftNamespace?: string;
   /** The host retains authority; readonly views can still export their current document. */
@@ -1326,8 +1330,60 @@ export const DocumentEditor = forwardRef<
       questionTarget.version !== baseVersion.current ||
       questionTarget.revision !== snapshot.revision ||
       questionTarget.selectionKey !== snapshot.selectionKey);
-  const previewCopy = async (previewId: string) =>
-    setCopyPreview(await mailMerge.previewDocument(previewId));
+  const previewCopy = async (previewId: string, row?: number) =>
+    setCopyPreview(await mailMerge.previewDocument(previewId, row));
+  const openStoredCopy = async (
+    file: import("@document-studio/core").GeneratedStoredFile,
+  ) => {
+    const identity = sessionId.current;
+    const open = latest.current.onOpenStoredCopy;
+    const scope = acceptedScope.current;
+    if (
+      !open ||
+      !matchesAcceptedSource(latest.current.document) ||
+      sourceBlocked
+    )
+      throw new Error("현재 문서를 준비한 뒤 사본을 다시 선택해 주세요.");
+    mailMerge.assertCanLeave();
+    if (
+      liveSnapshot().dirty ||
+      busyRef.current ||
+      commandTasks.current.size ||
+      inFlightSave.current
+    )
+      throw new Error("현재 원본의 편집을 저장한 뒤 사본을 열어 주세요.");
+    await flushDraft();
+    if (
+      !mounted.current ||
+      identity !== sessionId.current ||
+      !matchesAcceptedSource(latest.current.document) ||
+      (latest.current.draftNamespace ?? "document-studio") !== scope
+    )
+      throw new Error(
+        "문서 또는 사본 열기 연결이 변경됐습니다. 현재 문서에서 다시 선택해 주세요.",
+      );
+    mailMerge.assertCanLeave();
+    if (
+      liveSnapshot().dirty ||
+      busyRef.current ||
+      commandTasks.current.size ||
+      inFlightSave.current
+    )
+      throw new Error("현재 문서가 변경됐습니다. 저장한 뒤 다시 열어 주세요.");
+    const stored = mailMerge
+      .getSnapshot()
+      .storedFiles?.find(
+        (item) =>
+          item.id === file.id &&
+          item.digest === file.digest &&
+          item.path === file.path &&
+          item.version === file.version,
+      );
+    const currentOpen = latest.current.onOpenStoredCopy;
+    if (!stored || !currentOpen)
+      throw new Error("저장된 사본의 열기 연결을 확인하지 못했습니다.");
+    await currentOpen({ ...stored });
+  };
   const focusGeneratedOutput = () => {
     setCloseDialog(false);
     setToolsTab("서식·메일머지");
@@ -2582,6 +2638,9 @@ export const DocumentEditor = forwardRef<
               quickActions={quickActions}
               mailMerge={mailMerge}
               previewMailMergeDocument={previewCopy}
+              onOpenStoredCopy={
+                props.onOpenStoredCopy ? openStoredCopy : undefined
+              }
               registerCurrentMailMergeTemplate={
                 registerCurrentMailMergeTemplate
               }
@@ -2604,6 +2663,20 @@ export const DocumentEditor = forwardRef<
         <footer className="ds-document-footer">
           <span>{snapshot.pageCount ? `${snapshot.pageCount}쪽` : ""}</span>
           <span>선택한 영역에 서식 적용</span>
+          {viewportWidth > 0 &&
+            viewportWidth < 600 &&
+            !fitWidth &&
+            snapshot.ready &&
+            snapshot.page?.widthMm && (
+              <button
+                type="button"
+                className="ds-button"
+                disabled={!enabled("zoom")}
+                onClick={() => setFitWidth(true)}
+              >
+                좁은 화면: 페이지 너비에 맞춤
+              </button>
+            )}
           <label className="ds-zoom">
             확대
             <select

@@ -969,13 +969,14 @@
   font-weight: 600;
 }
 .ds-copy-page-preview {
-  width: min(70rem, 80vw);
+  width: 100%;
+  max-width: 70rem;
   height: min(70vh, 50rem);
   min-height: 20rem;
 }
 .ds-dialog:has(.ds-copy-page-preview) {
   width: min(76rem, 96vw);
-  max-width: 96vw;
+  max-width: 100%;
 }
 @media (max-width: 600px) {
   .ds-copy-page-preview {

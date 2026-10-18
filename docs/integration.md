@@ -269,3 +269,13 @@ const slots: EditorUISlots = {
 슬롯은 `snapshot`, `readOnly`, `defaultContent`, `execute`, `openTools`, `closeTools`, `toolsOpen`, `nativeTools`, `setNativeTools`, `fitWidth`, `setZoom`를 받습니다. `execute`는 공개 controller와 같은 권한·저장·선택 검사를 거치며 Promise 실패를 앱이 표시해야 합니다. 각 버튼의 활성화 상태는 `snapshot.commands`에서 확인하세요. `openTools`의 탭은 `text`, `paragraph`, `table`, `image`, `page`, `search`, `presets`, `automation`입니다. `setZoom`은 배수 또는 `"width"`를 받습니다.
 
 슬롯의 렌더링이 실패하면 해당 영역의 기본 UI로 복구하고 편집기에 오류를 표시합니다. 문서 엔진은 유지됩니다. DOM API는 React 슬롯 함수를 받지 않습니다. 일반 JavaScript·Vue에서는 영역을 배치하고 자체 버튼을 기존 controller의 `execute`/`save`와 연결하세요. 브리지·저장 계약과 실제 LLM transport 범위는 기존과 같습니다.
+
+### 저장한 생성 사본 열기
+
+`onOpenStoredCopy(file)`를 연결하면 사본 저장 결과에 원래 생성 파일명으로 열기 버튼이 표시됩니다. `file`은 저장소가 확인한 `id`, `digest`, `version`, `path` 영수증입니다. SDK는 미저장 원본, 처리 중인 명령, 미보관 사본을 차단하고 별도 자동화 입력을 보관한 뒤 콜백을 호출합니다. 호스트는 이 콜백에서 현재 사용자·문서 편집권을 다시 확인하고 기존의 잠금·문서 전환 절차를 사용해야 합니다. 경로를 바로 `window.location`에 넣거나 편집기를 강제로 해제하지 마세요. 열기 실패 시 Promise를 reject하면 현재 문서에서 오류를 표시합니다. 이 콜백이 없으면 저장한 파일명과 경로 안내만 표시합니다.
+
+메일머지의 `previewMailMergeDocument(previewId, row)`는 0부터 시작하는 데이터 행 인덱스를 받습니다. UI의 행 선택기도 이 경로를 사용합니다. 페이지 확인은 원본 편집이나 파일 보관을 수행하지 않습니다.
+
+### 검색 결과 보관
+
+DOCX·HWPX 엔진은 같은 revision의 연속 검색 결과를 합쳐 최대 1,000개 보관합니다. 다른 검색을 했다는 이유만으로 이전 결과가 무효화되지 않습니다. 한도를 넘어 오래된 결과가 제거되면 `SearchResultExpiredError` (`code: search-result-expired`, `requiredAction: search-again`, `effect: none`)를 반환하므로 다시 검색하고 대상을 확인하세요. 문서 revision·session이 실제로 바뀐 경우의 충돌 검사와 선택 검사는 그대로 적용됩니다.

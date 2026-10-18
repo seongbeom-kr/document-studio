@@ -13,6 +13,7 @@ import {
   type DraftStore,
   type DocumentTemplate,
   type GeneratedOutputStorage,
+  type GeneratedStoredFile,
   type DocumentQuestionRequest,
 } from "@document-studio/core";
 import {
@@ -77,6 +78,12 @@ function FaultInjectionView(props: EngineViewProps) {
           exportDocument: async () => {
             const api = window.documentStudioTest;
             api.exportAttempts++;
+            if (api.pauseNextExport) {
+              api.pauseNextExport = false;
+              await new Promise<void>((resolve) => {
+                api.releasePausedExport = resolve;
+              });
+            }
             if (api.failExports > 0) {
               api.failExports--;
               throw new SaveConflictError("테스트 직렬화 중 revision 변경");
@@ -127,6 +134,8 @@ declare global {
       load(format: "docx" | "hwpx", name?: string): Promise<void>;
       loadBytes(bytes: number[], format: "docx" | "hwpx"): void;
       copyStore: {
+        onOpen?: (file: GeneratedStoredFile) => Promise<void>;
+        opened: string[];
         calls: string[];
         failAt: number;
         corrupt: boolean;
@@ -157,6 +166,8 @@ declare global {
       failDraftReads: boolean;
       failExports: number;
       exportAttempts: number;
+      pauseNextExport: boolean;
+      releasePausedExport?: () => void;
       failEngineAcknowledgement: boolean;
       readOnly: boolean;
       pauseNextCommand: boolean;
@@ -307,6 +318,7 @@ function Harness() {
     window.documentStudioTest = {
       questionsSent: [],
       copyStore: {
+        opened: [],
         calls: [],
         failAt: 0,
         corrupt: false,
@@ -464,6 +476,7 @@ function Harness() {
       failDraftReads: false,
       failExports: 0,
       exportAttempts: 0,
+      pauseNextExport: false,
       failEngineAcknowledgement: false,
       readOnly: false,
       pauseNextCommand: false,
@@ -544,6 +557,14 @@ function Harness() {
           generatedStorage={
             new URLSearchParams(location.search).has("generatedStorage")
               ? generatedStorage.current
+              : undefined
+          }
+          onOpenStoredCopy={
+            new URLSearchParams(location.search).has("generatedStorage")
+              ? (window.documentStudioTest.copyStore.onOpen ??
+                (async (file) => {
+                  window.documentStudioTest.copyStore.opened.push(file.path);
+                }))
               : undefined
           }
           onQuestion={
