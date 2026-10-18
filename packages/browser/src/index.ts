@@ -259,6 +259,28 @@ export async function mountDocumentEditor(
       return method(id);
     },
     assertCanClose: () => current().assertCanClose?.(),
+    focusGeneratedOutput: () => current().focusGeneratedOutput?.(),
+    captureQuestionTarget: () => {
+      const method = current().captureQuestionTarget;
+      if (!method) throw new Error("단락 질문을 지원하지 않습니다.");
+      return method();
+    },
+    clearQuestionTarget: () => current().clearQuestionTarget?.(),
+    askQuestion: (id, question) => {
+      const method = current().askQuestion;
+      if (!method) throw new Error("질문 연결을 지원하지 않습니다.");
+      return method(id, question);
+    },
+    previewMailMergeDocument: (previewId, row) => {
+      const method = current().previewMailMergeDocument;
+      if (!method) throw new Error("사본 페이지 미리보기를 지원하지 않습니다.");
+      return method(previewId, row);
+    },
+    saveMailMergeResults: (id) => {
+      const method = current().saveMailMergeResults;
+      if (!method) throw new Error("사본 저장을 지원하지 않습니다.");
+      return method(id);
+    },
     exportMailMergeArchive: (id) => {
       const method = current().exportMailMergeArchive;
       if (!method) throw new Error("메일머지를 지원하지 않습니다.");

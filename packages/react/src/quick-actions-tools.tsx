@@ -152,6 +152,16 @@ export function QuickActionTools({
           <strong>{preview.label}</strong>
           <p>{preview.description}</p>
           <p>적용 대상: {preview.target}</p>
+          {preview.selection && (
+            <p>
+              {preview.selection.mode === "insert"
+                ? "커서 위치에 삽입"
+                : `선택한 내용 교체${preview.selection.length !== undefined ? ` · ${preview.selection.length}자` : ""}`}
+              {preview.selection.excerpt
+                ? `: “${preview.selection.excerpt}”`
+                : ""}
+            </p>
+          )}
           {preview.text !== undefined ? (
             <output>{preview.text}</output>
           ) : (

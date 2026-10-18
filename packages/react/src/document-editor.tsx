@@ -54,10 +54,13 @@ import {
   MAIL_MERGE_DRAFT_NAME,
   MailMergeError,
   type MailMergeStatus,
+  type GeneratedOutputStorage,
+  createDocumentQuestionSession,
+  type DocumentQuestionRequest,
+  type DocumentQuestionTarget,
 } from "@document-studio/core";
 import type { EngineDefinition } from "./types";
 import { ModalDialog } from "./modal-dialog";
-import { GeneratedOutputActions } from "./generated-output-actions";
 import { EngineErrorBoundary } from "./engine-error-boundary";
 import { EditingTools } from "./editing-tools";
 import { AutomationSession } from "./automation-session";
@@ -97,10 +100,16 @@ export interface DocumentEditorProps {
   document: EditorDocument;
   engines: readonly EngineDefinition[];
   storage?: DocumentStorage;
+  /** Saves generated copies through the host; original document storage remains separate. */
+  generatedStorage?: GeneratedOutputStorage;
+  /** Called only after the user explicitly submits a question about a verified paragraph. */
+  onQuestion?(request: DocumentQuestionRequest): Promise<void>;
   draftStore?: DraftStore | false;
   draftNamespace?: string;
   /** The host retains authority; readonly views can still export their current document. */
   readOnly?: boolean;
+  /** Initial viewing mode; subsequent user zoom choices remain authoritative. */
+  initialZoom?: "actual" | "width";
   /** Opt in to storing automation source fields separately from document bytes. Use an owner-scoped draftNamespace. */
   automationDraftStore?: AutomationDraftStore | false;
   /** Embedded mode omits the SDK title/action header and inherits the host's design tokens. */
@@ -142,7 +151,7 @@ export function downloadDocument(
 export const DocumentEditor = forwardRef<
   DocumentEditorHandle,
   DocumentEditorProps
->(function DocumentEditor(props, ref) {
+>(function DocumentEditorView(props, ref) {
   const { document: input, engines, storage, onClose } = props;
   const dialogId = useId();
   const latest = useRef(props);
@@ -214,17 +223,20 @@ export const DocumentEditor = forwardRef<
   };
   const [toolsTab, setToolsTab] = useState("문단");
   const [nativeTools, setNativeTools] = useState(false);
-  const [fitWidth, setFitWidth] = useState(false);
+  const [fitWidth, setFitWidth] = useState(props.initialZoom === "width");
   const [viewportWidth, setViewportWidth] = useState(0);
   const [conflict, setConflict] = useState(false);
   const [closeDialog, setCloseDialog] = useState(false);
+  const [copyPreview, setCopyPreview] = useState<EditorDocument | null>(null);
   const mailMergeRef = useRef<ReturnType<typeof createMailMergeSession> | null>(
     null,
   );
   const [mailStatus, setMailStatus] = useState<MailMergeStatus | null>(null);
   const outputPending = () => {
     const state = mailMergeRef.current?.getSnapshot();
-    return Boolean(state?.phase === "running" || state?.pendingOutput);
+    return Boolean(
+      state?.phase === "running" || state?.saving || state?.pendingOutput,
+    );
   };
   const [pendingDocument, setPendingDocument] = useState<EditorDocument | null>(
     null,
@@ -251,7 +263,7 @@ export const DocumentEditor = forwardRef<
   const modalBlocked = useRef(false);
   const automationPending = useRef(false);
   const automationReady = useRef(true);
-  modalBlocked.current = closeDialog || Boolean(offer);
+  modalBlocked.current = closeDialog || Boolean(offer) || Boolean(copyPreview);
   const mutationBlockReason = () =>
     latest.current.readOnly || inputLocks.current.size > 0
       ? "읽기 전용 문서입니다."
@@ -342,11 +354,17 @@ export const DocumentEditor = forwardRef<
           commands: Object.fromEntries(
             Object.entries(state.commands).map(([id, command]) => [
               id,
-              command && {
-                ...command,
-                enabled: false,
-                reason: mutationBlockReason(),
-              },
+              command &&
+                (id === "zoom" &&
+                !modalBlocked.current &&
+                !inputLocks.current.size &&
+                !busyRef.current
+                  ? command
+                  : {
+                      ...command,
+                      enabled: false,
+                      reason: mutationBlockReason(),
+                    }),
             ]),
           ) as EditorSnapshot["commands"],
         }
@@ -703,8 +721,10 @@ export const DocumentEditor = forwardRef<
       command: EditorCommand,
       options?: { expectedRevision?: string; expectedSelectionKey?: string },
     ) => {
-      assertNewMutation();
       validateCommand(command);
+      if (command.id !== "zoom") assertNewMutation();
+      else if (modalBlocked.current || inputLocks.current.size)
+        throw new Error("화면 전환 작업을 마친 뒤 확대를 변경해 주세요.");
       if (
         !session ||
         !session.getSnapshot().ready ||
@@ -1210,6 +1230,7 @@ export const DocumentEditor = forwardRef<
   }, [session, document]);
   const mailPort = useRef<Parameters<typeof createMailMergeSession>[0]>(null!);
   mailPort.current = {
+    storage: () => latest.current.generatedStorage,
     state: () => {
       if (!mounted.current || !session?.getSnapshot().ready || !document)
         throw new MailMergeError("편집기를 준비하는 중입니다.");
@@ -1249,9 +1270,78 @@ export const DocumentEditor = forwardRef<
   mailMergeRef.current ??= createMailMergeSession({
     state: () => mailPort.current.state(),
     assertWritable: () => mailPort.current.assertWritable(),
+    storage: () => mailPort.current.storage?.(),
     onPreview: (...args) => mailPort.current.onPreview?.(...args),
   });
   const mailMerge = mailMergeRef.current;
+  const [questionTarget, setQuestionTarget] =
+    useState<DocumentQuestionTarget | null>(null);
+  const [questionText, setQuestionText] = useState("");
+  const [questionError, setQuestionError] = useState("");
+  const [questionSending, setQuestionSending] = useState(false);
+  const questionPort = useRef<
+    Parameters<typeof createDocumentQuestionSession>[0]
+  >(null!);
+  questionPort.current = {
+    state: () => ({
+      ...liveSnapshot(),
+      documentId: document?.id ?? "",
+      sessionId: sessionId.current,
+      version: baseVersion.current,
+    }),
+    capture: async () => {
+      if (!session?.captureQuestionTarget)
+        throw new Error("이 엔진은 단락 질문을 지원하지 않습니다.");
+      return session.captureQuestionTarget();
+    },
+    clear: () => session?.clearQuestionTarget?.(),
+    send: async (request) => {
+      if (!latest.current.onQuestion)
+        throw new Error("호스트의 질문 연결이 필요합니다.");
+      await latest.current.onQuestion(request);
+    },
+  };
+  const questions = useRef<ReturnType<
+    typeof createDocumentQuestionSession
+  > | null>(null);
+  questions.current ??= createDocumentQuestionSession({
+    state: () => questionPort.current.state(),
+    capture: () => questionPort.current.capture(),
+    clear: () => questionPort.current.clear(),
+    send: (request) => questionPort.current.send(request),
+  });
+  const openQuestion = () => {
+    setQuestionError("");
+    void questions
+      .current!.capture()
+      .then(setQuestionTarget)
+      .catch((cause: unknown) =>
+        reportError(cause instanceof Error ? cause : new Error(String(cause))),
+      );
+  };
+  const questionStale =
+    questionTarget &&
+    (questionTarget.documentId !== document?.id ||
+      questionTarget.sessionId !== sessionId.current ||
+      questionTarget.version !== baseVersion.current ||
+      questionTarget.revision !== snapshot.revision ||
+      questionTarget.selectionKey !== snapshot.selectionKey);
+  const previewCopy = async (previewId: string) =>
+    setCopyPreview(await mailMerge.previewDocument(previewId));
+  const focusGeneratedOutput = () => {
+    setCloseDialog(false);
+    setToolsTab("서식·메일머지");
+    setToolsOpen(true);
+    requestAnimationFrame(() => {
+      const root =
+        props.ui?.containers?.tools ?? body.current?.closest(".ds-editor");
+      const card = root?.querySelector<HTMLElement>(
+        '[aria-label="생성 사본 보관"]',
+      );
+      card?.focus();
+      card?.scrollIntoView({ block: "nearest" });
+    });
+  };
   useEffect(() => {
     setMailStatus(mailMerge.getSnapshot());
     return mailMerge.subscribe(() => setMailStatus(mailMerge.getSnapshot()));
@@ -1626,6 +1716,12 @@ export const DocumentEditor = forwardRef<
       generateMailMerge: mailMerge.generate,
       cancelMailMerge: mailMerge.cancel,
       getMailMergeStatus: mailMerge.getSnapshot,
+      saveMailMergeResults: mailMerge.saveResults,
+      focusGeneratedOutput,
+      previewMailMergeDocument: mailMerge.previewDocument,
+      captureQuestionTarget: questions.current!.capture,
+      askQuestion: questions.current!.send,
+      clearQuestionTarget: questions.current!.clear,
       exportMailMerge: mailMerge.results,
       exportMailMergeArchive: mailMerge.archive,
       noteMailMergeDownload: mailMerge.noteDownload,
@@ -1888,6 +1984,8 @@ export const DocumentEditor = forwardRef<
   const uiContext: Omit<EditorUIContext, "defaultContent"> = {
     snapshot,
     readOnly: Boolean(props.readOnly),
+    canAskQuestion: Boolean(props.onQuestion && session?.captureQuestionTarget),
+    askAboutParagraph: openQuestion,
     toolsOpen,
     nativeTools,
     fitWidth,
@@ -2074,6 +2172,21 @@ export const DocumentEditor = forwardRef<
             >
               빠른 작업
             </button>
+            {props.onQuestion && (
+              <button
+                type="button"
+                className="ds-button"
+                disabled={
+                  !snapshot.ready ||
+                  busy ||
+                  !session?.captureQuestionTarget ||
+                  questionSending
+                }
+                onClick={openQuestion}
+              >
+                이 단락 질문
+              </button>
+            )}
             <button
               className="ds-button"
               disabled={!snapshot.ready || busy}
@@ -2302,6 +2415,84 @@ export const DocumentEditor = forwardRef<
         </div>
       )}
       <div className="ds-work-area">
+        {questionTarget && (
+          <aside className="ds-question-panel" aria-label="선택 단락 질문">
+            <strong>{questionTarget.description}에 대해 질문</strong>
+            <p>답변과 수정 제안을 받습니다. 문서 적용은 별도로 확인합니다.</p>
+            <blockquote>
+              {questionTarget.text.slice(0, 500)}
+              {questionTarget.text.length > 500 ? "…" : ""}
+            </blockquote>
+            <label>
+              질문
+              <textarea
+                aria-label="선택 단락 질문 내용"
+                rows={3}
+                maxLength={4000}
+                value={questionText}
+                onChange={(event) => setQuestionText(event.target.value)}
+                disabled={questionSending}
+              />
+            </label>
+            {questionStale && (
+              <p role="alert">
+                문서 또는 선택이 바뀌었습니다. 단락을 다시 지정해 주세요.
+              </p>
+            )}
+            {questionError && <p role="alert">{questionError}</p>}
+            <div className="ds-question-actions">
+              <button
+                type="button"
+                className="ds-button"
+                disabled={questionSending}
+                onClick={() => {
+                  questions.current!.clear();
+                  setQuestionTarget(null);
+                }}
+              >
+                질문 취소
+              </button>
+              {questionStale && (
+                <button
+                  type="button"
+                  className="ds-button"
+                  disabled={questionSending}
+                  onClick={openQuestion}
+                >
+                  현재 단락으로 다시 지정
+                </button>
+              )}
+              <button
+                type="button"
+                className="ds-button ds-primary"
+                disabled={
+                  questionSending ||
+                  Boolean(questionStale) ||
+                  !questionText.trim()
+                }
+                onClick={() => {
+                  setQuestionSending(true);
+                  setQuestionError("");
+                  void questions
+                    .current!.send(questionTarget.targetId, questionText)
+                    .then(() => {
+                      questions.current!.clear();
+                      setQuestionTarget(null);
+                      setQuestionText("");
+                    })
+                    .catch((cause: unknown) =>
+                      setQuestionError(
+                        cause instanceof Error ? cause.message : String(cause),
+                      ),
+                    )
+                    .finally(() => setQuestionSending(false));
+                }}
+              >
+                {questionSending ? "질문 전송 중…" : "선택 단락 질문 보내기"}
+              </button>
+            </div>
+          </aside>
+        )}
         <div
           className="ds-editor-body"
           ref={body}
@@ -2390,6 +2581,7 @@ export const DocumentEditor = forwardRef<
               tableColumn={tableColumn}
               quickActions={quickActions}
               mailMerge={mailMerge}
+              previewMailMergeDocument={previewCopy}
               registerCurrentMailMergeTemplate={
                 registerCurrentMailMergeTemplate
               }
@@ -2526,6 +2718,37 @@ export const DocumentEditor = forwardRef<
           </div>
         </ModalDialog>
       )}
+      {copyPreview && (
+        <ModalDialog
+          labelledBy={`${dialogId}-copy-preview`}
+          onCancel={() => setCopyPreview(null)}
+        >
+          <h3 id={`${dialogId}-copy-preview`}>대표 사본 페이지 미리보기</h3>
+          <p>
+            {copyPreview.fileName} · 긴 값의 줄바꿈과 표 넘침을 확인하세요. 이
+            미리보기는 사본 생성·저장이 아닙니다.
+          </p>
+          <button
+            type="button"
+            className="ds-button"
+            onClick={() => setCopyPreview(null)}
+          >
+            페이지 미리보기 닫기
+          </button>
+          <div className="ds-copy-page-preview">
+            <DocumentEditor
+              document={copyPreview}
+              engines={props.engines}
+              readOnly
+              initialZoom="width"
+              draftStore={false}
+              automationDraftStore={false}
+              appearance="embedded"
+              slots={{ toolbar: () => null }}
+            />
+          </div>
+        </ModalDialog>
+      )}
       {closeDialog && (
         <ModalDialog
           labelledBy={`${dialogId}-close`}
@@ -2539,17 +2762,15 @@ export const DocumentEditor = forwardRef<
                 ? "생성 사본은 원본 저장에 포함되지 않습니다. 보관 여부를 확인해 주세요."
                 : "아직 보관하지 않은 자동화 입력이 있습니다."}
           </p>
-          <GeneratedOutputActions
-            status={mailStatus ?? mailMerge.getSnapshot()}
-            controller={{
-              exportMailMergeArchive: mailMerge.archive,
-              noteMailMergeDownload: mailMerge.noteDownload,
-              acknowledgeMailMergeDelivery: mailMerge.acknowledgeDelivery,
-              discardMailMergeResults: mailMerge.discardResults,
-              cancelMailMerge: mailMerge.cancel,
-            }}
-            onError={reportError}
-          />
+          {outputPending() && (
+            <button
+              type="button"
+              className="ds-button"
+              onClick={focusGeneratedOutput}
+            >
+              생성 사본 보관 화면으로 이동
+            </button>
+          )}
           {automationStatus.pending &&
             automationStatus.storage === "memory" && (
               <p role="alert">

@@ -10,6 +10,13 @@ export interface EngineInitializationDiagnostics {
   attemptId?: string;
   frameUrl?: string;
   frameReadyVia?: "load" | "runtime";
+  observations?: {
+    event: string;
+    elapsedMs: number;
+    width?: number;
+    height?: number;
+    visibility?: "visible" | "hidden";
+  }[];
   stage: EngineInitializationStage;
   elapsedMs: number;
   transport?: "message-port" | "legacy";

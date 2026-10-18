@@ -661,7 +661,10 @@ for (const format of ["docx", "hwpx"] as const) {
       .getByRole("button", { name: "확인한 1개 문서 생성", exact: true })
       .click();
     await expect(
-      page.getByText("새 문서 1개 생성 완료 · 서버 미저장", { exact: true }),
+      page.getByText(
+        "새 문서 1개 생성 완료 · 서버 미저장 · 보관 0개 · 남음 1개",
+        { exact: true },
+      ),
     ).toBeVisible();
     const download = page.waitForEvent("download");
     await page

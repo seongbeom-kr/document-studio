@@ -62,6 +62,7 @@ function readSettings(value: string): Settings {
   return record;
 }
 export function MailMergeTools({
+  previewDocument,
   actions,
   registerCurrent,
   session,
@@ -70,6 +71,7 @@ export function MailMergeTools({
   disabled,
   readOnly,
 }: {
+  previewDocument?(previewId: string): Promise<void>;
   actions: ReturnType<typeof createMailMergeSession>;
   registerCurrent: () => Promise<MailMergeTemplateInfo>;
   session: AutomationSession;
@@ -83,6 +85,10 @@ export function MailMergeTools({
     actions.getSnapshot,
     actions.getSnapshot,
   );
+  const [formOpen, setFormOpen] = useState(true);
+  useEffect(() => {
+    if (status.lastResult) setFormOpen(false);
+  }, [status.lastResult?.operationId]);
   const [templates, setTemplates] = useState<MailMergeTemplateInfo[]>([]),
     [selected, setSelected] = useState("");
   const [input, setInput] = useState(
@@ -209,7 +215,11 @@ export function MailMergeTools({
         `.${template.format}`,
     });
   };
-  const busy = disabled || working || status.phase === "running",
+  const busy =
+      disabled ||
+      working ||
+      status.phase === "running" ||
+      Boolean(status.saving),
     blocked =
       busy || !draftStatus.ready || !!draftStatus.error || !!settingsError;
   const stale = !!preview && preview.revision !== snapshot.revision;
@@ -219,6 +229,20 @@ export function MailMergeTools({
       aria-label="서식 메일머지"
     >
       <h3>서식 등록과 메일머지</h3>
+      <ol className="ds-workflow-steps" aria-label="메일머지 진행 단계">
+        <li aria-current={!source ? "step" : undefined}>1 서식 확인</li>
+        <li
+          aria-current={
+            source && !preview && !status.lastResult ? "step" : undefined
+          }
+        >
+          2 데이터·필드 연결
+        </li>
+        <li aria-current={preview ? "step" : undefined}>3 출력 검사</li>
+        <li aria-current={status.lastResult ? "step" : undefined}>
+          4 생성·보관
+        </li>
+      </ol>
       <p>
         문서에 <code>{"{{이름}}"}</code> 같은 필드를 넣고 데이터 열과
         연결합니다. 원본 서식을 유지한 새 파일을 최대{" "}
@@ -251,282 +275,317 @@ export function MailMergeTools({
           </button>
         </p>
       )}
-      <div className="ds-quick-buttons">
-        <button
-          type="button"
-          className="ds-button"
-          disabled={blocked || !snapshot.ready}
-          onClick={() =>
-            void run(async () => {
-              const value = await registerCurrent();
-              if (alive.current) {
-                setTemplates(actions.list());
-                choose(value);
-              }
-            })
-          }
-        >
-          현재 편집본을 서식으로 등록
-        </button>
-        <button
-          type="button"
-          className="ds-button"
-          disabled={blocked}
-          onClick={() => fileInput.current?.click()}
-        >
-          서식 파일 선택
-        </button>
-        <input
-          ref={fileInput}
-          type="file"
-          accept=".docx,.hwpx"
-          aria-label="메일머지 서식 파일"
-          disabled={blocked}
-          hidden
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            event.target.value = "";
-            if (!file || blocked) return;
-            void run(async () => {
-              const format = /\.hwpx$/i.test(file.name)
-                ? "hwpx"
-                : /\.docx$/i.test(file.name)
-                  ? "docx"
-                  : undefined;
-              if (!format || file.size > MAIL_MERGE_LIMITS.sourceBytes)
-                throw new Error(
-                  "8 MiB 이하의 DOCX 또는 HWPX 서식을 선택하세요.",
-                );
-              const bytes = new Uint8Array(await file.arrayBuffer());
-              if (!alive.current) return;
-              const value = await actions.register({
-                id: crypto.randomUUID(),
-                fileName: file.name,
-                format,
-                bytes,
-              });
-              if (alive.current) {
-                setTemplates(actions.list());
-                choose(value);
-              }
-            });
-          }}
-        />
-      </div>
-      <div className="ds-tools-row">
-        <label>
-          등록한 서식
-          <select
-            aria-label="메일머지 등록한 서식"
-            value={selected}
-            disabled={blocked}
-            onChange={(event) => {
-              const template = templates.find(
-                (t) => t.templateId === event.target.value,
-              );
-              if (template) choose(template);
-            }}
-          >
-            <option value="">서식을 선택하세요</option>
-            {templates.map((template) => (
-              <option key={template.templateId} value={template.templateId}>
-                {template.fileName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          className="ds-button"
-          disabled={blocked || !source}
-          onClick={() => {
-            if (source) {
-              actions.remove(source.templateId);
-              setPreview(null);
-              setSelected("");
+      <details
+        className="ds-mail-inputs"
+        open={formOpen}
+        onToggle={(event) => setFormOpen(event.currentTarget.open)}
+      >
+        <summary>
+          서식·입력 데이터 {source ? `· ${source.fileName}` : "설정"}
+        </summary>
+        <div className="ds-quick-buttons">
+          <button
+            type="button"
+            className="ds-button"
+            disabled={blocked || !snapshot.ready}
+            onClick={() =>
+              void run(async () => {
+                const value = await registerCurrent();
+                if (alive.current) {
+                  setTemplates(actions.list());
+                  choose(value);
+                }
+              })
             }
-          }}
-        >
-          서식 등록 해제
-        </button>
-      </div>
-      {!source && settings.sourceName && (
-        <p role="status">
-          이전 서식: {settings.sourceName}. 계속하려면 해당 파일을 다시
-          선택하거나 현재 편집본을 등록하세요.
-        </p>
-      )}
-      {source && (
-        <details>
-          <summary>
-            서식 필드 {source.fields.length}개 · 위치 {source.locations.length}
-            곳
-          </summary>
-          <ul>
-            {source.locations.map((location, i) => (
-              <li key={i}>
-                {location.field}: {location.address}
-              </li>
-            ))}
-          </ul>
-          {source.issues.map((text, i) => (
-            <p role="alert" key={i}>
-              {text}
-            </p>
-          ))}
-        </details>
-      )}
-      <fieldset disabled={blocked}>
-        <legend>데이터와 필드 연결</legend>
+          >
+            현재 편집본을 서식으로 등록
+          </button>
+          <button
+            type="button"
+            className="ds-button"
+            disabled={blocked}
+            onClick={() => fileInput.current?.click()}
+          >
+            서식 파일 선택
+          </button>
+          <input
+            ref={fileInput}
+            type="file"
+            accept=".docx,.hwpx"
+            aria-label="메일머지 서식 파일"
+            disabled={blocked}
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (!file || blocked) return;
+              void run(async () => {
+                const format = /\.hwpx$/i.test(file.name)
+                  ? "hwpx"
+                  : /\.docx$/i.test(file.name)
+                    ? "docx"
+                    : undefined;
+                if (!format || file.size > MAIL_MERGE_LIMITS.sourceBytes)
+                  throw new Error(
+                    "8 MiB 이하의 DOCX 또는 HWPX 서식을 선택하세요.",
+                  );
+                const bytes = new Uint8Array(await file.arrayBuffer());
+                if (!alive.current) return;
+                const value = await actions.register({
+                  id: crypto.randomUUID(),
+                  fileName: file.name,
+                  format,
+                  bytes,
+                });
+                if (alive.current) {
+                  setTemplates(actions.list());
+                  choose(value);
+                }
+              });
+            }}
+          />
+        </div>
         <div className="ds-tools-row">
           <label>
-            열 구분
+            등록한 서식
             <select
-              aria-label="메일머지 열 구분"
-              value={delimiter}
-              onChange={(event) =>
-                edit(input, settings, event.target.value as typeof delimiter)
-              }
+              aria-label="메일머지 등록한 서식"
+              value={selected}
+              disabled={blocked}
+              onChange={(event) => {
+                const template = templates.find(
+                  (t) => t.templateId === event.target.value,
+                );
+                if (template) choose(template);
+              }}
             >
-              <option value="auto">자동</option>
-              <option value=",">CSV</option>
-              <option value={"\t"}>TSV</option>
+              <option value="">서식을 선택하세요</option>
+              {templates.map((template) => (
+                <option key={template.templateId} value={template.templateId}>
+                  {template.fileName}
+                </option>
+              ))}
             </select>
           </label>
           <button
             type="button"
             className="ds-button"
-            disabled={!source || !!input}
+            disabled={blocked || !source}
             onClick={() => {
               if (source) {
-                const fields = [...source.fields];
-                edit(
-                  serializeDelimited(
-                    [fields, fields.map((_, i) => `예시 ${i + 1}`)],
-                    ",",
+                actions.remove(source.templateId);
+                setPreview(null);
+                setSelected("");
+              }
+            }}
+          >
+            서식 등록 해제
+          </button>
+        </div>
+        {!source && settings.sourceName && (
+          <p role="status">
+            이전 서식: {settings.sourceName}. 계속하려면 해당 파일을 다시
+            선택하거나 현재 편집본을 등록하세요.
+          </p>
+        )}
+        {source && (
+          <details>
+            <summary>
+              서식 필드 {source.fields.length}개 · 위치{" "}
+              {source.locations.length}곳
+            </summary>
+            <ul>
+              {source.locations.map((location, i) => (
+                <li key={i}>
+                  {location.field}: {location.address}
+                </li>
+              ))}
+            </ul>
+            {source.issues.map((text, i) => (
+              <p role="alert" key={i}>
+                {text}
+              </p>
+            ))}
+          </details>
+        )}
+        <fieldset disabled={blocked}>
+          <legend>데이터와 필드 연결</legend>
+          {source && headers.length > 0 && (
+            <button
+              type="button"
+              className="ds-button"
+              onClick={() =>
+                edit(input, {
+                  ...settings,
+                  mapping: Object.fromEntries(
+                    source.fields.map((field) => [
+                      field,
+                      headers.includes(field)
+                        ? field
+                        : (settings.mapping[field] ?? ""),
+                    ]),
                   ),
-                  {
-                    ...settings,
-                    mapping: Object.fromEntries(
-                      fields.map((field) => [field, field]),
+                })
+              }
+            >
+              같은 이름의 열 연결
+            </button>
+          )}
+          <div className="ds-tools-row">
+            <label>
+              열 구분
+              <select
+                aria-label="메일머지 열 구분"
+                value={delimiter}
+                onChange={(event) =>
+                  edit(input, settings, event.target.value as typeof delimiter)
+                }
+              >
+                <option value="auto">자동</option>
+                <option value=",">CSV</option>
+                <option value={"\t"}>TSV</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              className="ds-button"
+              disabled={!source || !!input}
+              onClick={() => {
+                if (source) {
+                  const fields = [...source.fields];
+                  edit(
+                    serializeDelimited(
+                      [fields, fields.map((_, i) => `예시 ${i + 1}`)],
+                      ",",
                     ),
-                  },
-                  ",",
+                    {
+                      ...settings,
+                      mapping: Object.fromEntries(
+                        fields.map((field) => [field, field]),
+                      ),
+                    },
+                    ",",
+                  );
+                }
+              }}
+            >
+              빈 입력에 예제 채우기
+            </button>
+          </div>
+          <label>
+            입력 데이터
+            <textarea
+              aria-label="메일머지 입력 데이터"
+              value={input}
+              rows={7}
+              onChange={(event) => edit(event.target.value)}
+              placeholder={"이름,소속\n홍길동,기획팀"}
+            />
+          </label>
+          <p className="ds-muted">
+            첫 행은 데이터 열 이름입니다. 사번·날짜·앞자리 0도 원래 문자열로
+            유지합니다.
+          </p>
+          {dataError && <p role="status">{dataError}</p>}
+          <div className="ds-mail-mapping">
+            {source?.fields.map((field) => (
+              <label key={field}>
+                {field}
+                <select
+                  aria-label={`필드 ${field} 데이터 열`}
+                  value={settings.mapping[field] ?? ""}
+                  onChange={(event) =>
+                    edit(input, {
+                      ...settings,
+                      mapping: {
+                        ...settings.mapping,
+                        [field]: event.target.value,
+                      },
+                    })
+                  }
+                >
+                  <option value="">연결할 열 선택</option>
+                  {headers.map((header) => (
+                    <option key={header} value={header}>
+                      {header}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+          <label>
+            출력 파일 이름
+            <input
+              aria-label="메일머지 출력 파일 이름"
+              value={settings.fileNamePattern}
+              onChange={(event) =>
+                edit(input, {
+                  ...settings,
+                  fileNamePattern: event.target.value,
+                })
+              }
+            />
+          </label>
+          <p className="ds-muted">
+            예: {`안내문-{{이름}}-{{#}}.${source?.format ?? "docx"}`} ·{" "}
+            {"{{#}}"}는 순번입니다.
+          </p>
+          <label className="ds-check">
+            <input
+              type="checkbox"
+              checked={settings.allowEmpty}
+              onChange={(event) =>
+                edit(input, { ...settings, allowEmpty: event.target.checked })
+              }
+            />
+            빈 값 허용 (미리보기에 표시)
+          </label>
+          <button
+            type="button"
+            className="ds-button"
+            disabled={!source || !input}
+            onClick={() => {
+              setNotice("");
+              try {
+                setPreview(
+                  actions.preview({
+                    templateId: source!.templateId,
+                    data: input,
+                    delimiter,
+                    mapping: settings.mapping,
+                    fileNamePattern: settings.fileNamePattern,
+                    allowEmpty: settings.allowEmpty,
+                  }),
+                );
+              } catch (error) {
+                setPreview(null);
+                setNotice(
+                  error instanceof Error ? error.message : String(error),
                 );
               }
             }}
           >
-            빈 입력에 예제 채우기
+            메일머지 미리보기
           </button>
-        </div>
-        <label>
-          입력 데이터
-          <textarea
-            aria-label="메일머지 입력 데이터"
-            value={input}
-            rows={7}
-            onChange={(event) => edit(event.target.value)}
-            placeholder={"이름,소속\n홍길동,기획팀"}
-          />
-        </label>
-        <p className="ds-muted">
-          첫 행은 데이터 열 이름입니다. 사번·날짜·앞자리 0도 원래 문자열로
-          유지합니다.
-        </p>
-        {dataError && <p role="status">{dataError}</p>}
-        <div className="ds-mail-mapping">
-          {source?.fields.map((field) => (
-            <label key={field}>
-              {field}
-              <select
-                aria-label={`필드 ${field} 데이터 열`}
-                value={settings.mapping[field] ?? ""}
-                onChange={(event) =>
-                  edit(input, {
-                    ...settings,
-                    mapping: {
-                      ...settings.mapping,
-                      [field]: event.target.value,
-                    },
-                  })
-                }
-              >
-                <option value="">연결할 열 선택</option>
-                {headers.map((header) => (
-                  <option key={header} value={header}>
-                    {header}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ))}
-        </div>
-        <label>
-          출력 파일 이름
-          <input
-            aria-label="메일머지 출력 파일 이름"
-            value={settings.fileNamePattern}
-            onChange={(event) =>
-              edit(input, { ...settings, fileNamePattern: event.target.value })
-            }
-          />
-        </label>
-        <p className="ds-muted">
-          예: {`안내문-{{이름}}-{{#}}.${source?.format ?? "docx"}`} · {"{{#}}"}
-          는 순번입니다.
-        </p>
-        <label className="ds-check">
-          <input
-            type="checkbox"
-            checked={settings.allowEmpty}
-            onChange={(event) =>
-              edit(input, { ...settings, allowEmpty: event.target.checked })
-            }
-          />
-          빈 값 허용 (미리보기에 표시)
-        </label>
+        </fieldset>
         <button
           type="button"
           className="ds-button"
-          disabled={!source || !input}
           onClick={() => {
-            setNotice("");
-            try {
-              setPreview(
-                actions.preview({
-                  templateId: source!.templateId,
-                  data: input,
-                  delimiter,
-                  mapping: settings.mapping,
-                  fileNamePattern: settings.fileNamePattern,
-                  allowEmpty: settings.allowEmpty,
-                }),
-              );
-            } catch (error) {
-              setPreview(null);
-              setNotice(error instanceof Error ? error.message : String(error));
-            }
+            download(
+              new TextEncoder().encode(
+                JSON.stringify(session.get(MAIL_MERGE_DRAFT_NAME), null, 2),
+              ),
+              "메일머지-입력.json",
+              "application/json",
+            );
+            setNotice("입력 데이터와 필드 설정의 다운로드를 요청했습니다.");
           }}
         >
-          메일머지 미리보기
+          입력·필드 설정 내려받기
         </button>
-      </fieldset>
-      <button
-        type="button"
-        className="ds-button"
-        onClick={() => {
-          download(
-            new TextEncoder().encode(
-              JSON.stringify(session.get(MAIL_MERGE_DRAFT_NAME), null, 2),
-            ),
-            "메일머지-입력.json",
-            "application/json",
-          );
-          setNotice("입력 데이터와 필드 설정의 다운로드를 요청했습니다.");
-        }}
-      >
-        입력·필드 설정 내려받기
-      </button>
+      </details>
       {preview && (
         <div className="ds-mail-preview" aria-label="메일머지 결과 미리보기">
           <strong>
@@ -576,9 +635,19 @@ export function MailMergeTools({
             </table>
           </div>
           <p>
-            모든 파일이 생성돼야 결과를 공개합니다. 생성은 서버 저장이 아니며
-            다운로드 후 사용합니다.
+            값 목록은 줄바꿈·표 넘침을 보여주지 않습니다. 대표 사본 페이지를
+            확인한 뒤 생성하세요.
           </p>
+          {previewDocument && (
+            <button
+              type="button"
+              className="ds-button"
+              disabled={blocked || stale || !!preview.issues.length}
+              onClick={() => void run(() => previewDocument(preview.previewId))}
+            >
+              대표 사본 페이지 미리보기
+            </button>
+          )}
           {stale && (
             <p role="status">문서가 변경됐습니다. 다시 미리보기해 주세요.</p>
           )}
@@ -595,7 +664,7 @@ export function MailMergeTools({
                 if (alive.current) {
                   setPreview(null);
                   setNotice(
-                    "새 문서를 생성했습니다. 결과를 내려받아 주세요. 서버에는 저장하지 않았습니다.",
+                    "새 문서를 생성했습니다. 아래 결과 카드에서 저장하거나 내려받아 보관해 주세요.",
                   );
                 }
               })
@@ -616,6 +685,7 @@ export function MailMergeTools({
           acknowledgeMailMergeDelivery: actions.acknowledgeDelivery,
           discardMailMergeResults: actions.discardResults,
           cancelMailMerge: actions.cancel,
+          saveMailMergeResults: actions.saveResults,
         }}
         onError={(error) => setNotice(error.message)}
       />

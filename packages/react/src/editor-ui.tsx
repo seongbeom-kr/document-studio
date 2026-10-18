@@ -42,6 +42,8 @@ export interface EditorUIOptions {
 export interface EditorUIContext {
   snapshot: EditorSnapshot;
   readOnly: boolean;
+  canAskQuestion?: boolean;
+  askAboutParagraph?(): void;
   defaultContent: ReactNode;
   toolsOpen: boolean;
   nativeTools: boolean;

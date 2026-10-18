@@ -222,7 +222,7 @@ export function createAgentBridge(
           getEditor()?.generateMailMerge,
       ),
       workflow:
-        "registerCurrentMailMergeTemplate or a user-uploaded template → listMailMergeTemplates → previewMailMerge → inspect all files/empty values/issues → generateMailMerge. Generated files stay in browser session memory. Server saving/delivery requires the host's exportMailMerge integration; never claim they are already saved.",
+        "registerCurrentMailMergeTemplate or a user-uploaded template → listMailMergeTemplates → previewMailMerge → inspect files/empty values/issues → generateMailMerge → saveMailMergeResults({documentId, expectedSessionId, batchOperationId: generated.operationId}). Saving requires a host generatedStorage adapter. Inspect complete, remaining, stored paths and getMailMergeStatus; generation and source commit do not save copies. Retry saving only pending files after partial failure.",
     }),
     registerCurrentMailMergeTemplate: async (request: AgentTarget) => {
       const started = target(request);
@@ -298,6 +298,23 @@ export function createAgentBridge(
       if (!started.handle.getMailMergeStatus)
         throw new Error("메일머지를 지원하지 않습니다.");
       return started.handle.getMailMergeStatus();
+    },
+    saveMailMergeResults: (
+      request: AgentTarget & {
+        expectedSessionId: string;
+        batchOperationId: string;
+      },
+    ) => {
+      if (
+        !request.expectedSessionId ||
+        typeof request.batchOperationId !== "string" ||
+        !request.batchOperationId
+      )
+        throw new Error("편집 세션과 생성 작업 ID가 필요합니다.");
+      const started = target(request);
+      if (!started.handle.saveMailMergeResults)
+        throw new Error("사본 저장소가 연결되지 않았습니다.");
+      return started.handle.saveMailMergeResults(request.batchOperationId);
     },
     cancelMailMerge: (request: AgentTarget & { operationId: string }) => {
       const started = target(request);

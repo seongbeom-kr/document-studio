@@ -15,6 +15,7 @@ export function GeneratedOutputActions({
     | "acknowledgeMailMergeDelivery"
     | "discardMailMergeResults"
     | "cancelMailMerge"
+    | "saveMailMergeResults"
   >;
   onError(error: Error): void;
 }) {
@@ -46,12 +47,57 @@ export function GeneratedOutputActions({
     );
   if (!result) return null;
   return (
-    <section className="ds-generated-output" aria-label="생성 사본 보관">
+    <section
+      className="ds-generated-output"
+      aria-label="생성 사본 보관"
+      tabIndex={-1}
+    >
       <p role="status">
         {status.phase === "ready" ? "새 문서" : "이전 생성 문서"}{" "}
         {result.files.length}개 생성 완료 ·{" "}
         {pending ? "서버 미저장" : "파일 보관 확인됨"}
+        {` · 보관 ${result.files.length - (pending?.receipt.files.length ?? 0)}개 · 남음 ${pending?.receipt.files.length ?? 0}개`}
       </p>
+      {Boolean(status.storedFiles?.length) && (
+        <ul aria-label="저장된 사본">
+          {status.storedFiles!.map((file) => (
+            <li key={file.id}>
+              {file.path}
+              {file.warning && <span role="status"> · {file.warning}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {pending && status.storageLabel && controller.saveMailMergeResults && (
+        <button
+          type="button"
+          className="ds-button ds-primary"
+          disabled={status.saving}
+          onClick={() => {
+            void Promise.resolve()
+              .then(() => controller.saveMailMergeResults!(result.operationId))
+              .then((saved) => {
+                if (!saved.complete)
+                  onError(
+                    new Error(
+                      saved.error ??
+                        `사본 ${saved.remaining}개가 남았습니다. 다시 저장해 주세요.`,
+                    ),
+                  );
+              })
+              .catch((cause: unknown) =>
+                onError(
+                  cause instanceof Error ? cause : new Error(String(cause)),
+                ),
+              );
+          }}
+        >
+          {status.saving
+            ? "사본 저장 중…"
+            : `${status.storageLabel}에 ${status.storedFiles?.length ? "남은 사본" : "사본"} 저장`}
+        </button>
+      )}
+      {status.storageError && <p role="alert">{status.storageError}</p>}
       {pending && (
         <>
           <p role="status">
@@ -103,6 +149,7 @@ export function GeneratedOutputActions({
           <button
             type="button"
             className="ds-button"
+            disabled={status.saving}
             onClick={() =>
               perform(() => {
                 if (!controller.acknowledgeMailMergeDelivery)
@@ -126,6 +173,7 @@ export function GeneratedOutputActions({
         <button
           type="button"
           className="ds-button"
+          disabled={status.saving}
           onClick={() => setDiscarding(pending.receipt.operationId)}
         >
           생성 결과 버리기

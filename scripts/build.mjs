@@ -4,6 +4,7 @@ import { cp, readFile, writeFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { docxPaintPatch, DOCX_PAINT_PATCH } from "./docx-paint-patch.mjs";
+import { prepareRhwpObservation } from "./prepare-rhwp-observation.mjs";
 import {
   rhwpLifecyclePatch,
   RHWP_LIFECYCLE_PATCH,
@@ -122,6 +123,7 @@ for (const name of packages) {
   }
   if (name === "engine-rhwp") {
     const studio = path.join(root, "packages/engine-rhwp/dist/studio");
+    await prepareRhwpObservation(studio);
     const provenance = JSON.parse(
       await readFile(path.join(studio, "provenance.json"), "utf8"),
     );

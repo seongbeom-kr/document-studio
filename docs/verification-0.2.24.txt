@@ -1,0 +1,37 @@
+Document Studio SDK 0.2.24 — verification record
+Date: 2026-10-18
+
+Changes
+- Host-provided GeneratedOutputStorage, verified per-file receipts, partial-save retry, and shared UI/agent saveMailMergeResults.
+- Mail-merge workflow steps, field-name mapping, one result card, stored paths/warnings and a read-only representative-page preview.
+- Logical paragraph question targets with visible borders and document/session/version/revision/selection guards. Hosts provide onQuestion. Arbitrary rectangles, images and HWPX table regions are not included.
+- Bounded early HWPX boot observations. Observations do not declare the engine ready or increase the initialization deadline.
+
+Executed checks
+- TypeScript type check: passed.
+- Unit tests: 468 passed.
+- SDK build, playground production build and license inventory: passed.
+- Production dependency audit: no reported suggestions.
+- Isolated npm tarball installation and Next.js build: passed.
+- Installed-package browser checks: React/Next 4 combinations and plain JS/Vue 8 combinations passed (Chrome/Edge and DOCX/HWPX).
+- Full Chrome/Edge suite: 853 passed, 1 failed out of 854.
+  The failure was a test race: the narrow automation dock expanded automatically between reading its state and clicking the old expansion label. The captured failure already showed the expanded dock.
+  The test now retries the expansion state and normal user click together. Relevant DOCX/HWPX x 1366/480 x Chrome/Edge cases, repeated three times: 24 passed. Product source did not change after the full run. The entire suite was not rerun after this test-only correction.
+- HWPX saved close/reopen: 10 fixed-size and 10 resizing-during-initialization iterations in each browser, all passed within the full suite.
+- Paragraph question and representative-page preview screenshots inspected at 390px and 1366px.
+
+Evidence limits
+Browser tests use synthetic documents and local hosts. Host callbacks, isolated model transport tests and test storage are not proof of authenticated service/model/server round trips. The reported intermittent HWPX failure in the actual consuming service was not reproduced locally; its service root cause remains unconfirmed. No native Hancom/Word or physical Windows IME validation was added in this work.
+
+Reproduction
+yarn typecheck
+yarn test
+yarn build
+yarn build:playground
+yarn audit:licenses
+yarn audit:security
+yarn verify:packages
+yarn test:e2e
+yarn playwright test tests/e2e/inspection-rereview.spec.ts --grep "structured preview occupies" --repeat-each=3 --workers=2
+
+Local evidence: .build/stability-20261018/ (excluded from Git).

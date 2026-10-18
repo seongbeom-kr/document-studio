@@ -45,6 +45,20 @@ export interface EditorController {
   }): Promise<import("./mail-merge").MailMergeReceipt>;
   cancelMailMerge?(operationId: string): void;
   getMailMergeStatus?(): import("./mail-merge").MailMergeStatus;
+  saveMailMergeResults?(
+    operationId: string,
+  ): Promise<import("./generated-output").GeneratedOutputSaveResult>;
+  /** Host UI navigation only; does not alter or acknowledge generated files. */
+  focusGeneratedOutput?(): void;
+  captureQuestionTarget?(): Promise<
+    import("./document-question").DocumentQuestionTarget
+  >;
+  askQuestion?(targetId: string, question: string): Promise<void>;
+  clearQuestionTarget?(): void;
+  previewMailMergeDocument?(
+    previewId: string,
+    row?: number,
+  ): Promise<import("./index").EditorDocument>;
   exportMailMerge?(operationId: string): import("./index").EditorDocument[];
   exportMailMergeArchive?(operationId: string): Uint8Array;
   noteMailMergeDownload?(operationId: string): void;

@@ -1,4 +1,34 @@
 import type { MailMergeReceipt } from "./mail-merge";
+import type { EditorDocument } from "./index";
+
+export interface GeneratedStoredFile {
+  id: string;
+  digest: string;
+  version: string;
+  path: string;
+  warning?: string;
+}
+/** Host-owned storage. Repeated operationId/file.id/digest must never create duplicate files. */
+export interface GeneratedOutputStorage {
+  id: string;
+  label: string;
+  timeoutMs?: number;
+  save(input: {
+    operationId: string;
+    documentId: string;
+    sessionId: string;
+    file: EditorDocument;
+    digest: string;
+    signal: AbortSignal;
+  }): Promise<GeneratedStoredFile>;
+}
+export interface GeneratedOutputSaveResult {
+  operationId: string;
+  complete: boolean;
+  remaining: number;
+  stored: readonly GeneratedStoredFile[];
+  error?: string;
+}
 
 export interface GeneratedOutputPending {
   receipt: MailMergeReceipt;

@@ -1,6 +1,7 @@
 import { cp, access, readFile, writeFile, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { prepareRhwpObservation } from "./prepare-rhwp-observation.mjs";
 const runtime = fileURLToPath(
   new URL("../.build/rhwp-studio/", import.meta.url),
 );
@@ -15,6 +16,7 @@ try {
   );
 }
 await cp(runtime, target, { recursive: true });
+await prepareRhwpObservation(target);
 const provenance = JSON.parse(
   await readFile(path.join(target, "provenance.json"), "utf8"),
 );

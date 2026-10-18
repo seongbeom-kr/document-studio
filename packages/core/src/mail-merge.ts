@@ -8,6 +8,9 @@ import {
   GeneratedOutputPendingError,
   type GeneratedOutputPending,
   type GeneratedFileDelivery,
+  type GeneratedOutputStorage,
+  type GeneratedStoredFile,
+  type GeneratedOutputSaveResult,
 } from "./generated-output";
 
 export const MAIL_MERGE_LIMITS = Object.freeze({
@@ -78,6 +81,10 @@ export interface MailMergeStatus {
   error?: string;
   lastResult?: MailMergeReceipt;
   pendingOutput?: GeneratedOutputPending;
+  saving?: boolean;
+  storageLabel?: string;
+  storedFiles?: readonly GeneratedStoredFile[];
+  storageError?: string;
 }
 export class MailMergeError extends Error {
   readonly effect = "none";
@@ -621,11 +628,14 @@ function fillParts(
 export function createMailMergeSession(port: {
   state(): TableEditIdentity;
   assertWritable(): void;
+  storage?(): GeneratedOutputStorage | undefined;
   onPreview?(request: MailMergeRequest, template: MailMergeTemplateInfo): void;
 }) {
   const templates = new Map<string, Registered>(),
     previews = new Map<string, MailMergePreview>();
   const deliveries = new GeneratedOutputLedger();
+  let saveTask: Promise<GeneratedOutputSaveResult> | undefined;
+  const storedFiles = new Map<string, GeneratedStoredFile>();
   const operations = new Map<
     string,
     {
@@ -660,7 +670,15 @@ export function createMailMergeSession(port: {
       Object.freeze(pendingOutput.receipt);
       Object.freeze(pendingOutput);
     }
-    status = Object.freeze({ ...value, lastResult, pendingOutput });
+    status = Object.freeze({
+      ...value,
+      lastResult,
+      pendingOutput,
+      storageLabel: port.storage?.()?.label,
+      storedFiles: Object.freeze(
+        [...storedFiles.values()].map((file) => Object.freeze({ ...file })),
+      ),
+    });
     for (const listener of listeners) {
       try {
         listener();
@@ -677,6 +695,8 @@ export function createMailMergeSession(port: {
     const value = identity(port.state()),
       key = JSON.stringify([value.documentId, value.sessionId]);
     if (scope !== key) {
+      if (saveTask)
+        throw new GeneratedOutputPendingError(deliveries.pending(), true);
       if (scope) deliveries.assertSettled();
       deliveries.reset();
       for (const op of operations.values()) op.abort.abort();
@@ -684,6 +704,7 @@ export function createMailMergeSession(port: {
       previews.clear();
       operations.clear();
       outputs.clear();
+      storedFiles.clear();
       scope = key;
       status = Object.freeze({ phase: "idle", completed: 0, total: 0 });
     }
@@ -708,7 +729,7 @@ export function createMailMergeSession(port: {
     },
     getSnapshot: () => status,
     assertCanLeave() {
-      if (status.phase === "running")
+      if (status.phase === "running" || status.saving)
         throw new GeneratedOutputPendingError(deliveries.pending(), true);
       deliveries.assertSettled();
     },
@@ -722,16 +743,166 @@ export function createMailMergeSession(port: {
       files: readonly GeneratedFileDelivery[];
     }) {
       state();
+      if (status.saving) throw issue("사본 저장이 진행 중입니다.");
       deliveries.acknowledge(input.operationId, input.files);
       publish({ ...status });
     },
     discardResults(operationId: string) {
       state();
-      if (status.phase === "running")
+      if (status.phase === "running" || status.saving)
         throw issue("생성 작업을 먼저 취소해 주세요.");
       deliveries.discard(operationId);
       outputs.delete(operationId);
+      storedFiles.clear();
       publish({ phase: "idle", completed: 0, total: 0 });
+    },
+    saveResults(operationId: string): Promise<GeneratedOutputSaveResult> {
+      const expected = state(),
+        output = outputs.get(operationId),
+        storage = port.storage?.();
+      if (
+        !output ||
+        output.receipt.operationId !== status.lastResult?.operationId
+      )
+        throw issue("현재 생성 결과를 확인해 주세요.");
+      if (saveTask) return saveTask;
+      if (!storage?.id?.trim() || !storage.label?.trim())
+        throw issue("사본 저장소가 연결되지 않았습니다.");
+      const timeoutMs = storage.timeoutMs ?? 60000;
+      if (
+        !Number.isSafeInteger(timeoutMs) ||
+        timeoutMs < 1000 ||
+        timeoutMs > 120000
+      )
+        throw issue("사본 저장 기한은 1000~120000ms여야 합니다.");
+      const assertCurrent = () => {
+        const current = state();
+        port.assertWritable();
+        if (
+          current.documentId !== expected.documentId ||
+          current.sessionId !== expected.sessionId ||
+          port.storage?.() !== storage
+        )
+          throw issue(
+            "사본 저장 중 문서 또는 저장소가 변경됐습니다. 현재 결과를 다시 확인해 주세요.",
+          );
+      };
+      assertCurrent();
+      publish({
+        ...status,
+        saving: true,
+        storageLabel: storage.label,
+        storageError: undefined,
+      });
+      // Start after the task is published so concurrent UI/model requests share it.
+      saveTask = Promise.resolve().then(async () => {
+        let error: string | undefined;
+        try {
+          for (const info of deliveries.pending()?.receipt.files ?? []) {
+            assertCurrent();
+            const document = output.documents.find(
+              (file) => file.id === info.id,
+            );
+            if (!document) throw issue("생성 파일을 찾을 수 없습니다.");
+            const abort = new AbortController();
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            try {
+              const result = await Promise.race([
+                storage.save({
+                  operationId,
+                  documentId: expected.documentId,
+                  sessionId: expected.sessionId,
+                  file: { ...document, bytes: new Uint8Array(document.bytes) },
+                  digest: info.digest,
+                  signal: abort.signal,
+                }),
+                new Promise<never>((_, reject) => {
+                  timer = setTimeout(() => {
+                    abort.abort();
+                    reject(
+                      issue(
+                        "사본 저장 응답을 확인하지 못했습니다. 같은 파일의 저장 상태를 확인한 뒤 다시 시도해 주세요.",
+                      ),
+                    );
+                  }, timeoutMs);
+                }),
+              ]);
+              assertCurrent();
+              if (
+                result?.id !== info.id ||
+                result.digest !== info.digest ||
+                typeof result.path !== "string" ||
+                !result.path.trim() ||
+                result.path.length > 4096 ||
+                /[\u0000-\u001f]/.test(result.path)
+              )
+                throw issue(
+                  "사본의 저장 경로·ID·digest를 확인하지 못했습니다.",
+                );
+              deliveries.acknowledge(operationId, [
+                {
+                  id: info.id,
+                  digest: info.digest,
+                  destination: "storage",
+                  version: result.version,
+                },
+              ]);
+              storedFiles.set(info.id, {
+                id: info.id,
+                digest: info.digest,
+                version: result.version,
+                path: result.path,
+                ...(typeof result.warning === "string"
+                  ? { warning: result.warning.slice(0, 2000) }
+                  : {}),
+              });
+              publish({ ...status });
+            } finally {
+              clearTimeout(timer);
+            }
+          }
+        } catch (cause) {
+          error = cause instanceof Error ? cause.message : String(cause);
+        } finally {
+          publish({ ...status, saving: false, storageError: error });
+          saveTask = undefined;
+        }
+        const remaining = deliveries.pending()?.receipt.files.length ?? 0;
+        return {
+          operationId,
+          complete: remaining === 0,
+          remaining,
+          stored: [...storedFiles.values()].map((file) => ({ ...file })),
+          ...(error ? { error } : {}),
+        };
+      });
+      return saveTask;
+    },
+    async previewDocument(previewId: string, row = 0): Promise<EditorDocument> {
+      state();
+      const preview = previews.get(previewId),
+        source = preview && templates.get(preview.template.templateId);
+      if (
+        !preview ||
+        !source ||
+        preview.issues.length ||
+        !Number.isSafeInteger(row) ||
+        !preview.files[row]
+      )
+        throw issue("출력 검사에서 오류를 해결하고 미리볼 행을 선택해 주세요.");
+      check(preview);
+      const file = preview.files[row]!;
+      const document: EditorDocument = {
+        id: `preview:${previewId}:${row}`,
+        fileName: file.fileName,
+        format: source.info.format,
+        bytes: fillParts(source, file.values),
+      };
+      if (document.bytes.length > MAIL_MERGE_LIMITS.outputBytes)
+        throw issue("미리보기 크기 제한을 넘었습니다.");
+      await validateDocumentAsync(document);
+      check(preview);
+      return document;
     },
     list() {
       state();
@@ -866,8 +1037,8 @@ export function createMailMergeSession(port: {
       }
       if (operations.size >= 64)
         throw issue("생성 작업 기록 한도에 도달했습니다.");
-      if (status.phase === "running")
-        throw issue("현재 생성 작업을 마치거나 취소해 주세요.");
+      if (status.phase === "running" || status.saving)
+        throw issue("현재 생성·저장 작업을 마치거나 취소해 주세요.");
       deliveries.assertSettled();
       const preview = previews.get(previewId);
       if (!preview) throw issue("미리보기가 만료됐습니다.");
@@ -945,6 +1116,7 @@ export function createMailMergeSession(port: {
           };
           // Publish only the whole successful batch. Older bytes are replaced, never silently reused.
           deliveries.retain(receipt);
+          storedFiles.clear();
           outputs.clear();
           outputs.set(operationId, { receipt, documents });
           update({

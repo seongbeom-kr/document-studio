@@ -85,6 +85,7 @@ export function DocxView({
             "검색 결과의 revision이 변경됐습니다. 다시 검색해 주세요.",
           );
       };
+      let questionGuard: { revision: string; selectionKey: string } | undefined;
       const update = () => {
         if (!active) return;
         const native = editor.snapshot();
@@ -93,6 +94,14 @@ export function DocxView({
           return;
         }
         const revision = String(editor.getDocumentHandle().revision);
+        if (
+          questionGuard &&
+          (questionGuard.revision !== revision ||
+            questionGuard.selectionKey !== docxSelectionKey(editor))
+        ) {
+          editor.clearAnchorHighlight({ animation: false });
+          questionGuard = undefined;
+        }
         const commands = Object.fromEntries(
           COMMAND_IDS.map((id) => {
             const command = nativeCommand(probeCommand(id), editor);
@@ -191,6 +200,7 @@ export function DocxView({
           selectionCollapsed: native.selectionCollapsed,
           selectionKey: docxSelectionKey(editor),
           selectionText: editor.query({ type: "selectedText" }).slice(0, 160),
+          selectionTextLength: editor.query({ type: "selectedText" }).length,
           selectionGuardedCommands: true,
           selectionStateScope: "selection",
           commands,
@@ -198,6 +208,50 @@ export function DocxView({
       };
       const tableColumn = createDocxTableColumn(editor);
       const session: EditorSession = {
+        async captureQuestionTarget() {
+          const range = editor.query({ type: "selection" });
+          const anchor = range?.from;
+          if (!anchor || !("paraId" in anchor))
+            throw new Error("질문할 본문 단락을 먼저 클릭해 주세요.");
+          const paragraphs = editor.query({ type: "paragraphs" });
+          const index = paragraphs.findIndex(
+            (paragraph) => paragraph.paraId === anchor.paraId,
+          );
+          const paragraph = paragraphs[index];
+          if (!paragraph?.text.trim() || paragraph.text.length > 8000)
+            throw new Error("텍스트가 있는 8,000자 이하 단락을 선택해 주세요.");
+          if (
+            !editor.highlightAnchor(
+              { paraId: anchor.paraId },
+              {
+                borderWidth: 2,
+                borderColor: "#2563eb",
+                color: "#2563eb",
+                opacity: 0.06,
+                timeoutMs: null,
+                animation: false,
+                className: "ds-question-anchor",
+              },
+            )
+          )
+            throw new Error(
+              "이 단락의 표시 위치를 확인하지 못했습니다. 본문 단락을 다시 선택해 주세요.",
+            );
+          questionGuard = {
+            revision: currentRevision(),
+            selectionKey: docxSelectionKey(editor),
+          };
+          return {
+            ...questionGuard,
+            anchor: JSON.stringify({ format: "docx", paraId: anchor.paraId }),
+            text: paragraph.text,
+            description: `${index + 1}번째 단락`,
+          };
+        },
+        clearQuestionTarget() {
+          questionGuard = undefined;
+          editor.clearAnchorHighlight({ animation: false });
+        },
         readTable: tableColumn.read,
         async applyTableChanges(table, changes, assertCurrent) {
           await tableColumn.apply(table, changes, assertCurrent);

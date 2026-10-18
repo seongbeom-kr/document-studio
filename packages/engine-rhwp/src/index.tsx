@@ -76,6 +76,8 @@ interface NativeState {
   atomicTextInsertion?: boolean;
   selectionGuardedCommands?: boolean;
   selectionDescription?: string;
+  selectionText?: string;
+  selectionTextLength?: number;
   pageCount: number;
   character: {
     bold?: boolean;
@@ -134,6 +136,8 @@ function formatFields(native: NativeState) {
     tableColumnEditing: native.tableColumnEditing === true,
     atomicTextInsertion: native.atomicTextInsertion === true,
     selectionDescription: native.selectionDescription,
+    selectionText: native.selectionText,
+    selectionTextLength: native.selectionTextLength,
     selectionGuardedCommands: native.selectionGuardedCommands === true,
     paragraph: {
       beforePt: (native.paragraph.spacingBefore ?? 0) * 0.75,
@@ -259,6 +263,51 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
       let stage: EngineInitializationStage = "iframe-loading";
       let transport: EngineInitializationDiagnostics["transport"];
       const steps: EngineInitializationDiagnostics["steps"] = [];
+      const observations: NonNullable<
+        EngineInitializationDiagnostics["observations"]
+      > = [];
+      const observeFrame = (input: {
+        event?: unknown;
+        width?: unknown;
+        height?: unknown;
+        visibility?: unknown;
+      }) => {
+        if (
+          !active ||
+          typeof input.event !== "string" ||
+          ![
+            "frame-attached",
+            "script-start",
+            "dom-ready",
+            "window-loaded",
+            "asset-error",
+            "script-error",
+            "promise-error",
+            "viewport-changed",
+            "page-hidden",
+            "visibility-changed",
+          ].includes(input.event)
+        )
+          return;
+        const dimension = (value: unknown) =>
+          typeof value === "number" &&
+          Number.isFinite(value) &&
+          value >= 0 &&
+          value < 100_000
+            ? Math.round(value)
+            : undefined;
+        if (observations.length >= 32) observations.splice(16, 1);
+        observations.push({
+          event: input.event,
+          elapsedMs: Math.max(0, Math.round(performance.now() - startedAt)),
+          width: dimension(input.width),
+          height: dimension(input.height),
+          visibility:
+            input.visibility === "visible" || input.visibility === "hidden"
+              ? input.visibility
+              : undefined,
+        });
+      };
       const recordStage = (
         next: EngineInitializationStage,
         mode?: EngineInitializationDiagnostics["transport"],
@@ -280,6 +329,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
         transport,
         elapsedMs: Math.max(0, Math.round(performance.now() - startedAt)),
         steps: steps.map((step) => ({ ...step })),
+        observations: observations.map((entry) => ({ ...entry })),
       });
       const abort = new AbortController();
       let initializationTimer: ReturnType<typeof setTimeout> | undefined;
@@ -496,6 +546,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
             chrome: { menu: false, toolbar: false, statusbar: false },
             signal: abort.signal,
             onInitializationStage: recordStage,
+            onFrameObservation: observeFrame,
             onFrameReady: (via: "load" | "runtime") => {
               frameReadyVia = via;
             },
@@ -635,6 +686,18 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
             });
           };
           const session: EditorSession = {
+            async captureQuestionTarget() {
+              const value = await rpc<
+                import("@document-studio/core").EngineQuestionTarget
+              >("captureQuestionTarget", {});
+              await update();
+              return value;
+            },
+            clearQuestionTarget() {
+              void rpc("clearQuestionTarget", {}).catch(
+                callbacks.current.onError,
+              );
+            },
             setInputBlocked: setNativeBlocked,
             getSnapshot: store.getSnapshot,
             subscribe: store.subscribe,

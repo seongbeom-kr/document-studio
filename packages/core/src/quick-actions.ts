@@ -36,6 +36,7 @@ export interface QuickActionPreview extends TableEditIdentity {
   label: string;
   description: string;
   target: string;
+  selection?: { mode: "insert" | "replace"; excerpt?: string; length?: number };
   text?: string;
   commands: readonly EditorCommand[];
 }
@@ -227,6 +228,7 @@ export function createQuickActionEditor(port: {
   state(): TableEditIdentity & {
     selectionDescription?: string;
     selectionText?: string;
+    selectionTextLength?: number;
     selectionCollapsed?: boolean;
     atomicPresets?: boolean;
     atomicTextInsertion?: boolean;
@@ -290,6 +292,11 @@ export function createQuickActionEditor(port: {
         ...plan,
         request: structuredClone(request),
         previewId: crypto.randomUUID(),
+        selection: {
+          mode: state.selectionCollapsed ? "insert" : "replace",
+          excerpt: state.selectionText?.slice(0, 160),
+          length: state.selectionTextLength,
+        },
         target:
           state.selectionDescription ??
           (state.selectionCollapsed

@@ -49,14 +49,20 @@ export function patchRhwpLifecycle(code) {
       const onLoad = () => finish('load');
       const onRuntime = (event) => {
         if (bootId && event.source === iframe.contentWindow && event.origin === frameUrl.origin
-          && event.data?.type === 'document-studio:frame-ready' && event.data.bootId === bootId) finish('runtime');
+          && event.data?.bootId === bootId) {
+          if (event.data.type === 'document-studio:frame-ready') finish('runtime');
+          if (event.data.type === 'document-studio:boot') options.onFrameObservation?.(event.data);
+        }
       };
       const onError = () => { cleanup(); reject(new Error('Editor iframe failed to load')); };
       rejectLoad = (error) => { cleanup(); reject(error); };
       iframe.addEventListener('load', onLoad, { once: true });
       iframe.addEventListener('error', onError, { once: true });
       window.addEventListener('message', onRuntime);
-      try { el.appendChild(iframe); } catch (error) { rejectLoad(error); }
+      try {
+        el.appendChild(iframe);
+        options.onFrameObservation?.({event:'frame-attached',width:el.clientWidth,height:el.clientHeight});
+      } catch (error) { rejectLoad(error); }
     });
     signal?.throwIfAborted();
     options.onInitializationStage?.('transport-connecting');

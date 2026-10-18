@@ -471,15 +471,16 @@ for (const format of ["docx", "hwpx"] as const) {
     }) => {
       await page.setViewportSize({ width, height: 900 });
       await openAutomation(page, format);
-      // A short dock now expands automatically when automation opens.
-      if (
-        (await page
-          .locator(".ds-editing-tools")
-          .getAttribute("data-expanded")) !== "true"
-      )
-        await page
-          .getByRole("button", { name: "도구 크게 보기", exact: true })
-          .click();
+      // Auto-expansion may complete between reading the state and clicking.
+      // Retry the state check rather than waiting for a button that has changed label.
+      await expect(async () => {
+        const tools = page.locator(".ds-editing-tools");
+        if ((await tools.getAttribute("data-expanded")) !== "true")
+          await page
+            .getByRole("button", { name: "도구 크게 보기", exact: true })
+            .click({ timeout: 1000 });
+        await expect(tools).toHaveAttribute("data-expanded", "true");
+      }).toPass({ timeout: 10000 });
       const select = page.getByLabel("자동화 기능", { exact: true });
       await select.selectOption("마크다운 보고서");
       await page

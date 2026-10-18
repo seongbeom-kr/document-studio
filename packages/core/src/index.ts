@@ -75,6 +75,7 @@ export interface EditorSnapshot {
   selectionKey?: string;
   /** Bounded excerpt, never used as a range identity. */
   selectionText?: string;
+  selectionTextLength?: number;
   selectionDescription?: string;
   /** Full native range is checked at the mutation boundary. */
   selectionGuardedCommands?: boolean;
@@ -174,6 +175,10 @@ export interface ExportSnapshot {
   format: DocumentFormat;
 }
 export interface EditorSession {
+  captureQuestionTarget?(): Promise<
+    import("./document-question").EngineQuestionTarget
+  >;
+  clearQuestionTarget?(): void;
   readTable?(): Promise<import("./table-column").TableSnapshot>;
   applyTableChanges?(
     table: import("./table-column").TableSnapshot,
@@ -386,4 +391,5 @@ export type {
   AgentBridgeOptions,
 } from "./agent-bridge";
 export * from "./generated-output";
+export * from "./document-question";
 export * from "./version";

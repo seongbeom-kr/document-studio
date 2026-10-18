@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { prepareRhwpObservation } from "./prepare-rhwp-observation.mjs";
 import {
   cp,
   mkdir,
@@ -106,6 +107,7 @@ html = html.replace(
   '<script type="module" src="./document-studio-extension.js"></script></head>',
 );
 await writeFile(path.join(output, "index.html"), html);
+await prepareRhwpObservation(output);
 const runtimeAssets = path.join(output, "assets");
 for (const name of await readdir(runtimeAssets)) {
   if (!name.endsWith(".css")) continue;

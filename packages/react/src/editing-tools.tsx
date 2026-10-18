@@ -29,6 +29,7 @@ import {
   type EditorDocument,
 } from "@document-studio/core";
 interface Props {
+  previewMailMergeDocument?(previewId: string): Promise<void>;
   quickActions?: ReturnType<
     typeof import("@document-studio/core").createQuickActionEditor
   >;
@@ -574,6 +575,7 @@ export function EditingTools(props: Props) {
         props.automationSession &&
         props.automationStatus ? (
           <MailMergeTools
+            previewDocument={props.previewMailMergeDocument}
             key={props.documentKey}
             actions={props.mailMerge}
             registerCurrent={props.registerCurrentMailMergeTemplate}

@@ -12,6 +12,8 @@ import {
   type DocumentStorage,
   type DraftStore,
   type DocumentTemplate,
+  type GeneratedOutputStorage,
+  type DocumentQuestionRequest,
 } from "@document-studio/core";
 import {
   DocumentEditor,
@@ -124,6 +126,15 @@ declare global {
       closeAfterDraft(): Promise<void>;
       load(format: "docx" | "hwpx", name?: string): Promise<void>;
       loadBytes(bytes: number[], format: "docx" | "hwpx"): void;
+      copyStore: {
+        calls: string[];
+        failAt: number;
+        corrupt: boolean;
+        loseResponse: boolean;
+        hanging: boolean;
+        writes: Record<string, number[]>;
+      };
+      questionsSent: DocumentQuestionRequest[];
       createTemplate(
         format: "docx" | "hwpx",
         template: DocumentTemplate,
@@ -268,8 +279,41 @@ function Harness() {
       };
     },
   });
+  const generatedStorage = useRef<GeneratedOutputStorage>({
+    id: "isolated-copy-store",
+    label: "검증 작업 공간",
+    timeoutMs: 1000,
+    async save(input) {
+      const store = window.documentStudioTest.copyStore;
+      store.calls.push(input.file.id);
+      if (store.hanging) await new Promise(() => {});
+      input.signal.throwIfAborted();
+      if (store.calls.length === store.failAt)
+        throw new Error("합성 저장소 부분 실패");
+      store.writes[input.file.id] ??= Array.from(input.file.bytes);
+      if (store.loseResponse) {
+        store.loseResponse = false;
+        throw new Error("합성 저장 응답 유실");
+      }
+      return {
+        id: input.file.id,
+        digest: store.corrupt ? "wrong" : input.digest,
+        version: "stored-v1",
+        path: `copies/${input.file.fileName}`,
+      };
+    },
+  });
   useEffect(() => {
     window.documentStudioTest = {
+      questionsSent: [],
+      copyStore: {
+        calls: [],
+        failAt: 0,
+        corrupt: false,
+        loseResponse: false,
+        hanging: false,
+        writes: {},
+      },
       agent: createAgentBridge(() => editor.current, {
         createDocument: async (template) => {
           const format = editor.current?.getState().format;
@@ -344,14 +388,16 @@ function Harness() {
           version: "v1",
         });
       },
-      loadBytes: (bytes, format) =>
+      loadBytes: (bytes, format) => {
+        setClosed(false);
         setDocument({
           id: "invalid",
           fileName: `invalid.${format}`,
           format,
           bytes: new Uint8Array(bytes),
           version: "v1",
-        }),
+        });
+      },
       createTemplate: async (format, template) => {
         const engine = engines.find((engine) =>
           engine.formats.includes(format),
@@ -495,6 +541,20 @@ function Harness() {
             },
           }))}
           storage={storage.current}
+          generatedStorage={
+            new URLSearchParams(location.search).has("generatedStorage")
+              ? generatedStorage.current
+              : undefined
+          }
+          onQuestion={
+            new URLSearchParams(location.search).has("questions")
+              ? async (request) => {
+                  window.documentStudioTest.questionsSent.push(
+                    structuredClone(request),
+                  );
+                }
+              : undefined
+          }
           readOnly={window.documentStudioTest.readOnly}
           appearance={
             window.documentStudioTest.embedded ? "embedded" : "standalone"

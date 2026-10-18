@@ -135,6 +135,33 @@ afterEach(() => {
 });
 
 describe("pinned RHWP initialization cancellation", () => {
+  it("records boot observations only from the bound frame and never treats them as ready", async () => {
+    const f = fixture("load"),
+      observations: unknown[] = [];
+    const task = upstream.createStudio(f.container, {
+      studioUrl: "https://editor.test/?documentStudioBootId=current",
+      signal: f.abort.signal,
+      onFrameObservation: (event: unknown) => observations.push(event),
+    });
+    const send = (origin: string, source: unknown, bootId: string) =>
+      window.dispatchEvent(
+        Object.assign(new Event("message"), {
+          origin,
+          source,
+          data: { type: "document-studio:boot", bootId, event: "script-start" },
+        }),
+      );
+    send("https://other.test", f.frame.contentWindow, "current");
+    send("https://editor.test", {}, "current");
+    send("https://editor.test", f.frame.contentWindow, "old");
+    expect(observations).toHaveLength(1);
+    send("https://editor.test", f.frame.contentWindow, "current");
+    expect(observations).toHaveLength(2);
+    expect(f.messages).toHaveLength(0);
+    f.abort.abort(new Error("stop"));
+    await expect(task).rejects.toThrow("stop");
+    expect(f.frame.listeners.size).toBe(0);
+  });
   it("accepts only the same frame, origin and boot attempt while load is still pending", async () => {
     const f = fixture("load"),
       stages: string[] = [];

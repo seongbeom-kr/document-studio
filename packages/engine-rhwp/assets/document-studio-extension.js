@@ -131,9 +131,106 @@ const poll = setInterval(() => {
         "선택 범위가 변경됐습니다. 적용 대상을 다시 확인해 주세요.",
       );
   };
+  let question = null;
+  let questionObserver;
+  const clearQuestion = () => {
+    question = null;
+    questionObserver?.disconnect();
+    document
+      .querySelectorAll(".document-studio-question-box")
+      .forEach((node) => node.remove());
+  };
+  const paintQuestion = () => {
+    if (!question) return;
+    if (
+      question.revision !== revision ||
+      question.key !== selectionKey(question.services)
+    ) {
+      clearQuestion();
+      return;
+    }
+    const content = document.querySelector("#scroll-content");
+    const marks = [
+      ...document.querySelectorAll(".selection-layer .selection-highlight"),
+    ].filter((node) => node.style.display !== "none");
+    if (!content || marks.length !== question.rects.length) return;
+    const signature = marks.map((node) => node.style.cssText).join("|");
+    if (
+      question.signature === signature &&
+      document.querySelector(".document-studio-question-box")
+    )
+      return;
+    question.signature = signature;
+    document
+      .querySelectorAll(".document-studio-question-box")
+      .forEach((node) => node.remove());
+    const pages = new Map();
+    marks.forEach((node, index) => {
+      const x = parseFloat(node.style.left),
+        y = parseFloat(node.style.top),
+        w = parseFloat(node.style.width),
+        h = parseFloat(node.style.height);
+      if (![x, y, w, h].every(Number.isFinite)) return;
+      const page = question.rects[index].pageIndex;
+      const box = pages.get(page) ?? {
+        left: x,
+        top: y,
+        right: x + w,
+        bottom: y + h,
+      };
+      box.left = Math.min(box.left, x);
+      box.top = Math.min(box.top, y);
+      box.right = Math.max(box.right, x + w);
+      box.bottom = Math.max(box.bottom, y + h);
+      pages.set(page, box);
+    });
+    for (const box of pages.values()) {
+      const node = document.createElement("div");
+      node.className = "document-studio-question-box";
+      node.setAttribute("aria-hidden", "true");
+      Object.assign(node.style, {
+        position: "absolute",
+        pointerEvents: "none",
+        border: "2px solid #2563eb",
+        borderRadius: "4px",
+        boxSizing: "border-box",
+        zIndex: "12",
+        left: `${box.left - 3}px`,
+        top: `${box.top - 3}px`,
+        width: `${box.right - box.left + 6}px`,
+        height: `${box.bottom - box.top + 6}px`,
+      });
+      content.appendChild(node);
+    }
+  };
   const snapshot = (services, version = revision) => {
+    paintQuestion();
     const input = services.getInputHandler();
     const pos = input?.getCursorPosition();
+    const selected = input?.getSelection();
+    let selectionText, selectionTextLength;
+    if (
+      selected &&
+      selected.start.sectionIndex === selected.end.sectionIndex &&
+      selected.start.paragraphIndex === selected.end.paragraphIndex &&
+      selected.start.parentParaIndex === undefined &&
+      selected.end.parentParaIndex === undefined
+    ) {
+      const first = Math.min(
+        selected.start.charOffset,
+        selected.end.charOffset,
+      );
+      selectionTextLength = Math.abs(
+        selected.end.charOffset - selected.start.charOffset,
+      );
+      if (selectionTextLength)
+        selectionText = services.wasm.getTextRange(
+          selected.start.sectionIndex,
+          selected.start.paragraphIndex,
+          first,
+          Math.min(selectionTextLength, 160),
+        );
+    }
     const page = pos ? services.wasm.getPageDef(pos.sectionIndex) : undefined;
     const table =
       pos?.parentParaIndex !== undefined
@@ -145,6 +242,8 @@ const poll = setInterval(() => {
         : undefined;
     return {
       revision: version,
+      selectionText,
+      selectionTextLength,
       tableColumnEditing: true,
       atomicTextInsertion:
         typeof services.getInputHandler()?.executeDocumentStudioTextGroup ===
@@ -868,7 +967,66 @@ const poll = setInterval(() => {
       try {
         const params = payload.params ?? {};
         let result;
-        if (payload.method === "readTable") {
+        if (payload.method === "clearQuestionTarget") {
+          clearQuestion();
+          result = { cleared: true };
+        } else if (payload.method === "captureQuestionTarget") {
+          const input = services.getInputHandler(),
+            pos = input?.getCursorPosition();
+          if (!pos || pos.parentParaIndex !== undefined)
+            throw new Error(
+              "질문할 본문 텍스트 단락을 먼저 클릭해 주세요. 표·그림 영역 질문은 아직 지원하지 않습니다.",
+            );
+          const length = services.wasm.getParagraphLength(
+            pos.sectionIndex,
+            pos.paragraphIndex,
+          );
+          if (!length || length > 8000)
+            throw new Error("텍스트가 있는 8,000자 이하 단락을 선택해 주세요.");
+          const text = services.wasm.getTextRange(
+            pos.sectionIndex,
+            pos.paragraphIndex,
+            0,
+            length,
+          );
+          if (!text.trim()) throw new Error("질문할 텍스트가 없습니다.");
+          clearQuestion();
+          input.cursor.clearSelection();
+          input.cursor.moveTo({ ...pos, charOffset: 0 });
+          input.cursor.setAnchor();
+          input.cursor.moveTo({ ...pos, charOffset: length });
+          input.updateCaret();
+          const key = selectionKey(services),
+            rects = services.wasm.getSelectionRects(
+              pos.sectionIndex,
+              pos.paragraphIndex,
+              0,
+              pos.paragraphIndex,
+              length,
+            );
+          question = { services, revision, key, rects };
+          const layer = document.querySelector(".selection-layer");
+          if (layer) {
+            questionObserver = new MutationObserver(paintQuestion);
+            questionObserver.observe(layer, {
+              attributes: true,
+              subtree: true,
+              childList: true,
+            });
+          }
+          paintQuestion();
+          result = {
+            revision: String(revision),
+            selectionKey: key,
+            anchor: JSON.stringify({
+              format: "hwpx",
+              section: pos.sectionIndex,
+              paragraph: pos.paragraphIndex,
+            }),
+            text,
+            description: `본문 ${pos.sectionIndex + 1}구역 ${pos.paragraphIndex + 1}번째 단락`,
+          };
+        } else if (payload.method === "readTable") {
           result = readTable(services);
         } else if (payload.method === "applyTableChanges") {
           checkExpected(params);
