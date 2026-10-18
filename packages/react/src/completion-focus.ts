@@ -4,7 +4,6 @@ export function prepareCompletionFocus(trigger: HTMLElement) {
   const view = document.defaultView;
   let moved = document.activeElement !== trigger;
   let disposed = false;
-  let frame: number | undefined;
   const abandon = () => {
     moved = true;
   };
@@ -17,7 +16,6 @@ export function prepareCompletionFocus(trigger: HTMLElement) {
   view?.addEventListener("blur", abandon);
   const dispose = () => {
     disposed = true;
-    if (frame !== undefined) view?.cancelAnimationFrame(frame);
     document.removeEventListener("focusin", onFocus, true);
     document.removeEventListener("pointerdown", abandon, true);
     document.removeEventListener("keydown", abandon, true);
@@ -25,25 +23,30 @@ export function prepareCompletionFocus(trigger: HTMLElement) {
   };
   return {
     dispose,
-    complete(target: () => HTMLElement | null | undefined) {
-      if (disposed || !view) {
+    /** Called after the result DOM commits. False keeps the intent pending while disabled/missing. */
+    complete(result: HTMLElement | null | undefined): boolean {
+      if (disposed) return true;
+      const active = document.activeElement;
+      if (
+        moved ||
+        !document.hasFocus() ||
+        (active !== trigger && active !== document.body)
+      ) {
         dispose();
-        return;
+        return true;
       }
-      frame = view.requestAnimationFrame(() => {
-        const active = document.activeElement;
-        const result = target();
-        const shouldFocus =
-          !moved &&
-          document.hasFocus() &&
-          (active === trigger || active === document.body) &&
-          result?.isConnected;
-        dispose();
-        if (shouldFocus) {
-          result.focus({ preventScroll: true });
-          result.scrollIntoView({ block: "nearest" });
-        }
-      });
+      if (
+        !result?.isConnected ||
+        result.matches(":disabled") ||
+        result.closest("[inert], [hidden]") ||
+        !result.getClientRects().length
+      )
+        return false;
+      dispose();
+      result.focus({ preventScroll: true });
+      if (document.activeElement === result)
+        result.scrollIntoView({ block: "nearest" });
+      return true;
     },
   };
 }

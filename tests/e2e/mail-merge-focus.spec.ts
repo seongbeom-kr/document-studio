@@ -222,6 +222,7 @@ for (const format of ["docx", "hwpx"] as const) {
     await expect
       .poll(() => page.evaluate(() => window.mailFocusGate.started))
       .toBe(true);
+    await expect(generate).toBeDisabled();
     await page.evaluate(() => window.mailFocusGate.release());
     const failure = page
       .getByRole("status")
@@ -247,6 +248,103 @@ for (const format of ["docx", "hwpx"] as const) {
     await expect(
       page.getByRole("region", { name: "생성 사본 보관", exact: true }),
     ).toBeFocused();
+  });
+
+  for (const move of ["focus", "pointer", "tab"] as const) {
+    test(`${format}: a ${move} move during failed generation is not overridden by recovery`, async ({
+      page,
+    }) => {
+      const generate = await prepare(page, format);
+      await pauseGeneration(page, true);
+      await generate.focus();
+      await page.keyboard.press("Enter");
+      await expect
+        .poll(() => page.evaluate(() => window.mailFocusGate.started))
+        .toBe(true);
+      await expect(generate).toBeDisabled();
+      if (move === "focus") await page.getByLabel("호스트의 다른 입력").focus();
+      if (move === "pointer")
+        await page.getByText("호스트의 다른 영역", { exact: true }).click();
+      if (move === "tab") await page.keyboard.press("Tab");
+      await page.evaluate(() => window.mailFocusGate.release());
+      const retry = page.getByRole("button", {
+        name: "다시 미리보기",
+        exact: true,
+      });
+      await expect(retry).toBeEnabled();
+      await expect(retry).not.toBeFocused();
+      if (move === "focus")
+        await expect(page.getByLabel("호스트의 다른 입력")).toBeFocused();
+      await expect(
+        page.getByLabel("일괄 생성 입력 데이터", { exact: true }),
+      ).toHaveValue("이름\n김하나");
+    });
+  }
+
+  test(`${format}: failed regeneration focuses recovery instead of an earlier saved batch`, async ({
+    page,
+  }) => {
+    const generate = await prepare(page, format);
+    await generate.press("Enter");
+    const output = page.getByRole("region", {
+      name: "생성 사본 보관",
+      exact: true,
+    });
+    await expect(output).toBeFocused();
+    await page
+      .getByRole("button", { name: "검증 작업 공간에 사본 저장", exact: true })
+      .click();
+    await expect(output).toContainText("보관 1개 · 남음 0개");
+    await page.locator(".ds-mail-inputs > summary").click();
+    await page
+      .getByRole("button", { name: "생성 미리보기", exact: true })
+      .click();
+    await pauseGeneration(page, true);
+    await generate.press("Enter");
+    await expect
+      .poll(() => page.evaluate(() => window.mailFocusGate.started))
+      .toBe(true);
+    await expect(generate).toBeDisabled();
+    await page.evaluate(() => window.mailFocusGate.release());
+    await expect(
+      page.getByRole("button", { name: "다시 미리보기", exact: true }),
+    ).toBeFocused();
+    await expect(output).toContainText("이전 생성 문서");
+    await expect(output).not.toBeFocused();
+  });
+
+  test(`${format}: leaving the panel also cancels failed generation recovery focus`, async ({
+    page,
+  }) => {
+    const generate = await prepare(page, format);
+    await pauseGeneration(page, true);
+    await generate.press("Enter");
+    await expect
+      .poll(() => page.evaluate(() => window.mailFocusGate.started))
+      .toBe(true);
+    const otherTab = page.getByRole("tab", { name: "글자", exact: true });
+    await otherTab.click();
+    await page.evaluate(() => window.mailFocusGate.release());
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const agent = window.documentStudioTest.agent;
+          return agent.getMailMergeStatus({
+            documentId: agent.getState().documentId,
+          }).phase;
+        }),
+      )
+      .toBe("failed");
+    await expect(otherTab).toBeFocused();
+    const mailTab = page.getByRole("tab", {
+      name: "문서 일괄 생성",
+      exact: true,
+    });
+    await mailTab.click();
+    await expect(
+      page.getByRole("status").filter({ hasText: "검증용 생성 실패" }),
+    ).toBeVisible();
+    await expect(mailTab).toBeFocused();
   });
 
   test(`${format}: leaving the panel cancels its pending completion focus`, async ({
@@ -304,6 +402,9 @@ for (const format of ["docx", "hwpx"] as const) {
       page.getByRole("region", { name: "생성 사본 보관", exact: true }),
     ).toHaveCount(0);
     await expect(generate).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "다시 미리보기", exact: true }),
+    ).not.toBeFocused();
     await page
       .getByRole("button", { name: "다시 미리보기", exact: true })
       .click();

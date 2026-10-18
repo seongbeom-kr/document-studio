@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   MAIL_MERGE_DRAFT_NAME,
   MAIL_MERGE_LIMITS,
@@ -130,11 +136,16 @@ export function MailMergeTools({
     fileInput = useRef<HTMLInputElement>(null),
     panel = useRef<HTMLElement>(null),
     disposeCompletionFocus = useRef<(() => void) | null>(null);
+  const completion = useRef<{
+    focus: ReturnType<typeof prepareCompletionFocus>;
+    destination: "output" | "retry";
+  } | null>(null);
   useEffect(() => {
     alive.current = true;
     return () => {
       alive.current = false;
       disposeCompletionFocus.current?.();
+      completion.current = null;
     };
   }, []);
   useEffect(() => {
@@ -235,6 +246,17 @@ export function MailMergeTools({
     blocked =
       busy || !draftStatus.ready || !!draftStatus.error || !!settingsError;
   const stale = !!preview && preview.revision !== snapshot.revision;
+  // The result/fieldset can commit before run() clears working. Keep the intent
+  // until a committed, enabled target exists; no timing guess or repeated frame.
+  useLayoutEffect(() => {
+    const pending = completion.current;
+    if (!pending || blocked) return;
+    const target =
+      pending.destination === "retry"
+        ? previewButton.current
+        : panel.current?.querySelector<HTMLElement>(".ds-generated-output");
+    if (pending.focus.complete(target)) completion.current = null;
+  });
   return (
     <section
       ref={panel}
@@ -700,6 +722,7 @@ export function MailMergeTools({
               const trigger = event.currentTarget;
               void run(async () => {
                 disposeCompletionFocus.current?.();
+                completion.current = null;
                 const focus = prepareCompletionFocus(trigger);
                 disposeCompletionFocus.current = focus.dispose;
                 try {
@@ -708,20 +731,16 @@ export function MailMergeTools({
                     operationId: `mail-ui:${preview.previewId}`,
                   });
                   if (alive.current) {
+                    completion.current = { focus, destination: "output" };
                     setPreview(null);
                     setNotice("");
-                    focus.complete(() =>
-                      panel.current?.querySelector<HTMLElement>(
-                        ".ds-generated-output",
-                      ),
-                    );
                   } else focus.dispose();
                 } catch (error) {
                   if (alive.current) {
+                    completion.current = { focus, destination: "retry" };
                     setPreview(null);
                     setFormOpen(true);
                     setNeedsNewPreview(true);
-                    focus.complete(() => previewButton.current);
                   } else focus.dispose();
                   throw error;
                 }
