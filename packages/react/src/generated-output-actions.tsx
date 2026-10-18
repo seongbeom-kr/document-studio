@@ -158,7 +158,7 @@ export function GeneratedOutputActions({
             try {
               const anchor = document.createElement("a");
               anchor.href = url;
-              anchor.download = "메일머지-결과.zip";
+              anchor.download = "일괄생성-결과.zip";
               anchor.click();
               controller.noteMailMergeDownload(result.operationId);
             } finally {

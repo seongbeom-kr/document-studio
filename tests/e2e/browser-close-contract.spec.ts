@@ -384,7 +384,7 @@ for (const format of ["docx", "hwpx"] as const) {
       .getByRole("tab", { name: "문서 일괄 생성", exact: true })
       .click();
     await expect(
-      page.getByLabel("메일머지 입력 데이터", { exact: true }),
+      page.getByLabel("일괄 생성 입력 데이터", { exact: true }),
     ).toHaveValue("이름\n승인 뒤 새 입력");
     await discard(page);
     await expect(page.locator(".ds-browser-mount")).toHaveCount(0);

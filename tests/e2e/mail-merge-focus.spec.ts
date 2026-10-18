@@ -37,9 +37,9 @@ async function prepare(page: Page, format: "docx" | "hwpx", storage = true) {
   await page
     .getByRole("button", { name: "현재 편집본을 서식으로 등록", exact: true })
     .click();
-  await expect(page.getByLabel("메일머지 등록한 서식")).not.toHaveValue("");
+  await expect(page.getByLabel("일괄 생성 등록 양식")).not.toHaveValue("");
   await page
-    .getByLabel("메일머지 입력 데이터", { exact: true })
+    .getByLabel("일괄 생성 입력 데이터", { exact: true })
     .fill("이름\n김하나");
   await page
     .getByRole("button", { name: "같은 이름의 열 연결", exact: true })
@@ -223,15 +223,19 @@ for (const format of ["docx", "hwpx"] as const) {
       .poll(() => page.evaluate(() => window.mailFocusGate.started))
       .toBe(true);
     await page.evaluate(() => window.mailFocusGate.release());
-    await expect(
-      page.getByText(/이번 생성 결과는 모두 폐기했습니다/),
-    ).toBeVisible();
+    const failure = page
+      .getByRole("status")
+      .filter({ hasText: "검증용 생성 실패" });
+    await expect(failure).toHaveCount(1);
+    await expect(failure).toContainText(
+      "입력은 유지했습니다. 다시 미리보기한 뒤 생성해 주세요.",
+    );
     await expect(
       page.getByRole("region", { name: "생성 사본 보관", exact: true }),
     ).toHaveCount(0);
     await expect(generate).toHaveCount(0);
     await expect(
-      page.getByLabel("메일머지 입력 데이터", { exact: true }),
+      page.getByLabel("일괄 생성 입력 데이터", { exact: true }),
     ).toHaveValue("이름\n김하나");
     const retry = page.getByRole("button", {
       name: "다시 미리보기",
@@ -289,9 +293,13 @@ for (const format of ["docx", "hwpx"] as const) {
       .toBe(true);
     await page.getByRole("button", { name: "생성 취소", exact: true }).click();
     await page.evaluate(() => window.mailFocusGate.release());
-    await expect(
-      page.getByText(/이번 생성 결과는 모두 폐기했습니다/),
-    ).toBeVisible();
+    const cancellation = page
+      .getByRole("status")
+      .filter({ hasText: "문서 생성을 취소했습니다." });
+    await expect(cancellation).toHaveCount(1);
+    await expect(cancellation).toContainText(
+      "입력은 유지했습니다. 다시 미리보기한 뒤 생성해 주세요.",
+    );
     await expect(
       page.getByRole("region", { name: "생성 사본 보관", exact: true }),
     ).toHaveCount(0);

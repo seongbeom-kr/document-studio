@@ -28,26 +28,26 @@ for (const format of ["docx", "hwpx"] as const) {
     await page
       .getByRole("button", { name: "현재 편집본을 서식으로 등록", exact: true })
       .click();
-    await expect(page.getByLabel("메일머지 등록한 서식")).not.toHaveValue("");
+    await expect(page.getByLabel("일괄 생성 등록 양식")).not.toHaveValue("");
     await page
-      .getByLabel("메일머지 입력 데이터", { exact: true })
+      .getByLabel("일괄 생성 입력 데이터", { exact: true })
       .fill("이름\n고유입력001234");
     await page
       .getByLabel("필드 이름 데이터 열", { exact: true })
       .selectOption("이름");
     await page
-      .getByLabel("메일머지 출력 파일 이름", { exact: true })
+      .getByLabel("일괄 생성 출력 파일 이름", { exact: true })
       .fill(`내서식-{{#}}.${format}`);
     await page.evaluate(() => window.documentStudioTest.flushAutomationDraft());
     const bytes = await page.evaluate(() => window.documentStudioTest.export());
     await load(page, format);
     await expect(
-      page.getByLabel("메일머지 입력 데이터", { exact: true }),
+      page.getByLabel("일괄 생성 입력 데이터", { exact: true }),
     ).toHaveValue("이름\n고유입력001234");
     await expect(
-      page.getByLabel("메일머지 출력 파일 이름", { exact: true }),
+      page.getByLabel("일괄 생성 출력 파일 이름", { exact: true }),
     ).toHaveValue(`내서식-{{#}}.${format}`);
-    await expect(page.getByLabel("메일머지 등록한 서식")).toHaveValue("");
+    await expect(page.getByLabel("일괄 생성 등록 양식")).toHaveValue("");
     await page.evaluate(
       ({ bytes, format }) =>
         window.documentStudioTest.registerMailMerge(bytes, format),
@@ -60,6 +60,7 @@ for (const format of ["docx", "hwpx"] as const) {
     await page.evaluate(async (key) => {
       const store = window.documentStudioTest.automationStore;
       const draft = (await store.get(key))!;
+      // Persisted draft keys stay compatible even when human-facing labels change.
       draft.drafts["서식 메일머지"]!.argument = "{broken-field-settings";
       await store.put(key, draft);
     }, key);
@@ -77,7 +78,7 @@ for (const format of ["docx", "hwpx"] as const) {
       page.getByRole("button", { name: "서식 파일 선택", exact: true }),
     ).toBeDisabled();
     await expect(
-      page.getByLabel("메일머지 입력 데이터", { exact: true }),
+      page.getByLabel("일괄 생성 입력 데이터", { exact: true }),
     ).toHaveValue("이름\n고유입력001234");
     const preserved = await page.evaluate(
       async (key) =>
@@ -91,10 +92,10 @@ for (const format of ["docx", "hwpx"] as const) {
       .getByRole("button", { name: "필드 설정 초기화", exact: true })
       .click();
     await expect(
-      page.getByLabel("메일머지 입력 데이터", { exact: true }),
+      page.getByLabel("일괄 생성 입력 데이터", { exact: true }),
     ).toBeEnabled();
     await expect(
-      page.getByLabel("메일머지 입력 데이터", { exact: true }),
+      page.getByLabel("일괄 생성 입력 데이터", { exact: true }),
     ).toHaveValue("이름\n고유입력001234");
   });
 }

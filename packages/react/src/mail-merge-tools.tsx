@@ -239,10 +239,10 @@ export function MailMergeTools({
     <section
       ref={panel}
       className="ds-mail-merge ds-tools-panel"
-      aria-label="서식 메일머지"
+      aria-label="문서 일괄 생성"
     >
       <h3>양식과 데이터로 문서 일괄 생성</h3>
-      <ol className="ds-workflow-steps" aria-label="메일머지 진행 단계">
+      <ol className="ds-workflow-steps" aria-label="문서 일괄 생성 단계">
         <li aria-current={!source ? "step" : undefined}>1 서식 확인</li>
         <li
           aria-current={
@@ -325,7 +325,7 @@ export function MailMergeTools({
             ref={fileInput}
             type="file"
             accept=".docx,.hwpx"
-            aria-label="메일머지 서식 파일"
+            aria-label="일괄 생성 양식 파일"
             disabled={blocked}
             hidden
             onChange={(event) => {
@@ -362,7 +362,7 @@ export function MailMergeTools({
           <label>
             등록한 서식
             <select
-              aria-label="메일머지 등록한 서식"
+              aria-label="일괄 생성 등록 양식"
               value={selected}
               disabled={blocked}
               onChange={(event) => {
@@ -448,7 +448,7 @@ export function MailMergeTools({
             <label>
               열 구분
               <select
-                aria-label="메일머지 열 구분"
+                aria-label="입력 데이터 열 구분"
                 value={delimiter}
                 onChange={(event) =>
                   edit(input, settings, event.target.value as typeof delimiter)
@@ -488,7 +488,7 @@ export function MailMergeTools({
           <label>
             입력 데이터
             <textarea
-              aria-label="메일머지 입력 데이터"
+              aria-label="일괄 생성 입력 데이터"
               value={input}
               rows={7}
               onChange={(event) => edit(event.target.value)}
@@ -530,7 +530,7 @@ export function MailMergeTools({
           <label>
             출력 파일 이름
             <input
-              aria-label="메일머지 출력 파일 이름"
+              aria-label="일괄 생성 출력 파일 이름"
               value={settings.fileNamePattern}
               onChange={(event) =>
                 edit(input, {
@@ -592,7 +592,7 @@ export function MailMergeTools({
               new TextEncoder().encode(
                 JSON.stringify(session.get(MAIL_MERGE_DRAFT_NAME), null, 2),
               ),
-              "메일머지-입력.json",
+              "일괄생성-입력.json",
               "application/json",
             );
             setNotice("입력 데이터와 필드 설정의 다운로드를 요청했습니다.");
@@ -602,7 +602,7 @@ export function MailMergeTools({
         </button>
       </details>
       {preview && (
-        <div className="ds-mail-preview" aria-label="메일머지 결과 미리보기">
+        <div className="ds-mail-preview" aria-label="일괄 생성 결과 미리보기">
           <strong>
             {preview.template.fileName} → 새 파일 {preview.files.length}개
           </strong>
@@ -732,12 +732,18 @@ export function MailMergeTools({
           </button>
         </div>
       )}
-      {(status.phase === "failed" || status.phase === "cancelled") && (
-        <p role="status">이번 생성 결과는 모두 폐기했습니다. {status.error}</p>
-      )}
-      {needsNewPreview && (
+      {(status.phase === "failed" ||
+        status.phase === "cancelled" ||
+        needsNewPreview) && (
         <p role="status">
-          입력은 유지했습니다. 다시 미리보기한 뒤 생성해 주세요.
+          {notice ||
+            `이번 생성 결과는 모두 폐기했습니다. ${status.error ?? ""}`}
+          {needsNewPreview && (
+            <>
+              <br />
+              입력은 유지했습니다. 다시 미리보기한 뒤 생성해 주세요.
+            </>
+          )}
         </p>
       )}
       <GeneratedOutputActions
@@ -760,7 +766,10 @@ export function MailMergeTools({
             : undefined
         }
       />
-      {notice && <p role="status">{notice}</p>}
+      {notice &&
+        status.phase !== "failed" &&
+        status.phase !== "cancelled" &&
+        !needsNewPreview && <p role="status">{notice}</p>}
     </section>
   );
 }

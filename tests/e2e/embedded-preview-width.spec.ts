@@ -28,7 +28,7 @@ for (const format of ["docx", "hwpx"] as const) {
       .getByRole("button", { name: "현재 편집본을 서식으로 등록", exact: true })
       .click();
     await page
-      .getByLabel("메일머지 입력 데이터", { exact: true })
+      .getByLabel("일괄 생성 입력 데이터", { exact: true })
       .fill("이름\n좁은 영역 검증");
     await page
       .getByRole("button", { name: "같은 이름의 열 연결", exact: true })

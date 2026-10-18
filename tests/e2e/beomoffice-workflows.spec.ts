@@ -637,9 +637,9 @@ for (const format of ["docx", "hwpx"] as const) {
     await page
       .getByRole("button", { name: "현재 편집본을 서식으로 등록", exact: true })
       .click();
-    await expect(page.getByLabel("메일머지 등록한 서식")).not.toHaveValue("");
+    await expect(page.getByLabel("일괄 생성 등록 양식")).not.toHaveValue("");
     await page
-      .getByLabel("메일머지 입력 데이터", { exact: true })
+      .getByLabel("일괄 생성 입력 데이터", { exact: true })
       .fill("이름,사번,날짜\n홍길동,001234,20261016");
     for (const field of ["이름", "사번", "날짜"])
       await page
@@ -650,7 +650,7 @@ for (const format of ["docx", "hwpx"] as const) {
       .getByRole("tab", { name: "문서 일괄 생성", exact: true })
       .click();
     await expect(
-      page.getByLabel("메일머지 입력 데이터", { exact: true }),
+      page.getByLabel("일괄 생성 입력 데이터", { exact: true }),
     ).toContainText("001234");
     await expect(
       page.getByLabel("필드 이름 데이터 열", { exact: true }),
@@ -674,7 +674,7 @@ for (const format of ["docx", "hwpx"] as const) {
     await page
       .getByRole("button", { name: "생성 파일 ZIP 내려받기", exact: true })
       .click();
-    expect((await download).suggestedFilename()).toBe("메일머지-결과.zip");
+    expect((await download).suggestedFilename()).toBe("일괄생성-결과.zip");
     expect((await read(page)).text).toContain("{{이름}}");
   });
 }

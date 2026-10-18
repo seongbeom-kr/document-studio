@@ -132,7 +132,7 @@ for (const format of ["docx", "hwpx"] as const) {
         })
         .click();
       await page
-        .getByLabel("메일머지 입력 데이터", { exact: true })
+        .getByLabel("일괄 생성 입력 데이터", { exact: true })
         .fill(
           "이름\n첫번째 사용자\n긴 이름의 줄바꿈과 표 배치를 확인하는 검증 사용자",
         );
