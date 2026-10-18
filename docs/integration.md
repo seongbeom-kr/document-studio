@@ -276,6 +276,8 @@ const slots: EditorUISlots = {
 
 메일머지의 `previewMailMergeDocument(previewId, row)`는 0부터 시작하는 데이터 행 인덱스를 받습니다. UI의 행 선택기도 이 경로를 사용합니다. 페이지 확인은 원본 편집이나 파일 보관을 수행하지 않습니다.
 
+사용자가 생성 버튼으로 작업을 완료하면 포커스가 생성 사본 보관 영역으로 이어지며, 다음 Tab으로 저장소 보관 또는 ZIP 내려받기에 접근합니다. 대기 중 다른 곳으로 이동하거나 도구 패널을 닫았다면 포커스를 가져오지 않습니다. 에이전트 API의 백그라운드 생성도 현재 사용자의 포커스를 유지합니다.
+
 ### 검색 결과 보관
 
 DOCX·HWPX 엔진은 같은 revision의 연속 검색 결과를 합쳐 최대 1,000개 보관합니다. 다른 검색을 했다는 이유만으로 이전 결과가 무효화되지 않습니다. 한도를 넘어 오래된 결과가 제거되면 `SearchResultExpiredError` (`code: search-result-expired`, `requiredAction: search-again`, `effect: none`)를 반환하므로 다시 검색하고 대상을 확인하세요. 문서 revision·session이 실제로 바뀐 경우의 충돌 검사와 선택 검사는 그대로 적용됩니다.

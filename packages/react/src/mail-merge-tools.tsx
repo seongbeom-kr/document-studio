@@ -15,6 +15,7 @@ import type {
   AutomationDraftStatus,
 } from "./automation-session";
 import { GeneratedOutputActions } from "./generated-output-actions";
+import { prepareCompletionFocus } from "./completion-focus";
 
 function download(bytes: Uint8Array, name: string, mime: string) {
   const url = URL.createObjectURL(
@@ -124,11 +125,14 @@ export function MailMergeTools({
     [working, setWorking] = useState(false);
   const running = useRef(false),
     alive = useRef(true),
-    fileInput = useRef<HTMLInputElement>(null);
+    fileInput = useRef<HTMLInputElement>(null),
+    panel = useRef<HTMLElement>(null),
+    disposeCompletionFocus = useRef<(() => void) | null>(null);
   useEffect(() => {
     alive.current = true;
     return () => {
       alive.current = false;
+      disposeCompletionFocus.current?.();
     };
   }, []);
   useEffect(() => {
@@ -230,6 +234,7 @@ export function MailMergeTools({
   const stale = !!preview && preview.revision !== snapshot.revision;
   return (
     <section
+      ref={panel}
       className="ds-mail-merge ds-tools-panel"
       aria-label="서식 메일머지"
     >
@@ -686,18 +691,32 @@ export function MailMergeTools({
             type="button"
             className="ds-button"
             disabled={blocked || readOnly || stale || !!preview.issues.length}
-            onClick={() =>
+            onClick={(event) => {
+              const trigger = event.currentTarget;
               void run(async () => {
-                await actions.generate({
-                  previewId: preview.previewId,
-                  operationId: `mail-ui:${preview.previewId}`,
-                });
-                if (alive.current) {
-                  setPreview(null);
-                  setNotice("");
+                disposeCompletionFocus.current?.();
+                const focus = prepareCompletionFocus(trigger);
+                disposeCompletionFocus.current = focus.dispose;
+                try {
+                  await actions.generate({
+                    previewId: preview.previewId,
+                    operationId: `mail-ui:${preview.previewId}`,
+                  });
+                  if (alive.current) {
+                    setPreview(null);
+                    setNotice("");
+                    focus.complete(() =>
+                      panel.current?.querySelector<HTMLElement>(
+                        ".ds-generated-output",
+                      ),
+                    );
+                  } else focus.dispose();
+                } catch (error) {
+                  focus.dispose();
+                  throw error;
                 }
-              })
-            }
+              });
+            }}
           >
             확인한 {preview.files.length}개 문서 생성
           </button>
