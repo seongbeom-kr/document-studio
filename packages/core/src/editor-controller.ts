@@ -27,7 +27,18 @@ export type EditorControllerState = EditorSnapshot & {
   automationDraft: AutomationDraftStatus;
 };
 
+/** Issued by the editor's explicit discard UI. Copies/serialized values are not valid approvals. */
+export interface EditorCloseRequest {
+  readonly disposition: "discard";
+  readonly documentId: string;
+  readonly sessionId: string;
+  readonly revision: string;
+  readonly draftNamespace: string;
+}
+
 export interface EditorController {
+  /** Consume an active, one-use UI close approval immediately before unmounting. */
+  acceptCloseRequest?(request: EditorCloseRequest): void;
   registerMailMergeTemplate?(
     document: import("./index").EditorDocument,
   ): Promise<import("./mail-merge").MailMergeTemplateInfo>;

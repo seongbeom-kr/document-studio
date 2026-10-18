@@ -9,12 +9,14 @@ import {
   SaveConflictError,
   type EditorController,
   type EditorControllerState,
+  type EditorCloseRequest,
 } from "@document-studio/core";
 
 export { createAgentBridge } from "@document-studio/core";
 export type {
   EditorController,
   EditorControllerState,
+  EditorCloseRequest,
 } from "@document-studio/core";
 export type BrowserEditorOptions = Omit<DocumentEditorProps, "slots">;
 export type {
@@ -42,8 +44,8 @@ export type BrowserEditorUpdate = Partial<
 export interface MountedDocumentEditor extends EditorController {
   /** Resolves after props are committed, not after the native engine is ready. */
   update(patch: BrowserEditorUpdate): Promise<void>;
-  /** Preserves drafts before unmounting. On failure the editor remains mounted. */
-  destroy(): Promise<void>;
+  /** Preserves drafts unless given the current, one-use discard request from onClose. */
+  destroy(request?: EditorCloseRequest): Promise<void>;
   whenReady(options?: {
     signal?: AbortSignal;
     timeoutMs?: number;
@@ -104,6 +106,7 @@ export async function mountDocumentEditor(
   let transitioning = false;
   let sourceEpoch = 0;
   let destroyTask: Promise<void> | null = null;
+  let closeRequest: EditorCloseRequest | undefined;
   let renderFailure: unknown;
   let pendingRender:
     | { resolve(): void; reject(error: unknown): void }
@@ -155,7 +158,7 @@ export async function mountDocumentEditor(
   const current = (allowTransition = false) => {
     if (disposed) throw new Error("편집기가 종료됐습니다.");
     if (renderFailure) throw renderFailure;
-    if (transitioning && !allowTransition)
+    if ((transitioning || closeRequest) && !allowTransition)
       throw new Error("편집기를 전환하는 중입니다.");
     if (!handle) throw new Error("편집기를 준비하는 중입니다.");
     return handle;
@@ -182,6 +185,18 @@ export async function mountDocumentEditor(
             ref: (value: EditorController | null) => {
               handle = value;
             },
+            onClose: rendered.onClose
+              ? async (request) => {
+                  closeRequest = request;
+                  try {
+                    // Legacy onClose: () => editor.destroy() also inherits the
+                    // active approval without changing its callback signature.
+                    await rendered.onClose?.(request);
+                  } finally {
+                    if (closeRequest === request) closeRequest = undefined;
+                  }
+                }
+              : undefined,
             onStateChange(snapshot) {
               publish();
               rendered.onStateChange?.(snapshot);
@@ -385,16 +400,22 @@ export async function mountDocumentEditor(
         publish();
       }
     },
-    destroy() {
+    destroy(request = closeRequest) {
       if (disposed) return Promise.resolve();
       if (destroyTask) return destroyTask;
       if (transitioning)
         return Promise.reject(new Error("편집기를 전환하는 중입니다."));
       transitioning = true;
       const thaw = freezeRegions();
-      destroyTask = (async () => {
+      destroyTask = Promise.resolve().then(async () => {
         try {
-          await protect();
+          if (request) {
+            const editor = current(true);
+            if (!editor.acceptCloseRequest)
+              throw new Error("명시적 폐기 종료를 지원하지 않는 편집기입니다.");
+            // No await between consuming the session-bound approval and unmount.
+            editor.acceptCloseRequest(request);
+          } else await protect();
           root.unmount();
           disposed = true;
           surface.remove();
@@ -406,7 +427,7 @@ export async function mountDocumentEditor(
           publish();
           if (disposed) listeners.clear();
         }
-      })();
+      });
       return destroyTask;
     },
     whenReady({ signal, timeoutMs = 45000 } = {}) {

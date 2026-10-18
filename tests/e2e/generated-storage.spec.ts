@@ -61,7 +61,9 @@ for (const format of ["docx", "hwpx"] as const) {
       host.rerender();
     }, target);
     await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
-    await page.getByRole("tab", { name: "서식·메일머지", exact: true }).click();
+    await page
+      .getByRole("tab", { name: "문서 일괄 생성", exact: true })
+      .click();
     await page.evaluate(() => {
       window.documentStudioTest.pauseNextExport = true;
     });
@@ -121,7 +123,7 @@ for (const format of ["docx", "hwpx"] as const) {
         .getByRole("button", { name: "빠른 작업", exact: true })
         .click();
       await page
-        .getByRole("tab", { name: "서식·메일머지", exact: true })
+        .getByRole("tab", { name: "문서 일괄 생성", exact: true })
         .click();
       await page
         .getByRole("button", {
@@ -138,7 +140,7 @@ for (const format of ["docx", "hwpx"] as const) {
         .getByRole("button", { name: "같은 이름의 열 연결", exact: true })
         .click();
       await page
-        .getByRole("button", { name: "메일머지 미리보기", exact: true })
+        .getByRole("button", { name: "생성 미리보기", exact: true })
         .click();
       await page
         .getByRole("combobox", {

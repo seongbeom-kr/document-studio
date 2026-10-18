@@ -21,7 +21,9 @@ for (const format of ["docx", "hwpx"] as const) {
       .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
       .toBe(true);
     await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
-    await page.getByRole("tab", { name: "서식·메일머지", exact: true }).click();
+    await page
+      .getByRole("tab", { name: "문서 일괄 생성", exact: true })
+      .click();
     await page
       .getByRole("button", { name: "현재 편집본을 서식으로 등록", exact: true })
       .click();
@@ -32,7 +34,7 @@ for (const format of ["docx", "hwpx"] as const) {
       .getByRole("button", { name: "같은 이름의 열 연결", exact: true })
       .click();
     await page
-      .getByRole("button", { name: "메일머지 미리보기", exact: true })
+      .getByRole("button", { name: "생성 미리보기", exact: true })
       .click();
     await page
       .getByRole("button", { name: "대표 사본 페이지 미리보기", exact: true })

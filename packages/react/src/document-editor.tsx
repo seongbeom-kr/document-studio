@@ -12,6 +12,7 @@ import {
 } from "react";
 import {
   type EditorController,
+  type EditorCloseRequest,
   type DocumentCommitReceipt,
   type DocumentSavedEvent,
   browserDraftStore,
@@ -124,7 +125,7 @@ export interface DocumentEditorProps {
   onStateChange?(snapshot: EditorSnapshot): void;
   onDirtyChange?(dirty: boolean): void;
   onSaved?(result: DocumentSavedEvent): void | Promise<void>;
-  onClose?(): void;
+  onClose?(request?: EditorCloseRequest): void | Promise<void>;
   presets?: readonly DocumentPreset[];
   onCreateDocument?(document: EditorDocument): void | Promise<void>;
   /** Human-readable destination supplied by the host; the host still owns path validation. */
@@ -262,6 +263,11 @@ export const DocumentEditor = forwardRef<
   const [sourceBlocked, setSourceBlocked] = useState(false);
   const body = useRef<HTMLDivElement>(null);
   const busyRef = useRef(false);
+  const closeApproval = useRef<{
+    request: EditorCloseRequest;
+    assertCurrent(): void;
+    consumed: boolean;
+  } | null>(null);
   const inputLocks = useRef(new Set<symbol>());
   const [inputLockCount, setInputLockCount] = useState(0);
   const modalBlocked = useRef(false);
@@ -334,6 +340,7 @@ export const DocumentEditor = forwardRef<
     mounted.current = true;
     return () => {
       mounted.current = false;
+      closeApproval.current = null;
     };
   }, []);
   const nativeSnapshot = useSyncExternalStore(
@@ -1740,6 +1747,17 @@ export const DocumentEditor = forwardRef<
         automationDraft: { ...automationSession.getSnapshot() },
       }),
       execute,
+      acceptCloseRequest: (request) => {
+        const approval = closeApproval.current;
+        if (!approval || approval.request !== request || approval.consumed)
+          throw new SaveConflictError(
+            "현재 편집기의 유효한 폐기 종료 요청이 아닙니다.",
+          );
+        approval.assertCurrent();
+        if (liveSnapshot().revision !== request.revision || !busyRef.current)
+          throw new SaveConflictError("폐기 승인 이후 문서가 변경됐습니다.");
+        approval.consumed = true;
+      },
       acquireInputLock,
       exportDocument,
       flushDraft,
@@ -1894,21 +1912,83 @@ export const DocumentEditor = forwardRef<
       .catch(reportError);
   };
   const discardAndClose = () => {
-    if (busyRef.current) return;
+    if (busyRef.current || inFlightSave.current || !latest.current.onClose)
+      return;
+    const identity = sessionId.current;
+    const scope = acceptedScope.current;
+    const key = activeKey;
+    const store = activeDraftStore();
+    const automationStore = latest.current.automationDraftStore;
+    const automationRevision = automationSession.revision;
+    const assertCurrent = () => {
+      if (
+        !mounted.current ||
+        sessionId.current !== identity ||
+        acceptedScope.current !== scope ||
+        (latest.current.draftNamespace ?? "document-studio") !== scope ||
+        activeDraftStore() !== store ||
+        latest.current.automationDraftStore !== automationStore ||
+        automationSession.revision !== automationRevision ||
+        !matchesAcceptedSource(latest.current.document) ||
+        inFlightSave.current ||
+        inputLocks.current.size > 0 ||
+        commandTasks.current.size
+      )
+        throw new SaveConflictError(
+          "폐기 대상 문서 또는 보관 설정이 변경됐습니다.",
+        );
+      mailMergeRef.current?.assertCanLeave();
+    };
     busyRef.current = true;
+    setBusy(true);
     void (async () => {
       try {
         mailMergeRef.current?.assertCanLeave();
+        await syncInputBlock();
+        // Drain accepted edits, but never turn a rejected/unknown edit into a close approval.
+        await Promise.all([...commandTasks.current]);
+        assertCurrent();
+        // Persist separate durable inputs. Memory-only inputs remain visible/pending
+        // until the approved editor is actually unmounted; no fake saved state.
         await automationSession.flush();
+        assertCurrent();
         await draftExport.current;
-        await activeDraftStore()?.delete(activeKey);
-        onClose?.();
+        assertCurrent();
+        const revision = liveSnapshot().revision;
+        await store?.delete(key);
+        assertCurrent();
+        if (liveSnapshot().revision !== revision)
+          throw new SaveConflictError("폐기 준비 중 문서가 변경됐습니다.");
+        const request: EditorCloseRequest = Object.freeze({
+          disposition: "discard",
+          documentId: displayed.id,
+          sessionId: identity,
+          revision,
+          draftNamespace: scope,
+        });
+        closeApproval.current = { request, assertCurrent, consumed: false };
+        await latest.current.onClose?.(request);
       } catch (cause) {
-        reportError(cause instanceof Error ? cause : new Error(String(cause)));
+        if (mounted.current)
+          reportError(
+            cause instanceof Error ? cause : new Error(String(cause)),
+          );
       } finally {
+        closeApproval.current = null;
         busyRef.current = false;
+        if (mounted.current) {
+          setBusy(false);
+          await syncInputBlock().catch(reportError);
+        }
       }
     })();
+  };
+  const closeCleanDocument = async () => {
+    try {
+      await latest.current.onClose?.();
+    } catch (cause) {
+      reportError(cause instanceof Error ? cause : new Error(String(cause)));
+    }
   };
   const openPendingDocument = () => {
     if (!pendingDocument || busyRef.current) return;
@@ -2186,7 +2266,7 @@ export const DocumentEditor = forwardRef<
                   ) {
                     modalBlocked.current = true;
                     setCloseDialog(true);
-                  } else onClose();
+                  } else void closeCleanDocument();
                 }}
               >
                 닫기
@@ -2825,7 +2905,9 @@ export const DocumentEditor = forwardRef<
       {closeDialog && (
         <ModalDialog
           labelledBy={`${dialogId}-close`}
-          onCancel={() => setCloseDialog(false)}
+          onCancel={() => {
+            if (!busyRef.current) setCloseDialog(false);
+          }}
         >
           <h3 id={`${dialogId}-close`}>편집을 마칠까요?</h3>
           <p>
@@ -2873,18 +2955,31 @@ export const DocumentEditor = forwardRef<
                 자동화 입력 내려받기
               </button>
             )}
-            <button className="ds-button" onClick={() => setCloseDialog(false)}>
+            <button
+              className="ds-button"
+              disabled={busy}
+              onClick={() => setCloseDialog(false)}
+            >
               계속 편집
             </button>
-            <button className="ds-button" onClick={downloadDraft}>
+            <button
+              className="ds-button"
+              disabled={busy}
+              onClick={downloadDraft}
+            >
               초안 다운로드
             </button>
             <button
               className="ds-button ds-primary"
-              disabled={outputPending()}
+              disabled={
+                busy ||
+                inputLockCount > 0 ||
+                pendingCommands > 0 ||
+                outputPending()
+              }
               onClick={discardAndClose}
             >
-              변경 버리고 닫기
+              {busy ? "닫는 중…" : "변경 버리고 닫기"}
             </button>
           </div>
         </ModalDialog>

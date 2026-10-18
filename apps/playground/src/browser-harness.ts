@@ -8,6 +8,7 @@ import {
   type DocumentDraft,
   type EditorDocument,
   type DraftStore,
+  type EditorCloseRequest,
 } from "@document-studio/core";
 import { docxEngine } from "@document-studio/engine-docx";
 import { rhwpEngine } from "@document-studio/engine-rhwp";
@@ -52,9 +53,17 @@ const store: DraftStore = {
       });
     if (api.failDraft) throw new Error("Test draft storage failure");
     drafts.set(draft.key, structuredClone(draft));
+    api.draftEvents.push({ kind: "put", key: draft.key });
   },
   delete: async (key) => {
+    api.deleteStarted = true;
+    if (api.holdDelete)
+      await new Promise<void>((resolve) => {
+        api.releaseDelete = resolve;
+      });
+    if (api.failDelete) throw new Error("Test draft delete failure");
     drafts.delete(key);
+    api.draftEvents.push({ kind: "delete", key });
   },
 };
 const api = {
@@ -68,7 +77,25 @@ const api = {
   draftStarted: false,
   releaseDraft: null as (() => void) | null,
   saves: 0,
+  draftEvents: [] as { kind: string; key: string }[],
+  holdDelete: false,
+  deleteStarted: false,
+  failDelete: false,
+  releaseDelete: null as (() => void) | null,
+  holdClose: false,
+  failClose: false,
+  captureClose: false,
+  closeCalls: 0,
+  closed: false,
+  closeRequest: undefined as EditorCloseRequest | undefined,
+  closeState: undefined as
+    | ReturnType<MountedDocumentEditor["getState"]>
+    | undefined,
+  releaseClose: null as (() => void) | null,
+  failAutomation: false,
   async mount(id = "A", noDraft = false) {
+    api.closed = false;
+    const automationStore = browserAutomationDraftStore();
     controller = await mountDocumentEditor(host, {
       document: await source(id),
       engines,
@@ -76,9 +103,35 @@ const api = {
       automationDraftStore: new URLSearchParams(location.search).has(
         "persistAutomation",
       )
-        ? browserAutomationDraftStore()
+        ? {
+            get: automationStore.get,
+            delete: automationStore.delete,
+            put: async (key, value) => {
+              if (api.failAutomation)
+                throw new Error("Test automation storage failure");
+              await automationStore.put(key, value);
+            },
+          }
         : undefined,
       draftStore: noDraft ? false : store,
+      appearance: new URLSearchParams(location.search).has("closeUI")
+        ? "standalone"
+        : "embedded",
+      onClose: new URLSearchParams(location.search).has("closeUI")
+        ? async (request) => {
+            api.closeCalls++;
+            api.closeRequest = request;
+            api.closeState = controller!.getState();
+            if (api.holdClose)
+              await new Promise<void>((resolve) => {
+                api.releaseClose = resolve;
+              });
+            if (api.failClose) throw new Error("Test host close failure");
+            if (api.captureClose) return;
+            await controller!.destroy();
+            api.closed = true;
+          }
+        : undefined,
       storage: {
         async save({ document, bytes, expectedVersion }) {
           if (api.failSave) throw new Error("Test server save failure");

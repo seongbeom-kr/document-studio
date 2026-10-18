@@ -631,7 +631,9 @@ for (const format of ["docx", "hwpx"] as const) {
     await page
       .getByRole("button", { name: "문단·표·그림", exact: true })
       .click();
-    await page.getByRole("tab", { name: "서식·메일머지", exact: true }).click();
+    await page
+      .getByRole("tab", { name: "문서 일괄 생성", exact: true })
+      .click();
     await page
       .getByRole("button", { name: "현재 편집본을 서식으로 등록", exact: true })
       .click();
@@ -644,7 +646,9 @@ for (const format of ["docx", "hwpx"] as const) {
         .getByLabel(`필드 ${field} 데이터 열`, { exact: true })
         .selectOption(field);
     await page.getByRole("tab", { name: "글자", exact: true }).click();
-    await page.getByRole("tab", { name: "서식·메일머지", exact: true }).click();
+    await page
+      .getByRole("tab", { name: "문서 일괄 생성", exact: true })
+      .click();
     await expect(
       page.getByLabel("메일머지 입력 데이터", { exact: true }),
     ).toContainText("001234");
@@ -652,7 +656,7 @@ for (const format of ["docx", "hwpx"] as const) {
       page.getByLabel("필드 이름 데이터 열", { exact: true }),
     ).toHaveValue("이름");
     await page
-      .getByRole("button", { name: "메일머지 미리보기", exact: true })
+      .getByRole("button", { name: "생성 미리보기", exact: true })
       .click();
     await expect(
       page.getByRole("table", { name: "생성할 파일과 필드 값" }),

@@ -92,6 +92,8 @@ export function MailMergeTools({
   );
   const [formOpen, setFormOpen] = useState(true);
   const [previewRow, setPreviewRow] = useState(0);
+  const [needsNewPreview, setNeedsNewPreview] = useState(false);
+  const previewButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (status.lastResult) setFormOpen(false);
   }, [status.lastResult?.operationId]);
@@ -176,6 +178,7 @@ export function MailMergeTools({
     setSettings(next);
     setDelimiter(separator);
     setPreview(null);
+    setNeedsNewPreview(false);
     setNotice("");
     session.put(
       MAIL_MERGE_DRAFT_NAME,
@@ -238,7 +241,7 @@ export function MailMergeTools({
       className="ds-mail-merge ds-tools-panel"
       aria-label="서식 메일머지"
     >
-      <h3>서식 등록과 메일머지</h3>
+      <h3>양식과 데이터로 문서 일괄 생성</h3>
       <ol className="ds-workflow-steps" aria-label="메일머지 진행 단계">
         <li aria-current={!source ? "step" : undefined}>1 서식 확인</li>
         <li
@@ -555,6 +558,7 @@ export function MailMergeTools({
             type="button"
             className="ds-button"
             disabled={!source || !input}
+            ref={previewButton}
             onClick={() => {
               setNotice("");
               try {
@@ -568,6 +572,7 @@ export function MailMergeTools({
                     allowEmpty: settings.allowEmpty,
                   }),
                 );
+                setNeedsNewPreview(false);
               } catch (error) {
                 setPreview(null);
                 setNotice(
@@ -576,7 +581,7 @@ export function MailMergeTools({
               }
             }}
           >
-            메일머지 미리보기
+            {needsNewPreview ? "다시 미리보기" : "생성 미리보기"}
           </button>
         </fieldset>
         <button
@@ -712,7 +717,12 @@ export function MailMergeTools({
                     );
                   } else focus.dispose();
                 } catch (error) {
-                  focus.dispose();
+                  if (alive.current) {
+                    setPreview(null);
+                    setFormOpen(true);
+                    setNeedsNewPreview(true);
+                    focus.complete(() => previewButton.current);
+                  } else focus.dispose();
                   throw error;
                 }
               });
@@ -724,6 +734,11 @@ export function MailMergeTools({
       )}
       {(status.phase === "failed" || status.phase === "cancelled") && (
         <p role="status">이번 생성 결과는 모두 폐기했습니다. {status.error}</p>
+      )}
+      {needsNewPreview && (
+        <p role="status">
+          입력은 유지했습니다. 다시 미리보기한 뒤 생성해 주세요.
+        </p>
       )}
       <GeneratedOutputActions
         status={status}

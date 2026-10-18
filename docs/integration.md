@@ -4,7 +4,7 @@ React 19 앱에 Document Studio를 연결할 때 필요한 저장·전환·복�
 
 ## React에서 사용
 
-0.2.22는 `quick`(빠른 작업), `mailMerge`(서식·메일머지) 도구 탭과 공통 controller/agent 메서드를 추가합니다. 호스트 툴바에서는 `context.openTools("quick")` 또는 `context.openTools("mailMerge")`로 기존 패널을 열 수 있습니다. 메일머지 결과는 세션 메모리에만 생성되며 서버 저장·목록 반영은 호스트가 `exportMailMerge()`로 받아 별도로 처리합니다. [빠른 작업·메일머지 계약](office-workflows-0.2.22.txt)에 예제와 제한이 있습니다.
+`quick`(빠른 작업), `mailMerge`(문서 일괄 생성) 도구 탭과 공통 controller/agent 메서드를 제공합니다. 호스트 툴바에서는 `context.openTools("quick")` 또는 `context.openTools("mailMerge")`로 패널을 열 수 있습니다. 생성 결과는 처음에는 세션 메모리에 있으며, `generatedStorage`를 연결하면 UI와 `saveMailMergeResults()`가 같은 보관 경로를 사용합니다. 직접 내보내기는 `exportMailMerge()`를 사용합니다. 생성과 원본 저장·사본 보관은 별도 작업입니다. [빠른 작업·메일머지 계약](office-workflows-0.2.22.txt)에 입력 예제와 제한이 있습니다.
 
 0.2.21의 표 도구는 선택한 열의 쉼표 처리와 문자열 치환에 대해 변경 전후·제외 사유를 미리 보여줍니다. React 컨트롤러와 DOM 어댑터의 `readTable()` → `previewTableColumn()` → `applyTableColumn()`이 UI와 에이전트의 공통 경로입니다. [표 열 편집 계약](table-column-editing-0.2.21.txt)에 보호 규칙, 오류 효과와 에이전트 예제가 있습니다. 저장은 별도입니다.
 
@@ -126,7 +126,7 @@ await agent.execute({
 
 HWPX의 서식 조회는 캐럿 기준, DOCX의 서식 조회는 엔진의 선택 상태 기준입니다. `selectionStateScope`로 구분합니다. 여러 명령을 순서대로 호출하는 기능은 전체를 하나의 undo transaction으로 묶는다고 보장하지 않습니다.
 
-검색 조건·문서 revision·편집 세션을 바꾸면 기존 결과와 선택은 무효화됩니다. 늦게 도착한 검색과 선택 응답도 현재 조건에 반영하지 않습니다. DOCX 강조색은 Word의 16색 중 선택하며, 엔진의 `CommandState.valueChoices`와 `valueSchema`로 허용값을 조회할 수 있습니다. 글자색과 HWPX 강조색은 자유 RGB 입력을 지원합니다.
+검색 UI의 조건을 바꾸면 현재 표시와 선택을 초기화하고 늦게 도착한 응답을 반영하지 않습니다. 공개 SDK의 같은 revision 검색 결과는 아래 검색 결과 보관 계약에 따라 최대 1,000개 유지됩니다. 문서 revision·편집 세션 변경 시 이전 대상으로 쓰는 요청은 거절됩니다. DOCX 강조색은 Word의 16색 중 선택하며, 엔진의 `CommandState.valueChoices`와 `valueSchema`로 허용값을 조회할 수 있습니다. 글자색과 HWPX 강조색은 자유 RGB 입력을 지원합니다.
 
 `applyPreset()`은 각 명령 전후에 현재 문서·세션·권한을 확인합니다. 실행 중 권한이 철회되면 후속 명령을 중단하며 `PresetApplicationError.completedCommands`와 `totalCommands`로 확인된 적용 단계를 반환합니다. 이미 적용된 단계는 편집본에 남으므로 호스트는 오류를 표시하고 사용자가 복구 또는 재적용을 선택할 수 있게 해야 합니다.
 
@@ -146,6 +146,8 @@ HWPX의 서식 조회는 캐럿 기준, DOCX의 서식 조회는 엔진의 선�
 - `update({ document })`는 현재 입력을 잠그고 `flushDraft()`가 완료된 뒤 새 편집 수명을 엽니다. 실패하면 기존 문서가 유지됩니다. 새 문서의 기존 초안은 정상 복구 UI를 거칩니다. 같은 id·fileName·format·version·bytes 참조의 객체 갱신과 UI 설정 갱신은 세션을 다시 만들지 않습니다.
 - `update({ readOnly })`는 준비된 엔진의 내부 입력 잠금 응답까지 기다립니다. 지원하는 나머지 갱신은 appearance·presets·호스트 콜백·creationLocation입니다. 엔진·저장소·draftNamespace 등 소유권 설정 변경은 기존 controller를 종료하고 새로 mount하세요.
 - `destroy()`는 최신 문서 초안과 자동화 입력의 종료 준비를 기다립니다. 저장소 실패·미보관 입력은 거절하며 편집기를 유지합니다. 동시 destroy는 같은 요청을 공유하고 종료 후 반복 호출은 허용합니다. 성공 후 편집 명령은 거절됩니다.
+- SDK UI의 ‘변경 버리고 닫기’는 현재 문서·세션·revision·초안 namespace에 묶인 `EditorCloseRequest`를 `onClose(request)`로 전달합니다. Browser 어댑터는 이 콜백이 처리되는 동안의 `destroy()`에 해당 요청을 자동 연결하므로 기존 `onClose: () => editor.destroy()`도 동작합니다. `await editor.destroy(request)`처럼 명시적으로 전달해도 됩니다. 이 경로는 이미 폐기한 본문 초안을 다시 저장하지 않습니다. 메모리 자동화 입력은 실제 언마운트 때 사라지며, 연결된 영속 자동화 저장소의 입력은 먼저 보관합니다. 그 저장이 실패하면 닫지 않습니다.
+- 종료 요청은 콜백 처리 중에만 유효한 일회용 객체입니다. 복사·직렬화·보관하거나 다른 편집기에 전달하지 마세요. `onClose`에서는 종료 Promise를 반환하거나 기다리고, 성공 후 호스트 DOM/라우팅을 정리하세요. 진행 중 명령·저장·외부 입력 잠금·미보관 생성 사본은 폐기 요청으로 우회하지 않습니다. React 호스트가 직접 언마운트하는 경우에는 `onClose`에서 추가 `flushDraft()`를 실행하지 마세요.
 - 전환 중 새 명령·다른 update/destroy는 거절합니다. 저장 중 문서 전환은 먼저 저장이 끝나야 합니다. `onSaved`에서는 호스트 파일 목록을 갱신하고, 문서를 새로 열 필요가 있으면 `save()` 완료 후 update하세요.
 - 같은 DOM 요소의 중복 mount는 거절합니다. SDK는 자신이 만든 자식 영역만 관리하며 호스트의 다른 요소를 지우지 않습니다.
 
@@ -217,7 +219,7 @@ await editor.update({
 });
 ```
 
-대상은 같은 document에 연결된 호스트 소유 HTMLElement여야 합니다. SDK 내부 요소나 분리된 DOM을 지정하면 거절합니다. 대상의 기존 자식은 유지하고 SDK가 만든 영역만 추가·이동·제거합니다. 배치나 테마 변경으로 엔진을 재마운트하지 않으며, 도구 영역 이동에도 입력 중인 폼과 포커스를 유지합니다. 오류·저장 경고·초안 복구·확인창은 편집기 본체에 남습니다. 종료 전 `destroy()`를 기다린 뒤 앱의 대상 DOM을 제거하세요. React 호스트도 상위 라우트가 DOM을 제거하기 전에 `flushDraft()`로 종료를 준비해야 합니다.
+대상은 같은 document에 연결된 호스트 소유 HTMLElement여야 합니다. SDK 내부 요소나 분리된 DOM을 지정하면 거절합니다. 대상의 기존 자식은 유지하고 SDK가 만든 영역만 추가·이동·제거합니다. 배치나 테마 변경으로 엔진을 재마운트하지 않으며, 도구 영역 이동에도 입력 중인 폼과 포커스를 유지합니다. 오류·저장 경고·초안 복구·확인창은 편집기 본체에 남습니다. 종료 전 `destroy()`를 기다린 뒤 앱의 대상 DOM을 제거하세요. React 호스트의 일반 보존 종료는 상위 라우트가 DOM을 제거하기 전에 `flushDraft()`로 준비합니다. SDK가 승인한 명시적 폐기 콜백에서는 본문 초안을 다시 내보내지 않습니다.
 
 `update({ ui })`는 `ui` 객체 전체를 교체합니다. 일부 테마나 대상만 바꿀 때는 위 예제처럼 유지할 설정도 함께 전달하세요.
 
@@ -277,6 +279,8 @@ const slots: EditorUISlots = {
 메일머지의 `previewMailMergeDocument(previewId, row)`는 0부터 시작하는 데이터 행 인덱스를 받습니다. UI의 행 선택기도 이 경로를 사용합니다. 페이지 확인은 원본 편집이나 파일 보관을 수행하지 않습니다.
 
 사용자가 생성 버튼으로 작업을 완료하면 포커스가 생성 사본 보관 영역으로 이어지며, 다음 Tab으로 저장소 보관 또는 ZIP 내려받기에 접근합니다. 대기 중 다른 곳으로 이동하거나 도구 패널을 닫았다면 포커스를 가져오지 않습니다. 에이전트 API의 백그라운드 생성도 현재 사용자의 포커스를 유지합니다.
+
+생성 실패·취소 후 UI는 사용한 미리보기를 제거하고 입력을 유지한 채 ‘다시 미리보기’를 안내합니다. 새 미리보기를 확인해야 새 생성 요청을 실행합니다. 같은 `operationId`의 실패 결과를 재사용하는 core의 멱등 계약은 유지하며, 자동 재시도나 실패 기록 삭제는 하지 않습니다. 사용자용 탭 이름은 ‘문서 일괄 생성’이며 `mailMerge` API 키는 그대로입니다.
 
 ### 검색 결과 보관
 

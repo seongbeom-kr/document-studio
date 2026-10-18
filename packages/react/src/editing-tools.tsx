@@ -538,7 +538,7 @@ export function EditingTools(props: Props) {
             className={tab === name ? "active" : ""}
             onClick={() => setTab(name)}
           >
-            {name}
+            {name === "서식·메일머지" ? "문서 일괄 생성" : name}
           </button>
         ))}
       </div>

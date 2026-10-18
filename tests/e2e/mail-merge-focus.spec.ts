@@ -33,7 +33,7 @@ async function prepare(page: Page, format: "docx" | "hwpx", storage = true) {
     document.body.append(other);
   });
   await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
-  await page.getByRole("tab", { name: "서식·메일머지", exact: true }).click();
+  await page.getByRole("tab", { name: "문서 일괄 생성", exact: true }).click();
   await page
     .getByRole("button", { name: "현재 편집본을 서식으로 등록", exact: true })
     .click();
@@ -45,7 +45,7 @@ async function prepare(page: Page, format: "docx" | "hwpx", storage = true) {
     .getByRole("button", { name: "같은 이름의 열 연결", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "메일머지 미리보기", exact: true })
+    .getByRole("button", { name: "생성 미리보기", exact: true })
     .click();
   const generate = page.getByRole("button", {
     name: "확인한 1개 문서 생성",
@@ -229,7 +229,20 @@ for (const format of ["docx", "hwpx"] as const) {
     await expect(
       page.getByRole("region", { name: "생성 사본 보관", exact: true }),
     ).toHaveCount(0);
-    await expect(generate).toBeEnabled();
+    await expect(generate).toHaveCount(0);
+    await expect(
+      page.getByLabel("메일머지 입력 데이터", { exact: true }),
+    ).toHaveValue("이름\n김하나");
+    const retry = page.getByRole("button", {
+      name: "다시 미리보기",
+      exact: true,
+    });
+    await expect(retry).toBeFocused();
+    await retry.click();
+    await generate.press("Enter");
+    await expect(
+      page.getByRole("region", { name: "생성 사본 보관", exact: true }),
+    ).toBeFocused();
   });
 
   test(`${format}: leaving the panel cancels its pending completion focus`, async ({
@@ -253,12 +266,14 @@ for (const format of ["docx", "hwpx"] as const) {
       )
       .toBe(true);
     await expect(otherTab).toBeFocused();
-    await page.getByRole("tab", { name: "서식·메일머지", exact: true }).click();
+    await page
+      .getByRole("tab", { name: "문서 일괄 생성", exact: true })
+      .click();
     await expect(
       page.getByRole("region", { name: "생성 사본 보관", exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole("tab", { name: "서식·메일머지", exact: true }),
+      page.getByRole("tab", { name: "문서 일괄 생성", exact: true }),
     ).toBeFocused();
   });
 
@@ -280,5 +295,13 @@ for (const format of ["docx", "hwpx"] as const) {
     await expect(
       page.getByRole("region", { name: "생성 사본 보관", exact: true }),
     ).toHaveCount(0);
+    await expect(generate).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "다시 미리보기", exact: true })
+      .click();
+    await generate.press("Enter");
+    await expect(
+      page.getByRole("region", { name: "생성 사본 보관", exact: true }),
+    ).toBeFocused();
   });
 }

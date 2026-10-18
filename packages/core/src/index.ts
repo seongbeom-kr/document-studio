@@ -379,6 +379,7 @@ export function browserDraftStore(
 export type {
   EditorController,
   EditorControllerState,
+  EditorCloseRequest,
   DocumentCommitReceipt,
   DocumentSavedEvent,
   AutomationDraftStatus,

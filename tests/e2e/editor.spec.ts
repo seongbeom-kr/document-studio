@@ -785,12 +785,28 @@ for (const format of ["docx", "hwpx"] as const) {
       await page.keyboard.insertText("두 번째 줄");
       await page.keyboard.press("Tab");
       await page.keyboard.insertText("탭 뒤 텍스트");
-      // Finish pending native input and hold the public snapshot boundary while exporting.
-      // Concurrent exports are tested separately and must reject a changed revision.
+      // Block new input while already accepted native keystrokes finish committing.
+      // Export may reject a revision change; retry only that documented read conflict.
       await page.evaluate(() => window.documentStudioTest.acquireInputLock());
-      let xml: string;
+      let xml = "";
       try {
-        xml = await textFrom(page, format);
+        await expect
+          .poll(async () => {
+            try {
+              xml = await textFrom(page, format);
+              return xml;
+            } catch (cause) {
+              if (
+                cause instanceof Error &&
+                cause.message.includes(
+                  "문서를 내보내는 동안 revision이 변경됐습니다.",
+                )
+              )
+                return "";
+              throw cause;
+            }
+          })
+          .toContain("탭 뒤 텍스트");
       } finally {
         await page.evaluate(() => window.documentStudioTest.releaseInputLock());
       }
@@ -1053,10 +1069,18 @@ test("has no horizontal overflow on a narrow device", async ({ page }) => {
   ).toBeLessThanOrEqual(390);
 });
 
-
 // Native selectAll changes the document selection; it does not promise keyboard focus.
 async function focusDocumentInput(page: Page) {
-  const format = await page.evaluate(() => window.documentStudioTest.state()?.format);
-  if (format === "hwpx") await page.frameLocator("iframe").getByLabel("문서 편집 입력", { exact: true }).focus();
-  else await page.getByRole("textbox", { name: "Document content", exact: true }).focus();
+  const format = await page.evaluate(
+    () => window.documentStudioTest.state()?.format,
+  );
+  if (format === "hwpx")
+    await page
+      .frameLocator("iframe")
+      .getByLabel("문서 편집 입력", { exact: true })
+      .focus();
+  else
+    await page
+      .getByRole("textbox", { name: "Document content", exact: true })
+      .focus();
 }

@@ -220,7 +220,9 @@ for (const format of ["docx", "hwpx"] as const) {
     await page
       .getByRole("button", { name: "문단·표·그림", exact: true })
       .click();
-    await page.getByRole("tab", { name: "서식·메일머지", exact: true }).click();
+    await page
+      .getByRole("tab", { name: "문서 일괄 생성", exact: true })
+      .click();
     const download = page.waitForEvent("download");
     await page
       .getByRole("button", { name: "생성 파일 ZIP 내려받기", exact: true })

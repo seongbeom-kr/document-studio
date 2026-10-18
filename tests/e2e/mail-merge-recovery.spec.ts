@@ -12,7 +12,7 @@ async function load(page: Page, format: "docx" | "hwpx") {
     .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
     .toBe(true);
   await page.getByRole("button", { name: "문단·표·그림", exact: true }).click();
-  await page.getByRole("tab", { name: "서식·메일머지", exact: true }).click();
+  await page.getByRole("tab", { name: "문서 일괄 생성", exact: true }).click();
 }
 for (const format of ["docx", "hwpx"] as const) {
   test(`${format} mail merge restores owner-scoped data and mapping after reload and preserves malformed settings until explicit reset`, async ({
