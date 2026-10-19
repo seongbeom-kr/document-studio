@@ -11,6 +11,7 @@ export function GeneratedOutputActions({
   controller,
   onError,
   onOpenStoredCopy,
+  onCancel,
 }: {
   status: MailMergeStatus;
   controller: Pick<
@@ -24,6 +25,8 @@ export function GeneratedOutputActions({
   >;
   onError(error: Error): void;
   onOpenStoredCopy?(file: GeneratedStoredFile): Promise<void>;
+  /** Host-owned cancellation flow, including its keyboard completion target. */
+  onCancel?(operationId: string, trigger: HTMLButtonElement): void;
 }) {
   const [discarding, setDiscarding] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
@@ -44,8 +47,12 @@ export function GeneratedOutputActions({
         <button
           type="button"
           className="ds-button"
-          onClick={() =>
-            perform(() => controller.cancelMailMerge?.(status.operationId!))
+          onClick={(event) =>
+            perform(() =>
+              onCancel
+                ? onCancel(status.operationId!, event.currentTarget)
+                : controller.cancelMailMerge?.(status.operationId!),
+            )
           }
         >
           생성 취소

@@ -2,6 +2,42 @@ import { expect, test, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
 type Fault = "html" | "handshake" | "ready" | "loadFile" | "loadFile-error";
+
+test("HWPX first existing-file load releases validation workers and survives repeated mount and save", async ({
+  page,
+}) => {
+  const workers = new Set<import("@playwright/test").Worker>();
+  let opened = 0,
+    closed = 0;
+  page.on("worker", (worker) => {
+    opened++;
+    workers.add(worker);
+    worker.on("close", () => {
+      closed++;
+      workers.delete(worker);
+    });
+  });
+  for (let i = 0; i < 3; i++) {
+    await page.goto("/harness.html");
+    await page.waitForFunction(() => !!window.documentStudioTest);
+    await page.evaluate(() =>
+      window.documentStudioTest.load("hwpx", "blank.hwpx"),
+    );
+    await expect
+      .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
+      .toBe(true);
+    await expect.poll(() => workers.size).toBe(0);
+    expect(opened).toBeGreaterThan(i);
+    expect(closed).toBe(opened);
+    expect(
+      await page.evaluate(() => window.documentStudioTest.state()?.revision),
+    ).toBe("0");
+    await verifyRecoveredEditor(page);
+    await expect.poll(() => workers.size).toBe(0);
+    expect(closed).toBe(opened);
+  }
+});
+
 async function faultHost(page: Page, fault: Fault) {
   let blocked = true;
   let resume!: () => void;

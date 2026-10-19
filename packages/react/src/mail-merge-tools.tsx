@@ -731,13 +731,15 @@ export function MailMergeTools({
                     operationId: `mail-ui:${preview.previewId}`,
                   });
                   if (alive.current) {
-                    completion.current = { focus, destination: "output" };
+                    if (disposeCompletionFocus.current === focus.dispose)
+                      completion.current = { focus, destination: "output" };
                     setPreview(null);
                     setNotice("");
                   } else focus.dispose();
                 } catch (error) {
                   if (alive.current) {
-                    completion.current = { focus, destination: "retry" };
+                    if (disposeCompletionFocus.current === focus.dispose)
+                      completion.current = { focus, destination: "retry" };
                     setPreview(null);
                     setFormOpen(true);
                     setNeedsNewPreview(true);
@@ -767,6 +769,24 @@ export function MailMergeTools({
       )}
       <GeneratedOutputActions
         status={status}
+        onCancel={(operationId, trigger) => {
+          // Cancelling is a new foreground action. The generation's abandoned
+          // intent must neither overwrite this intent nor reclaim user focus.
+          disposeCompletionFocus.current?.();
+          completion.current = null;
+          const focus = prepareCompletionFocus(trigger);
+          disposeCompletionFocus.current = focus.dispose;
+          try {
+            actions.cancel(operationId);
+            completion.current = { focus, destination: "retry" };
+            setPreview(null);
+            setFormOpen(true);
+            setNeedsNewPreview(true);
+          } catch (error) {
+            focus.dispose();
+            throw error;
+          }
+        }}
         controller={{
           exportMailMergeArchive: actions.archive,
           noteMailMergeDownload: actions.noteDownload,

@@ -379,38 +379,219 @@ for (const format of ["docx", "hwpx"] as const) {
     ).toBeFocused();
   });
 
-  test(`${format}: cancelling generation does not move focus to a result`, async ({
+  for (const activation of ["keyboard", "pointer"] as const) {
+    test(`${format}: ${activation} cancellation leads to recovery instead of a result`, async ({
+      page,
+    }) => {
+      const generate = await prepare(page, format);
+      await pauseGeneration(page);
+      await generate.focus();
+      await page.keyboard.press("Enter");
+      await expect
+        .poll(() => page.evaluate(() => window.mailFocusGate.started))
+        .toBe(true);
+      const cancel = page.getByRole("button", {
+        name: "생성 취소",
+        exact: true,
+      });
+      if (activation === "keyboard") await cancel.press("Enter");
+      else await cancel.click();
+      await page.evaluate(() => window.mailFocusGate.release());
+      const cancellation = page
+        .getByRole("status")
+        .filter({ hasText: "문서 생성을 취소했습니다." });
+      await expect(cancellation).toHaveCount(1);
+      await expect(cancellation).toContainText(
+        "입력은 유지했습니다. 다시 미리보기한 뒤 생성해 주세요.",
+      );
+      await expect(
+        page.getByRole("region", { name: "생성 사본 보관", exact: true }),
+      ).toHaveCount(0);
+      await expect(generate).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: "다시 미리보기", exact: true }),
+      ).toBeFocused();
+      await page
+        .getByRole("button", { name: "다시 미리보기", exact: true })
+        .click();
+      await generate.press("Enter");
+      await expect(
+        page.getByRole("region", { name: "생성 사본 보관", exact: true }),
+      ).toBeFocused();
+    });
+  }
+
+  for (const move of ["focus", "pointer", "tab", "panel"] as const) {
+    test(`${format}: a ${move} move after cancellation is preserved`, async ({
+      page,
+    }) => {
+      const generate = await prepare(page, format);
+      await pauseGeneration(page);
+      await generate.press("Enter");
+      await expect
+        .poll(() => page.evaluate(() => window.mailFocusGate.started))
+        .toBe(true);
+      await page
+        .getByRole("button", { name: "생성 취소", exact: true })
+        .press("Enter");
+      const input = page.getByLabel("호스트의 다른 입력");
+      const tab = page.getByRole("tab", { name: "글자", exact: true });
+      if (move === "focus") {
+        await input.fill("취소 후 입력 보존");
+      }
+      if (move === "pointer")
+        await page.getByText("호스트의 다른 영역", { exact: true }).click();
+      if (move === "tab") await page.keyboard.press("Tab");
+      if (move === "panel") await tab.click();
+      await page.evaluate(() => window.mailFocusGate.release());
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const agent = window.documentStudioTest.agent;
+            return agent.getMailMergeStatus({
+              documentId: agent.getState().documentId,
+            }).phase;
+          }),
+        )
+        .toBe("cancelled");
+      if (move === "panel") {
+        await expect(tab).toBeFocused();
+        await page
+          .getByRole("tab", { name: "문서 일괄 생성", exact: true })
+          .click();
+      }
+      const retry = page.getByRole("button", {
+        name: "다시 미리보기",
+        exact: true,
+      });
+      if (move !== "panel") {
+        await expect(retry).toBeEnabled();
+        await expect(retry).not.toBeFocused();
+      }
+      if (move === "focus") {
+        await expect(input).toBeFocused();
+        await expect(input).toHaveValue("취소 후 입력 보존");
+      }
+      if (move === "panel")
+        await expect(
+          page.getByRole("tab", { name: "문서 일괄 생성", exact: true }),
+        ).toBeFocused();
+      expect(
+        (await page.evaluate(() => window.documentStudioTest.state()))
+          ?.generatedOutputPending,
+      ).toBe(false);
+    });
+  }
+
+  test(`${format}: cancelling regeneration returns to recovery beside the previous saved batch`, async ({
     page,
   }) => {
     const generate = await prepare(page, format);
+    await generate.press("Enter");
+    const output = page.getByRole("region", {
+      name: "생성 사본 보관",
+      exact: true,
+    });
+    await page
+      .getByRole("button", { name: "검증 작업 공간에 사본 저장", exact: true })
+      .click();
+    await expect(output).toContainText("보관 1개 · 남음 0개");
+    await page.locator(".ds-mail-inputs > summary").click();
+    await page
+      .getByRole("button", { name: "생성 미리보기", exact: true })
+      .click();
     await pauseGeneration(page);
-    await generate.focus();
-    await page.keyboard.press("Enter");
+    await generate.press("Enter");
     await expect
       .poll(() => page.evaluate(() => window.mailFocusGate.started))
       .toBe(true);
-    await page.getByRole("button", { name: "생성 취소", exact: true }).click();
+    await page
+      .getByRole("button", { name: "생성 취소", exact: true })
+      .press("Enter");
     await page.evaluate(() => window.mailFocusGate.release());
-    const cancellation = page
-      .getByRole("status")
-      .filter({ hasText: "문서 생성을 취소했습니다." });
-    await expect(cancellation).toHaveCount(1);
-    await expect(cancellation).toContainText(
-      "입력은 유지했습니다. 다시 미리보기한 뒤 생성해 주세요.",
-    );
-    await expect(
-      page.getByRole("region", { name: "생성 사본 보관", exact: true }),
-    ).toHaveCount(0);
-    await expect(generate).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "다시 미리보기", exact: true }),
-    ).not.toBeFocused();
-    await page
-      .getByRole("button", { name: "다시 미리보기", exact: true })
-      .click();
-    await generate.press("Enter");
-    await expect(
-      page.getByRole("region", { name: "생성 사본 보관", exact: true }),
     ).toBeFocused();
+    await expect(output).toContainText("이전 생성 문서");
+    await expect(output).toContainText("보관 1개 · 남음 0개");
+    await expect(output).not.toBeFocused();
   });
+
+  for (const cancelBy of ["user", "agent"] as const) {
+    test(`${format}: ${cancelBy} cancellation of a background operation respects focus ownership`, async ({
+      page,
+    }) => {
+      await prepare(page, format);
+      await pauseGeneration(page);
+      const input = page.getByLabel("호스트의 다른 입력");
+      await input.fill("배경 실행 중 입력 보존");
+      await page.evaluate(() => {
+        const agent = window.documentStudioTest.agent,
+          state = agent.getState();
+        const target = {
+          documentId: state.documentId,
+          expectedSessionId: state.sessionId,
+        };
+        const template = agent.listMailMergeTemplates(target)[0]!;
+        const preview = agent.previewMailMerge({
+          ...target,
+          mergeRequest: {
+            templateId: template.templateId,
+            data: "이름\n배경",
+            delimiter: ",",
+            mapping: { 이름: "이름" },
+            fileNamePattern: `배경-{{#}}.${template.format}`,
+            allowEmpty: false,
+          },
+        });
+        void agent
+          .generateMailMerge({
+            ...target,
+            expectedRevision: state.revision,
+            previewId: preview.previewId,
+            operationId: "cancel-background",
+          })
+          .catch(() => {});
+      });
+      await expect
+        .poll(() => page.evaluate(() => window.mailFocusGate.started))
+        .toBe(true);
+      if (cancelBy === "user")
+        await page
+          .getByRole("button", { name: "생성 취소", exact: true })
+          .press("Enter");
+      else
+        await page.evaluate(() => {
+          const agent = window.documentStudioTest.agent,
+            state = agent.getState();
+          agent.cancelMailMerge({
+            documentId: state.documentId,
+            expectedSessionId: state.sessionId,
+            operationId: "cancel-background",
+          });
+        });
+      await page.evaluate(() => window.mailFocusGate.release());
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const agent = window.documentStudioTest.agent;
+            return agent.getMailMergeStatus({
+              documentId: agent.getState().documentId,
+            }).phase;
+          }),
+        )
+        .toBe("cancelled");
+      if (cancelBy === "user")
+        await expect(
+          page.getByRole("button", { name: "다시 미리보기", exact: true }),
+        ).toBeFocused();
+      else await expect(input).toBeFocused();
+      await expect(input).toHaveValue("배경 실행 중 입력 보존");
+      const state = await page.evaluate(() =>
+        window.documentStudioTest.state(),
+      );
+      expect(state?.dirty).toBe(false);
+      expect(state?.generatedOutputPending).toBe(false);
+    });
+  }
 }

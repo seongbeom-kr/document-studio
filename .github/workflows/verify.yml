@@ -5,7 +5,9 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # The previous 503-case run took 24m24s including package consumers. Keep
+    # headroom for the expanded suite without changing per-test/engine limits.
+    timeout-minutes: 35
     env:
       CI: "true"
       NEXT_TELEMETRY_DISABLED: "1"
