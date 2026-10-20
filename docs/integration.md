@@ -140,7 +140,7 @@ HWPX의 서식 조회는 캐럿 기준, DOCX의 서식 조회는 엔진의 선�
 
 ### 메서드별 도구 스키마
 
-`createAgentToolset(bridge)`는 기본 읽기·검색·단일 치환·표 열 미리보기/적용·저장을 위한 선택형 도구 10개를 제공합니다. `list()`의 각 항목은 `name`, `description`, `inputSchema`를 갖습니다. 호스트는 사용하는 모델 도구 형식으로 이 항목을 전달하고 `invoke(name, arguments)`로 호출합니다. 특정 모델 서비스나 서버 인증에는 의존하지 않습니다.
+`createAgentToolset(bridge)`는 읽기·검색·단일 치환·표 열·빠른 작업·문서 일괄 생성·저장을 위한 선택형 도구 19개를 제공합니다. `list()`의 각 항목은 `name`, `description`, `inputSchema`를 갖습니다. 호스트는 허용할 도구만 사용하는 모델 도구 형식으로 전달하고 `invoke(name, arguments)`로 호출합니다. 특정 모델 서비스나 서버 인증에는 의존하지 않습니다. 0.2.31의 기존 10개 메서드 인수는 유지됩니다.
 
 ```ts
 import { createAgentBridge, createAgentToolset } from "@document-studio/core";
@@ -155,6 +155,56 @@ const state = await tools.invoke("getState", {});
 이 도구 묶음의 `replace`는 검색 결과 하나를 대상으로 하며 입력은 10,000자까지입니다. 다른 고급 작업은 기존 브리지 API를 사용합니다. 쓰기 권한·문서/세션/revision 검증은 기존 경로를 그대로 사용하며, 사용자의 승인을 받은 다음에 실행해야 합니다. `replace` 자체의 중복 실행 보장은 없으므로 응답이 유실됐으면 현재 문서를 다시 조회해야 합니다. `commit`과 `applyTableColumn`의 같은 operationId 재호출은 동일 인수에만 허용됩니다. 호스트의 인증·승인과 연결 간 작업 기록 영속화는 별도 책임입니다.
 
 표 조회의 알려진 선행 조건 실패는 `TableReadError`로 구분합니다. `table-selection-required`/`table-cell-required`는 `requiredAction=select-table-cell`, `table-structure-unsupported`/`table-limit-exceeded`는 `select-supported-table`입니다. 모두 `effect=none`, `retryable=false`이므로 상태 조회를 반복하지 않고 선택 조건을 먼저 고칩니다. 기존 `TableEditError` 처리와도 호환됩니다.
+
+### 세션 참조로 호출하기 (0.2.32)
+
+`createAgentSessionTools(bridge)`는 같은 도구의 대상 인수를 `contextRef` 하나로 묶습니다. 서버나 모델이 긴 session/version/revision을 매번 조합할 필요가 없습니다. 호스트가 프론트 편집 수명당 인스턴스를 하나 보관하고, 받은 도구 호출을 그 인스턴스로 전달합니다. 새 인스턴스에서 이전 참조를 복원하거나 검증 없이 현재 값으로 대체하지 마세요.
+
+```ts
+import {
+  createAgentBridge,
+  createAgentSessionTools,
+  agentToolFailure,
+} from "@document-studio/core";
+const tools = createAgentSessionTools(
+  createAgentBridge(() => editorRef.current),
+);
+const current = await tools.invoke("getState", {});
+const found = await tools.invoke("search", {
+  contextRef: current.context!.contextRef,
+  query: "확인할 문구",
+});
+// found.result의 matches를 확인하고 승인받은 하나의 matchId를 사용합니다.
+// replace에는 contextRef, matchId, replacement, operationId를 전달합니다.
+// 도구 경계에서 오류의 code/effect/requiredAction을 모델과 UI에 함께 전달합니다.
+async function dispatch(name: string, input: unknown) {
+  try {
+    return { ok: true, ...(await tools.invoke(name, input)) };
+  } catch (error) {
+    return { ok: false, error: agentToolFailure(error) };
+  }
+}
+// 호스트 편집 수명이 끝났을 때 호출합니다. 진행 중 작업을 취소하는 API는 아닙니다.
+// tools.dispose();
+```
+
+각 응답은 `{result, context}`입니다. `context.contextRef`는 그 시점의 문서·세션·저장 버전·편집 revision·선택 범위를 묶습니다. 하나라도 달라지면 `agent-context-mismatch`와 불일치 `field`, `effect=none`, `requiredAction=refresh-context-and-review`로 거절합니다. `getState`로 다시 확인하고 대상/미리보기를 재검토해야 합니다. 이 오류만으로 사용자가 문서를 바꿨다고 단정하지 마세요.
+
+최근 참조 64개와 쓰기 요청 128개를 인스턴스 메모리에 보관합니다. `replace`도 이 도구 묶음에서는 `operationId`가 필수입니다. 같은 ID·같은 요청은 저장된 결과를 돌려주며 다른 내용에는 재사용할 수 없습니다. 실패한 쓰기도 자동 재실행하지 않습니다. 결과가 불명확하면 상태/저장 영수증을 조사하고, `effect=none`으로 미적용을 확인한 경우에만 새 ID와 검토한 현재 참조로 다시 요청합니다. 재접속 뒤 중복 방지는 호스트의 영속 작업 기록이 필요합니다.
+
+캐시된 응답은 최초 결과와 최초 context를 그대로 반환하므로 그 참조가 이미 만료됐을 수 있습니다. 문서나 세션을 바꾼 뒤에는 이전 실행 결과를 현재 문서의 결과로 돌려주지 않습니다. 저장 성공 직후 호스트가 닫혔다면 저장 결과를 유지하고 `context=null`을 반환합니다. `context=null`은 저장 실패가 아닙니다.
+
+권한·사용자 승인·저장소 연결은 호스트가 계속 담당합니다. `capabilities`는 현재 엔진이 제공하는 기능 안내이며 인증 권한을 대신하지 않습니다. 프론트/General 소비 앱에 이 도구 묶음과 오류 전달을 연결해야 실제 모델 호출에서 사용할 수 있습니다.
+
+### 대상과 적용 결과 확인
+
+표 미리보기의 `cells.editable/reason`, `changes/excluded`로 가능한 대상과 보호 사유를 확인합니다. 적용 뒤에는 표를 다시 읽어 변경 셀 값과 제외/미변경 셀 보존을 검사합니다. 성공 receipt의 `verification`은 셀 텍스트·행열·병합 범위 검사이며 글자 모양·실제 인쇄 배치 검증은 아닙니다. 불일치/조회 실패는 `TableVerificationError`의 `verification`, `effect=unknown`, `requiredAction=inspect-result-or-undo`로 알립니다. 적용이 일부 이루어졌을 수 있으므로 자동 재실행하지 마세요.
+
+문서 일괄 생성 미리보기의 `fieldPlan`은 데이터 열과 모든 명시적 `{{필드}}` 위치를 연결합니다. `source.part/paragraph/start/end`는 해당 템플릿 snapshot의 위치이며 문단은 1부터, 문자열 오프셋은 UTF-16의 0 기반·끝 제외입니다. 같은 이름이 여러 위치에 있으면 모두 채웁니다. 주변 라벨을 추정해 다른 셀을 채우지 않습니다.
+
+`checks`는 서식 구조·열 연결·값·파일명 검사를 각각 통과/실패로 표시합니다. 사용자가 요구한 모든 검사 시나리오를 자동 추론한 체크리스트는 아닙니다. 예를 들어 의도적으로 고정 파일명을 넣어 중복 거절을 시험하라는 요청은 그 입력의 미리보기를 별도로 실행해야 합니다. 생성 receipt의 `verification.scope=template-text`는 직렬화한 XML을 다시 읽어 치환값과 같은 part의 비대상 문단 텍스트를 비교한 결과입니다. Word/한컴의 화면 호환성을 보증하지 않습니다.
+
+`previewQuickAction({action:{kind:"cleanPaste",text}, ...target})`는 Kordoc에서 가져온 원고 정리 규칙을 같은 빠른 작업 경로로 제공합니다. UI는 ‘빠른 작업 → 붙여넣기 원고 정리’에서 원문/변경 줄을 보여 줍니다. 미리보기 승인 후 일반 텍스트로 삽입하며 선택 내용은 대체됩니다. 각주 `[1]`, 코드, ZWJ/ZWNJ·word joiner·NBSP는 보존합니다. OCR은 포함하지 않습니다.
 
 ### 초기화 진단
 

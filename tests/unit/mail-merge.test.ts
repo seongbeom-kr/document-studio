@@ -30,6 +30,39 @@ const request: MailMergeRequest = {
   allowEmpty: false,
 };
 describe("mail merge planning", () => {
+  it("shows repeated explicit destinations and independently reports omitted mapping and duplicate output names", () => {
+    const repeated = {
+      ...template,
+      locations: [
+        ...template.locations,
+        {
+          field: "이름",
+          address: "본문 2번 문단",
+          token: "{{이름}}",
+          source: { part: "word/document.xml", paragraph: 2, start: 0, end: 6 },
+        },
+      ],
+    };
+    const result = planMailMerge(repeated, {
+      ...request,
+      mapping: { 이름: "이름" },
+      fileNamePattern: "같은이름.docx",
+    });
+    expect(result.fieldPlan[0]).toMatchObject({
+      field: "이름",
+      dataColumn: "이름",
+      targets: [{ address: "본문 1번 문단" }, { address: "본문 2번 문단" }],
+    });
+    expect(result.fieldPlan[1]!.dataColumn).toBeNull();
+    expect(result.checks).toEqual([
+      { id: "template-structure", status: "passed", issues: 0 },
+      { id: "field-mapping", status: "failed", issues: 1 },
+      { id: "field-values", status: "failed", issues: 2 },
+      { id: "output-names", status: "failed", issues: 1 },
+    ]);
+    result.fieldPlan[0]!.targets[0]!.address = "tampered";
+    expect(template.locations[0]!.address).toBe("본문 1번 문단");
+  });
   it("preserves identifiers and dates exactly and gives each output a deterministic name", () => {
     const result = planMailMerge(template, request);
     expect(result.issues).toEqual([]);

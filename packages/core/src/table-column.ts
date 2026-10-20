@@ -14,6 +14,8 @@ export interface TableCell {
 }
 export interface TableSnapshot {
   tableId: string;
+  /** Engine-local logical location for verification only; not a reusable edit ID. */
+  sourceKey?: string;
   label: string;
   revision: string;
   selectionKey: string;
@@ -71,6 +73,20 @@ export interface TableColumnReceipt extends TableEditIdentity {
   changedCells: number;
   committed: false;
   undoSteps: 0 | 1;
+  verification: TableVerification;
+  excludedCells: number;
+  unchangedCells: number;
+}
+export interface TableVerification {
+  status: "verified" | "mismatch" | "unavailable";
+  checkedCells: number;
+  differences: readonly {
+    row: number;
+    column: number;
+    expected: string;
+    actual?: string;
+    reason: string;
+  }[];
 }
 export class TableEditError extends Error {
   constructor(
@@ -80,6 +96,22 @@ export class TableEditError extends Error {
   ) {
     super(message, options);
     this.name = "TableEditError";
+  }
+}
+export class TableVerificationError extends TableEditError {
+  readonly code = "table-verification-failed";
+  readonly retryable = false;
+  readonly requiredAction = "inspect-result-or-undo";
+  constructor(
+    readonly verification: TableVerification,
+    options?: ErrorOptions,
+  ) {
+    super(
+      "표 적용 후 결과를 검증하지 못했습니다. 같은 작업을 반복하지 말고 변경 내용을 확인하거나 되돌려 주세요.",
+      "unknown",
+      options,
+    );
+    this.name = "TableVerificationError";
   }
 }
 export type TableReadErrorCode =
@@ -386,6 +418,65 @@ export function validateTableChanges(
     ids.add(cell.id);
   }
 }
+/** Compare by source coordinates; engine read IDs are not stable across reads. */
+export function verifyTableChanges(
+  before: TableSnapshot,
+  changes: readonly TableCellChange[],
+  after: TableSnapshot,
+): TableVerification {
+  const differences: TableVerification["differences"][number][] = [];
+  const expected = new Map(
+    changes.map((change) => [change.cellId, change.after]),
+  );
+  if (before.sourceKey !== undefined && before.sourceKey !== after.sourceKey)
+    differences.push({
+      row: 0,
+      column: 0,
+      expected: before.sourceKey,
+      actual: after.sourceKey,
+      reason: "표 대상 불일치",
+    });
+  if (
+    before.rows !== after.rows ||
+    before.columns !== after.columns ||
+    before.cells.length !== after.cells.length
+  )
+    differences.push({
+      row: 0,
+      column: 0,
+      expected: `${before.rows}x${before.columns}/${before.cells.length}`,
+      actual: `${after.rows}x${after.columns}/${after.cells.length}`,
+      reason: "표 구조 불일치",
+    });
+  for (const cell of before.cells) {
+    const matches = after.cells.filter(
+      (value) => value.row === cell.row && value.column === cell.column,
+    );
+    const actual = matches[0];
+    const value = expected.get(cell.id) ?? cell.text;
+    if (
+      matches.length !== 1 ||
+      actual!.text !== value ||
+      actual!.rowSpan !== cell.rowSpan ||
+      actual!.columnSpan !== cell.columnSpan
+    )
+      differences.push({
+        row: cell.row,
+        column: cell.column,
+        expected: value,
+        actual: actual?.text,
+        reason: expected.has(cell.id)
+          ? "요청한 셀 값 또는 구조 불일치"
+          : "보존 대상 셀 변경",
+      });
+  }
+  return {
+    status: differences.length ? "mismatch" : "verified",
+    checkedCells: before.cells.length,
+    differences,
+  };
+}
+
 /** Private immutable previews, bounded replay receipts, and one shared mutation path. */
 export function createTableColumnEditor(port: {
   state(): TableEditIdentity;
@@ -529,11 +620,32 @@ export function createTableColumnEditor(port: {
             "적용 후 문서가 전환돼 결과를 확인하지 못했습니다.",
             "unknown",
           );
+        let verification: TableVerification;
+        try {
+          const after = await read();
+          if (after.revision !== state.revision)
+            throw new Error("검증 중 추가 편집");
+          verification = verifyTableChanges(
+            stored.table,
+            stored.preview.changes,
+            after,
+          );
+        } catch (cause) {
+          throw new TableVerificationError(
+            { status: "unavailable", checkedCells: 0, differences: [] },
+            { cause },
+          );
+        }
+        if (verification.status !== "verified")
+          throw new TableVerificationError(verification);
         return {
           ...state,
           operationId,
           previewId,
           changedCells: stored.preview.changes.length,
+          verification,
+          excludedCells: stored.preview.excluded.length,
+          unchangedCells: stored.preview.unchanged,
           committed: false as const,
           undoSteps: stored.preview.changes.length
             ? (1 as const)

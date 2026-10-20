@@ -72,6 +72,7 @@ export function createDocxTableColumn(editor: Editor) {
       paragraphs = new Map<string, string>();
     const table: TableSnapshot = {
       tableId,
+      sourceKey: selected.blockId,
       label: `본문 ${selectedOrdinal}번 표 (${selected.rowCount}행 × ${selected.columnCount}열)`,
       revision: String(editor.getDocumentHandle().revision),
       selectionKey: docxSelectionKey(editor),

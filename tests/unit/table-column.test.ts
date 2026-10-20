@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   planTableColumn,
   createTableColumnEditor,
+  verifyTableChanges,
   TableEditError,
   SaveConflictError,
   SelectionConflictError,
@@ -186,14 +187,29 @@ function setup() {
     revision: "1",
     selectionKey: "selection-a",
   };
+  let current = table();
   const read = vi.fn(async () => ({
-    ...table(),
+    ...current,
     revision: state.revision,
     selectionKey: state.selectionKey,
   }));
-  const apply = vi.fn(async () => {
-    state.revision = "2";
-  });
+  const apply = vi.fn(
+    async (
+      _table: TableSnapshot,
+      changes: readonly { cellId: string; after: string }[],
+    ) => {
+      current = {
+        ...current,
+        cells: current.cells.map((cell) => ({
+          ...cell,
+          text:
+            changes.find((change) => change.cellId === cell.id)?.after ??
+            cell.text,
+        })),
+      };
+      state.revision = "2";
+    },
+  );
   return {
     state,
     read,
@@ -206,6 +222,95 @@ function setup() {
   };
 }
 describe("shared UI/agent table workflow", () => {
+  it("accepts new read IDs but rejects a different logical table even with identical cell values", () => {
+    const before = { ...table(), sourceKey: "body/table-1" };
+    const after = {
+      ...before,
+      tableId: "read-2",
+      cells: before.cells.map((cell, i) => ({ ...cell, id: `new-${i}` })),
+    };
+    expect(verifyTableChanges(before, [], after).status).toBe("verified");
+    expect(
+      verifyTableChanges(before, [], { ...after, sourceKey: "body/table-2" }),
+    ).toMatchObject({
+      status: "mismatch",
+      differences: [expect.objectContaining({ reason: "표 대상 불일치" })],
+    });
+  });
+  it("verifies requested cells and preserved cells after a successful native call", async () => {
+    const t = setup(),
+      preview = await t.actions.preview(request);
+    const receipt = await t.actions.apply({
+      previewId: preview.previewId,
+      operationId: "verified",
+    });
+    expect(receipt.verification).toMatchObject({
+      status: "verified",
+      differences: [],
+    });
+    expect(receipt.verification.checkedCells).toBeGreaterThan(
+      receipt.changedCells,
+    );
+    expect(receipt.excludedCells).toBe(preview.excluded.length);
+  });
+  it("does not report success or repeat the write when the engine silently applied nothing", async () => {
+    const t = setup(),
+      preview = await t.actions.preview(request);
+    t.apply.mockImplementationOnce(async () => {
+      t.state.revision = "2";
+    });
+    const input = { previewId: preview.previewId, operationId: "not-applied" };
+    await expect(t.actions.apply(input)).rejects.toMatchObject({
+      code: "table-verification-failed",
+      effect: "unknown",
+      verification: { status: "mismatch" },
+    });
+    await expect(t.actions.apply(input)).rejects.toMatchObject({
+      code: "table-verification-failed",
+    });
+    expect(t.apply).toHaveBeenCalledOnce();
+  });
+  it("reports read failure after a write as unverified, not an effect-none retry", async () => {
+    const t = setup(),
+      preview = await t.actions.preview(request);
+    t.read.mockRejectedValueOnce(new Error("read lost"));
+    await expect(
+      t.actions.apply({
+        previewId: preview.previewId,
+        operationId: "read-failed",
+      }),
+    ).rejects.toMatchObject({
+      effect: "unknown",
+      verification: { status: "unavailable" },
+    });
+    expect(t.apply).toHaveBeenCalledOnce();
+  });
+  it("detects changes to an excluded heading", async () => {
+    const t = setup(),
+      preview = await t.actions.preview(request);
+    t.read.mockResolvedValueOnce({
+      ...table(),
+      revision: "2",
+      selectionKey: t.state.selectionKey,
+      cells: table().cells.map((c) => ({
+        ...c,
+        text: c.row === 1 ? "corrupted" : c.text,
+      })),
+    });
+    await expect(
+      t.actions.apply({
+        previewId: preview.previewId,
+        operationId: "corruption",
+      }),
+    ).rejects.toMatchObject({
+      verification: {
+        status: "mismatch",
+        differences: expect.arrayContaining([
+          expect.objectContaining({ reason: "보존 대상 셀 변경" }),
+        ]),
+      },
+    });
+  });
   it("cannot mutate the private plan by changing the returned preview", async () => {
     const t = setup(),
       preview = await t.actions.preview(request);

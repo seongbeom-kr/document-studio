@@ -225,6 +225,11 @@ for (const format of ["docx", "hwpx"] as const) {
       await page.evaluate(() =>
         window.documentStudioTest.setDraftPolicy("secondary"),
       );
+      // Wait for the new store's lookup/adoption, not only absence of a dialog
+      // which is also true before the host prop update has committed.
+      await expect(
+        page.getByRole("button", { name: "저장", exact: true }),
+      ).toBeEnabled();
       await expect(
         page.getByText("현재 편집본을 보존하고 있습니다."),
       ).toHaveCount(0);
@@ -340,10 +345,18 @@ for (const format of ["docx", "hwpx"] as const) {
   });
 }
 
-
 // Native selectAll changes the document selection; it does not promise keyboard focus.
 async function focusDocumentInput(page: Page) {
-  const format = await page.evaluate(() => window.documentStudioTest.state()?.format);
-  if (format === "hwpx") await page.frameLocator("iframe").getByLabel("문서 편집 입력", { exact: true }).focus();
-  else await page.getByRole("textbox", { name: "Document content", exact: true }).focus();
+  const format = await page.evaluate(
+    () => window.documentStudioTest.state()?.format,
+  );
+  if (format === "hwpx")
+    await page
+      .frameLocator("iframe")
+      .getByLabel("문서 편집 입력", { exact: true })
+      .focus();
+  else
+    await page
+      .getByRole("textbox", { name: "Document content", exact: true })
+      .focus();
 }

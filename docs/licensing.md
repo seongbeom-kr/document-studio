@@ -69,3 +69,9 @@ upstream dependency가 바뀌면 `scripts/prepare-rust-licenses.mjs`로 checksum
 ## 0.2.18 범용 브라우저 패키지
 
 `@document-studio/browser` 추가 후 production·필수 peer·번들 의존성 검사는 자체 다섯 패키지를 포함해 npm 105개입니다. Rust 고정 목록은 393개로 유지됩니다. browser 패키지가 내부 React 19 런타임과 TypeScript 소비에 필요한 `@types/react`를 의존성으로 제공합니다. 이들의 라이선스는 MIT이며 원문 고지를 배포물에 포함합니다. Vue 3.5.44(MIT)는 소비 예제와 검증용 의존성이며 SDK 런타임 번들에 추가하지 않습니다.
+
+## 0.2.32 Kordoc 참고 구현
+
+직접 도입한 파일은 Kordoc 4.22.15, commit `6f9ef253cc66bb30c8b26fe87811d2c5832de995`의 `src/hwpx/paste-clean.ts` 한 개다. MIT 저작권/허가 고지와 해당 규칙의 참고 원전 hwp-auto-docfit의 MIT 고지를 `third_party/kordoc/`에 보관한다. 원본 출처·LF 정규화 SHA-256·수정 내역은 같은 디렉토리의 `provenance.json`에 기록한다. 감사 스크립트가 고지 존재를 검사하고 모든 패키지의 `dist/licenses/THIRD_PARTY_NOTICES.txt`에 포함한다.
+
+기존 Apache-2.0 프로젝트 안에서 이 파일의 원 MIT 조건을 유지한다. Kordoc 패키지 전체, Node 파서, native 라이브러리, OCR 코드·모델은 설치하거나 번들하지 않았다. 선택적 OCR 모델에 관한 upstream 라이선스 검토 사항을 이번 배포 의존성에 포함시키지 않는다. 에이전트 참조·미리보기·결과 검증은 설계 참고 후 작성한 SDK 자체 구현이다.

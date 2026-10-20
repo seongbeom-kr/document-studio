@@ -169,7 +169,7 @@ for (const format of ["docx", "hwpx"] as const) {
     expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort());
     for (const name of Object.keys(before))
       expect(after[name]).toEqual(before[name]);
-    expect(result.rejection).toBe("SaveConflictError");
+    expect(result.rejection).toBe("AgentGuardError");
     expect(result.afterRejection).toEqual(result.beforeRejection);
     expect(result.approved.changes.map((cell) => cell.after)).toEqual([
       "12,340",

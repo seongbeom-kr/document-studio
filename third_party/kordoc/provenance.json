@@ -1,0 +1,22 @@
+{
+  "name": "kordoc/paste-clean",
+  "version": "4.22.15",
+  "commit": "6f9ef253cc66bb30c8b26fe87811d2c5832de995",
+  "source": "src/hwpx/paste-clean.ts",
+  "license": "MIT",
+  "originalLfSha256": "922b7b8afa1cab557c0e66f599185667148e61f55d546cde1d8a359d374bc425",
+  "destination": "packages/core/src/paste-clean.ts",
+  "changes": [
+    "Bounded preview instead of direct replacement",
+    "Keep ZWNJ and word joiner",
+    "Preserve inline/indented code and matching-length fenced blocks",
+    "Human-approved shared quick action"
+  ],
+  "dependenciesAdded": [],
+  "excluded": [
+    "OCR",
+    "models",
+    "native runtime",
+    "Node parser and filesystem dependencies"
+  ]
+}

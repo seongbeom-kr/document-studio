@@ -8,6 +8,7 @@ import { REPORT_PRESETS, type DocumentPreset } from "./presets";
 import { SaveConflictError } from "./index";
 import { SelectionConflictError } from "./selection-conflict";
 import type { TableEditIdentity } from "./table-column";
+import { previewPasteCleanup, type PasteCleanupPreview } from "./paste-clean";
 
 export const OFFICE_DATE_ACTIONS = [
   { id: "today", label: "오늘" },
@@ -29,6 +30,7 @@ export interface OfficeDateRequest {
 }
 export type QuickActionRequest =
   | OfficeDateRequest
+  | { kind: "cleanPaste"; text: string }
   | { kind: "preset"; presetId: string };
 export interface QuickActionPreview extends TableEditIdentity {
   previewId: string;
@@ -38,6 +40,7 @@ export interface QuickActionPreview extends TableEditIdentity {
   target: string;
   selection?: { mode: "insert" | "replace"; excerpt?: string; length?: number };
   text?: string;
+  cleanup?: PasteCleanupPreview;
   commands: readonly EditorCommand[];
 }
 export interface QuickActionReceipt extends TableEditIdentity {
@@ -58,6 +61,15 @@ export class QuickActionError extends Error {
 }
 export const QUICK_ACTION_SCHEMA = {
   oneOf: [
+    {
+      type: "object",
+      additionalProperties: false,
+      required: ["kind", "text"],
+      properties: {
+        kind: { const: "cleanPaste" },
+        text: { type: "string", minLength: 1, maxLength: 10000 },
+      },
+    },
     {
       type: "object",
       additionalProperties: false,
@@ -195,6 +207,20 @@ export function quickActionPlan(
 ) {
   if (!request || typeof request !== "object" || Array.isArray(request))
     throw new TypeError("빠른 작업 입력이 올바르지 않습니다.");
+  if (request.kind === "cleanPaste") {
+    if (!own(request, ["kind", "text"]))
+      throw new TypeError("붙여넣기 정리 입력이 올바르지 않습니다.");
+    const cleanup = previewPasteCleanup(request.text);
+    if (!cleanup.after.trim())
+      throw new TypeError("정리 후 삽입할 원고가 없습니다.");
+    return {
+      label: "붙여넣기 원고 정리",
+      description: `제안 ${cleanup.removed}건 · 각주·코드·언어 결합 문자 보존 · 일반 텍스트로 삽입`,
+      text: cleanup.after,
+      cleanup,
+      commands: [{ id: "insertText" as const, value: cleanup.after }],
+    };
+  }
   if (request.kind === "date")
     return {
       label:
@@ -277,7 +303,7 @@ export function createQuickActionEditor(port: {
       const state = port.state(),
         plan = quickActionPlan(request, port.presets());
       if (!state.selectionKey) throw new SelectionConflictError();
-      if (request.kind === "date" && !state.atomicTextInsertion)
+      if (plan.text !== undefined && !state.atomicTextInsertion)
         throw new QuickActionError(
           "이 엔진은 날짜 입력을 한 번에 되돌리는 기능을 지원하지 않습니다. 런타임 자산을 확인해 주세요.",
           "none",

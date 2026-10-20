@@ -1,0 +1,76 @@
+Kordoc 참고 기능 반영 — SDK 0.2.32
+작성일: 2026-10-20
+
+범위
+Document Studio SDK 내부만 변경. 프론트/General, 계정, scope, 실행 서버는 변경하지 않음.
+OCR, 모델, Kordoc 전체 패키지, Node 파서 의존성은 도입하지 않음.
+
+실제 도입
+- Kordoc 4.22.15 / 6f9ef253cc66bb30c8b26fe87811d2c5832de995의
+  src/hwpx/paste-clean.ts 규칙을 수정하여 packages/core/src/paste-clean.ts에 도입.
+- 원 MIT와 참고 원전 hwp-auto-docfit MIT 고지 보존. provenance.json과 NOTICE 기록.
+- 입력 10,000자 제한, 코드 펜스 길이 처리, inline/indented code 보호,
+  ZWNJ/word joiner/ZWJ/NBSP 보존을 보강.
+- 빠른 작업 UI와 agent previewQuickAction/applyQuickAction이 같은 미리보기/undo 경로 사용.
+
+설계 참고 후 자체 구현
+- createAgentSessionTools: document/session/version/revision/selection을 contextRef로 참조.
+  현재 값 자동 치환 없음. 참조 만료/다른 세션은 effect=none으로 거절.
+  64개 참조, 128개 쓰기 기록, 직렬 실행, 동일 ID replay, dispose 제공.
+  replace도 operationId 필요. 영속 중복 방지와 승인/인증은 호스트 책임.
+- createAgentToolset: 기존 10개 메서드 유지, 빠른 작업/일괄 생성 포함 총 19개 스키마.
+- AgentGuardError, agentToolFailure: 불일치 field/다음 행동을 보존, stack/cause 제외.
+- 표 적용 후 재조회: 요청 셀 값과 보호 셀, 행열/병합 범위, 엔진 논리 위치 비교.
+  불일치/조회 불가를 성공 처리하지 않으며 같은 작업을 자동 반복하지 않음.
+  이 검증은 셀 값/구조 범위이며 글자 모양/인쇄 검증이 아님.
+- 일괄 생성 fieldPlan: 입력 열 -> 모든 명시적 토큰 위치, UTF-16 offset.
+  반복 이름은 각각 보이며 라벨 추정으로 다른 셀에 쓰지 않음.
+- checks: 서식 구조/열 매핑/입력 값/파일 이름의 독립 실행 결과.
+  모든 사용자 요청을 추론한 자동 체크리스트가 아니라 실행한 preview의 검사 기록.
+- 생성 XML 재파싱: 치환 결과 및 같은 part의 비대상 문단 텍스트 확인.
+  verification.scope=template-text, Word/한컴 렌더 검증과 구분.
+
+검증 기록
+증거 디렉토리: .build/kordoc-adoption-0.2.32/
+- 타입 검사 통과 (typecheck-final.log)
+- 단위 시험 529개 통과 (unit-final.log)
+- 5개 SDK 패키지 빌드 및 라이선스 gate 통과 (build-final.log)
+- production audit: No audit suggestions (security.log)
+- 직접 생성한 독립 Chrome의 DOCX 1440/480px UI 확인: 가로 넘침 없음.
+  paste-preview-1440.png / paste-preview-480.png / visual-check.log
+- 첫 개발서버 targeted 시험: 46개 중 35개 통과, 11개 실패.
+  오류명/문구 기대값 8건과 작업 중 HMR navigation 3건이었다.
+  기대값 수정 후 고정 production bundle 전체 회귀로 검증한다.
+- 소비 패키지 검증 통과: Next.js 설치·빌드 및 브라우저 4개,
+  일반 JS/Vue 브라우저 8개 (packages-final.log).
+- 쓰기 실패 시 이전 contextRef 무효화를 보강하고 최종 경로 16개 통과
+  (final-agent-e2e.log). 최초 병렬 실행 2건은 추적 파일 경로 충돌로
+  종료 단계에서 실패했으며, 출력 경로를 분리한 뒤 재실행했다.
+- 전체 고정 빌드 E2E: 1,068개 실행, 최초 1,063개 통과/5개 실패/skip 0.
+  4개는 병렬 시험의 추적 파일 경로 충돌, 1개는 기존 호스트 상태 전환 시험의 race.
+  관련 시나리오 26개 반복 시험에서 모두 통과. 실패 5개의 정확한 제목을 대조했다.
+- 전체 회귀 중 보완한 contextRef 실패 처리/인수 스키마는 최신 코드로 16개 별도 검증.
+  새 복구 시나리오 4개를 합해 Chrome/Edge 고유 시나리오 1,072개 확인,
+  반복·겹치는 검사를 중복 집계하지 않았고 현재 미해결 시험 실패는 0개.
+  전체 시험이 첫 실행부터 모두 통과했다는 뜻은 아니다.
+  full-e2e-results.json / full-failures.json / summary.json에 최초 결과도 보관.
+- 추적 파일 충돌 영향을 받은 항목과 초안 저장소 전환 관련 26개 반복 검사 통과
+  (recheck.log). 초안 테스트는 호스트 React props가 반영되기 전에 부재 조건을
+  만족시키는 race가 있어 harness에 flushSync, 시험에 저장 버튼 준비 대기를 추가했다.
+  제품의 초안 저장 코드는 변경하지 않았다.
+- 문서 작업 입력은 fingerprint 생성 전에 검증하며 contextRef 도구의 오류에는
+  contextRef용 스키마를 반환한다. 잘못된 값/순환 객체도 쓰기 전에 거절한다.
+
+남는 범위
+- 이 버전 소비 프론트/General 연결 및 실제 모델 왕복은 아직 실행하지 않음.
+  이전 0.2.31의 실제 통합 성공 기록을 이번 버전의 시험으로 집계하지 않음.
+- HWPX 간헐적 최초 연결 실패 원인, 실제 Word/한컴 재열기는 별도 과제.
+- bbox 질문의 표/그림/여러 쪽 확장, 공문서 규정 전체 lint와 레이아웃 파서 도입은 미구현.
+  이번에는 승인 가능한 원고 정리, 명시적 위치, 상태 가드, 검증 결과에 집중.
+- 기존 리뷰 파일의 로컬 변경과 미추적 리뷰 문서는 보존하며 커밋에 섞지 않음.
+
+최종 반영
+- 5개 SDK 패키지 버전 0.2.32. 원격 대상은 seongbeom-kr/document-studio main만.
+- 기존 리뷰 파일 1개의 수정과 미추적 리뷰 문서는 이번 커밋에 포함하지 않음.
+- 프론트 10129/설정 10001 서비스 유지. 시험용 추가 브라우저/서버는 종료.
+- GitHub CI 결과는 이 로컬 검증 결과와 별도이며 커밋 push 후 확인한다.

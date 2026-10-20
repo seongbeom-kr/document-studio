@@ -29,6 +29,8 @@ export interface MailMergeLocation {
   field: string;
   address: string;
   token: string;
+  /** Exact source location; paragraph is one-based, start/end are UTF-16 offsets. */
+  source?: { part: string; paragraph: number; start: number; end: number };
 }
 export interface MailMergeTemplateInfo {
   templateId: string;
@@ -56,9 +58,30 @@ export interface MailMergePreview extends TableEditIdentity {
     fileName: string;
     values: Readonly<Record<string, string>>;
   }[];
-  issues: readonly { row?: number; field?: string; message: string }[];
+  issues: readonly {
+    row?: number;
+    field?: string;
+    message: string;
+    check?: MailMergeCheckId;
+  }[];
   emptyValues: readonly { row: number; field: string }[];
+  /** One input column can intentionally fill several explicit {{field}} occurrences. */
+  fieldPlan: readonly {
+    field: string;
+    dataColumn: string | null;
+    targets: readonly MailMergeLocation[];
+  }[];
+  checks: readonly {
+    id: MailMergeCheckId;
+    status: "passed" | "failed";
+    issues: number;
+  }[];
 }
+export type MailMergeCheckId =
+  | "template-structure"
+  | "field-mapping"
+  | "field-values"
+  | "output-names";
 export interface MailMergeReceipt {
   documentId: string;
   sessionId: string;
@@ -72,6 +95,12 @@ export interface MailMergeReceipt {
     byteLength: number;
   }[];
   committed: false;
+  verification?: {
+    status: "verified";
+    scope: "template-text";
+    checkedLocationsPerFile: number;
+    files: number;
+  };
 }
 export interface MailMergeStatus {
   phase: "idle" | "running" | "ready" | "failed" | "cancelled";
@@ -337,7 +366,17 @@ function analyzeParts(
         );
       for (const span of spans) {
         fields.add(span.field);
-        locations.push({ field: span.field, address, token: span.token });
+        locations.push({
+          field: span.field,
+          address,
+          token: span.token,
+          source: {
+            part,
+            paragraph: ordinal + 1,
+            start: span.start,
+            end: span.end,
+          },
+        });
       }
       if (spans.length && ordinary)
         paragraphs.push({ part, ordinal, address, text, spans });
@@ -461,24 +500,36 @@ export function planMailMerge(
     request.delimiter,
   );
   const issues: MailMergePreview["issues"][number][] = info.issues.map(
-    (message) => ({ message }),
+    (message) => ({ message, check: "template-structure" }),
   );
   const emptyValues: MailMergePreview["emptyValues"][number][] = [],
     names = new Set<string>();
   for (const field of Object.keys(request.mapping))
     if (!info.fields.includes(field))
-      issues.push({ field, message: "서식에 없는 필드 매핑입니다." });
+      issues.push({
+        field,
+        message: "서식에 없는 필드 매핑입니다.",
+        check: "field-mapping",
+      });
   for (const field of info.fields)
     if (
       !Object.hasOwn(request.mapping, field) ||
       !headers.includes(request.mapping[field]!)
     )
-      issues.push({ field, message: "연결할 데이터 열이 없습니다." });
+      issues.push({
+        field,
+        message: "연결할 데이터 열이 없습니다.",
+        check: "field-mapping",
+      });
   const files = records.map((record, index) => {
     const row = index + 2,
       values: Record<string, string> = Object.create(null);
     if (record.every((value) => !value.trim()))
-      issues.push({ row, message: "빈 데이터 행입니다." });
+      issues.push({
+        row,
+        message: "빈 데이터 행입니다.",
+        check: "field-values",
+      });
     for (const field of info.fields) {
       const column = Object.hasOwn(request.mapping, field)
         ? headers.indexOf(request.mapping[field]!)
@@ -492,6 +543,7 @@ export function planMailMerge(
             row,
             field,
             message: "빈 값입니다. 데이터를 채우거나 빈 값 허용을 선택하세요.",
+            check: "field-values",
           });
       }
       if (
@@ -502,6 +554,7 @@ export function planMailMerge(
           row,
           field,
           message: "필드 값은 줄바꿈·제어 문자가 없는 2,000자 이하여야 합니다.",
+          check: "field-values",
         });
     }
     let name = "";
@@ -512,17 +565,45 @@ export function planMailMerge(
         issues.push({
           row,
           message: "출력 파일 이름이 중복됩니다. {{#}} 순번 등을 추가하세요.",
+          check: "output-names",
         });
       names.add(key);
     } catch (error) {
       issues.push({
         row,
         message: error instanceof Error ? error.message : String(error),
+        check: "output-names",
       });
     }
     return { row, fileName: name, values };
   });
-  return { files, issues, emptyValues };
+  const fieldPlan = info.fields.map((field) => ({
+    field,
+    dataColumn:
+      Object.hasOwn(request.mapping, field) &&
+      headers.includes(request.mapping[field]!)
+        ? request.mapping[field]!
+        : null,
+    targets: structuredClone(
+      info.locations.filter((location) => location.field === field),
+    ),
+  }));
+  const checks = (
+    [
+      "template-structure",
+      "field-mapping",
+      "field-values",
+      "output-names",
+    ] as const
+  ).map((id) => {
+    const count = issues.filter((item) => item.check === id).length;
+    return {
+      id,
+      status: count ? ("failed" as const) : ("passed" as const),
+      issues: count,
+    };
+  });
+  return { files, issues, emptyValues, fieldPlan, checks };
 }
 function fillParts(
   source: Registered,
@@ -582,6 +663,29 @@ function fillParts(
         for (const cache of direct(p, HP, "linesegarray")) cache.remove();
     }
     parts[part] = strToU8(new XMLSerializer().serializeToString(document));
+    // Reparse the serialized XML, compare requested final values and all
+    // non-target paragraphs separately. A changed byte stream alone proves
+    // neither correct field filling nor preservation.
+    const before = all(xmlDocument(source.parts[part]!), ns, "p");
+    const after = all(xmlDocument(parts[part]!), ns, "p");
+    if (before.length !== after.length)
+      throw issue("생성 문서의 문단 구조 검증에 실패했습니다.");
+    before.forEach((paragraph, ordinal) => {
+      const plan = source.paragraphs.find(
+        (value) => value.part === part && value.ordinal === ordinal,
+      );
+      let expected = paragraphText(paragraph, source.info.format).text;
+      if (plan)
+        for (const span of [...plan.spans].reverse())
+          expected =
+            expected.slice(0, span.start) +
+            values[span.field]! +
+            expected.slice(span.end);
+      if (paragraphText(after[ordinal]!, source.info.format).text !== expected)
+        throw issue(
+          `생성 문서의 ${ordinal + 1}번 문단 값 검증에 실패했습니다.`,
+        );
+    });
   }
   if (source.info.format === "hwpx") {
     if (parts["Preview/PrvText.txt"])
@@ -1113,6 +1217,12 @@ export function createMailMergeSession(port: {
             previewId,
             files,
             committed: false,
+            verification: {
+              status: "verified",
+              scope: "template-text",
+              checkedLocationsPerFile: source.info.locations.length,
+              files: files.length,
+            },
           };
           // Publish only the whole successful batch. Older bytes are replaced, never silently reused.
           deliveries.retain(receipt);

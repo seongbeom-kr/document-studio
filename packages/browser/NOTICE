@@ -3,6 +3,18 @@ Copyright 2026 Document Studio contributors
 
 Original project code is licensed under Apache License 2.0.
 
+Document Studio 0.2.32 includes a modified Kordoc paste-clean helper under MIT,
+copyright (c) 2026 chrisryugj, from commit
+6f9ef253cc66bb30c8b26fe87811d2c5832de995, src/hwpx/paste-clean.ts.
+https://github.com/chrisryugj/kordoc
+Its rule inspiration is hwp-auto-docfit (MIT), copyright (c) 2026 haijun93
+(마포구청 공혁준). Both original MIT notices are retained in third_party/kordoc
+and the distributed dist/licenses/THIRD_PARTY_NOTICES.txt.
+Downstream changes add bounded previews, conservative code-fence handling and
+preservation of language joiners. No Kordoc runtime, OCR model or native
+dependency is bundled. Target-reference and result contracts are original SDK
+implementations informed by the source review, not copied parsing/render code.
+
 This project integrates third-party engines with their own licenses:
 - RHWP, @rhwp/core and @rhwp/editor 0.8.6, MIT, Edward Kim and contributors.
   https://github.com/edwardkim/rhwp

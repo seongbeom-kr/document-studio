@@ -330,7 +330,7 @@ export function TableColumnTools({
                 setPreview(null);
                 setTable(null);
                 setNotice(
-                  `${result.changedCells}개 셀을 적용했습니다. 한 번의 되돌리기로 취소할 수 있습니다. 파일 저장은 별도입니다.`,
+                  `${result.changedCells}개 셀 적용 · ${result.verification.checkedCells}개 셀 검증 완료 · ${result.excludedCells}개 제외. 한 번의 되돌리기로 취소할 수 있습니다. 파일 저장은 별도입니다.`,
                 );
               })
             }

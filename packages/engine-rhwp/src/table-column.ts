@@ -97,7 +97,7 @@ export function inspectRhwpTable(
               : undefined);
     return { ...cell, editable: !reason, reason };
   });
-  return { ...table, cells };
+  return { ...table, sourceKey: JSON.stringify(table.location), cells };
 }
 export function createRhwpTableColumn(port: {
   rpc<T>(method: string, params: Record<string, unknown>): Promise<T>;

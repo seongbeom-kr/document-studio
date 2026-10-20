@@ -1,14 +1,16 @@
 import type { createAgentBridge } from "./agent-bridge";
 import { TABLE_COLUMN_SCHEMA } from "./table-column";
+import { QUICK_ACTION_SCHEMA } from "./quick-actions";
+import { MAIL_MERGE_SCHEMA } from "./mail-merge";
 
-type Schema = {
+export type AgentToolSchema = {
   type?: string;
-  oneOf?: readonly Schema[];
+  oneOf?: readonly AgentToolSchema[];
   const?: unknown;
   description?: string;
-  properties?: Record<string, Schema>;
+  properties?: Record<string, AgentToolSchema>;
   required?: readonly string[];
-  additionalProperties?: boolean;
+  additionalProperties?: boolean | AgentToolSchema;
   enum?: readonly unknown[];
   minLength?: number;
   maxLength?: number;
@@ -16,6 +18,7 @@ type Schema = {
   maximum?: number;
   pattern?: string;
 };
+type Schema = AgentToolSchema;
 const text = (maxLength = 1024): Schema => ({
   type: "string",
   minLength: 1,
@@ -141,6 +144,80 @@ const definitions = {
       "operationId",
     ]),
   },
+  listQuickActions: {
+    description:
+      "Discover previewable date, formatting and paste-cleanup actions.",
+    inputSchema: object(),
+  },
+  previewQuickAction: {
+    description: "Preview the result and current selection before approval.",
+    inputSchema: object({ ...identity, action: QUICK_ACTION_SCHEMA }, [
+      "documentId",
+      "action",
+    ]),
+  },
+  applyQuickAction: {
+    description: "Apply one approved quick-action preview. Save separately.",
+    inputSchema: object(
+      {
+        ...write,
+        expectedSelectionKey: text(16384),
+        previewId: text(),
+        operationId,
+      },
+      [
+        "documentId",
+        "expectedSessionId",
+        "expectedRevision",
+        "expectedSelectionKey",
+        "previewId",
+        "operationId",
+      ],
+    ),
+  },
+  registerCurrentMailMergeTemplate: {
+    description:
+      "Register the current edited document as a template; no file is uploaded.",
+    inputSchema: object(identity, ["documentId"]),
+  },
+  listMailMergeTemplates: {
+    description:
+      "Read registered template IDs, fields, exact locations and unsupported structures.",
+    inputSchema: object(identity, ["documentId"]),
+  },
+  previewMailMerge: {
+    description:
+      "Check input fields, exact target locations, missing values and output filename collisions before generating copies.",
+    inputSchema: object({ ...identity, mergeRequest: MAIL_MERGE_SCHEMA }, [
+      "documentId",
+      "mergeRequest",
+    ]),
+  },
+  generateMailMerge: {
+    description:
+      "Generate an approved preview. Generation does not store copies; inspect the result then saveMailMergeResults.",
+    inputSchema: object({ ...write, previewId: text(), operationId }, [
+      "documentId",
+      "expectedSessionId",
+      "expectedRevision",
+      "previewId",
+      "operationId",
+    ]),
+  },
+  getMailMergeStatus: {
+    description:
+      "Read generation and copy delivery status; source commit does not deliver copies.",
+    inputSchema: object(identity, ["documentId"]),
+  },
+  saveMailMergeResults: {
+    description:
+      "Store generated copies through the host adapter. Check complete, remaining and per-file receipts; retry only pending files.",
+    inputSchema: object({ ...identity, batchOperationId: text() }, [
+      "documentId",
+      "expectedSessionId",
+      "batchOperationId",
+    ]),
+  },
 };
 export type AgentToolName = keyof typeof definitions;
 export class AgentToolArgumentError extends Error {
@@ -184,14 +261,21 @@ function validate(schema: Schema, value: unknown, path: string): void {
     const record = value as Record<string, unknown>;
     if (
       Object.keys(record).some(
-        (key) => !Object.hasOwn(schema.properties ?? {}, key),
+        (key) =>
+          !Object.hasOwn(schema.properties ?? {}, key) &&
+          !schema.additionalProperties,
       )
     )
       bad();
     for (const key of schema.required ?? [])
       if (!Object.hasOwn(record, key)) bad();
-    for (const [key, entry] of Object.entries(record))
-      validate(schema.properties![key]!, entry, `${path}.${key}`);
+    for (const [key, entry] of Object.entries(record)) {
+      const child = Object.hasOwn(schema.properties ?? {}, key)
+        ? schema.properties![key]
+        : schema.additionalProperties;
+      if (child && typeof child === "object")
+        validate(child, entry, `${path}.${key}`);
+    }
   } else if (schema.type === "string") {
     if (
       typeof value !== "string" ||
@@ -214,6 +298,23 @@ function validate(schema: Schema, value: unknown, path: string): void {
   } else bad();
 }
 
+/** Validate before dispatch or request fingerprinting, returning the caller-facing schema. */
+export function assertAgentToolArguments(
+  method: string,
+  schema: AgentToolSchema,
+  input: unknown,
+): void {
+  try {
+    validate(schema, input, "arguments");
+  } catch (cause) {
+    throw new AgentToolArgumentError(
+      cause instanceof Error ? cause.message : "Invalid arguments.",
+      method,
+      structuredClone(schema),
+    );
+  }
+}
+
 /** Provider-neutral, opt-in tools for common document tasks. Auth, approval and durable receipts belong to the host. */
 export function createAgentToolset(
   bridge: ReturnType<typeof createAgentBridge>,
@@ -229,15 +330,7 @@ export function createAgentToolset(
       if (!Object.hasOwn(definitions, name))
         throw new AgentToolArgumentError("Unknown document method.", name);
       const schema = definitions[name as AgentToolName].inputSchema;
-      try {
-        validate(schema, input, "arguments");
-      } catch (cause) {
-        throw new AgentToolArgumentError(
-          cause instanceof Error ? cause.message : "Invalid arguments.",
-          name,
-          structuredClone(schema),
-        );
-      }
+      assertAgentToolArguments(name, schema, input);
       return (methods[name as AgentToolName] as (request: never) => unknown)(
         input as never,
       );

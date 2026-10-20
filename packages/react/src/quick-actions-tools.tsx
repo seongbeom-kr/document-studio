@@ -28,6 +28,7 @@ export function QuickActionTools({
     [notice, setNotice] = useState(""),
     [pending, setPending] = useState(false);
   const running = useRef(false);
+  const [pasteText, setPasteText] = useState("");
   const stale =
     !!preview &&
     (preview.revision !== snapshot.revision ||
@@ -147,11 +148,59 @@ export function QuickActionTools({
           ))}
         </div>
       </fieldset>
+      <fieldset disabled={!enabled}>
+        <legend>붙여넣기 원고 정리</legend>
+        <label>
+          원고
+          <textarea
+            aria-label="정리할 붙여넣기 원고"
+            rows={4}
+            maxLength={10000}
+            value={pasteText}
+            onChange={(event) => {
+              setPasteText(event.target.value);
+              setPreview(null);
+            }}
+          />
+        </label>
+        <p className="ds-muted">
+          보이지 않는 공백과 AI 인용 흔적을 확인합니다. 정리한 원고는 일반
+          텍스트로 삽입하며 기존 선택 내용은 대체됩니다.
+        </p>
+        <button
+          type="button"
+          className="ds-button"
+          disabled={!pasteText.trim()}
+          onClick={() =>
+            choose(() =>
+              actions.preview({ kind: "cleanPaste", text: pasteText }),
+            )
+          }
+        >
+          원고 정리 미리보기
+        </button>
+      </fieldset>
       {preview && (
         <div className="ds-quick-preview" aria-label="빠른 작업 미리보기">
           <strong>{preview.label}</strong>
           <p>{preview.description}</p>
           <p>적용 대상: {preview.target}</p>
+          {preview.cleanup && (
+            <details open>
+              <summary>바뀌는 줄 {preview.cleanup.changes.length}개</summary>
+              {preview.cleanup.changes.map((change) => (
+                <div key={change.line}>
+                  <strong>{change.line}행</strong>
+                  <p>
+                    변경 전: <code>{change.before}</code>
+                  </p>
+                  <p>
+                    변경 후: <code>{change.after}</code>
+                  </p>
+                </div>
+              ))}
+            </details>
+          )}
           {preview.selection && (
             <p>
               {preview.selection.mode === "insert"

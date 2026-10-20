@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { flushSync } from "react-dom";
 import {
   SaveConflictError,
   browserDraftStore,
   draftKey,
   inspectExport,
   createMailMergeSession,
+  createAgentSessionTools,
   type EditorCommand,
   type EditorDocument,
   type EditorSnapshot,
@@ -105,6 +107,7 @@ declare global {
     documentStudioTest: {
       state(): ReturnType<DocumentEditorHandle["getState"]> | undefined;
       agent: ReturnType<typeof createAgentBridge>;
+      createSessionTools: () => ReturnType<typeof createAgentSessionTools>;
       createMailMergeSession: typeof createMailMergeSession;
       execute(
         command: EditorCommand,
@@ -336,6 +339,8 @@ function Harness() {
           return engine.createDocument(template);
         },
       }),
+      createSessionTools: () =>
+        createAgentSessionTools(window.documentStudioTest.agent),
       inspectBytes: (bytes, format) =>
         inspectExport({
           bytes: new Uint8Array(bytes),
@@ -439,7 +444,9 @@ function Harness() {
           current ? { ...current, bytes: new Uint8Array(current.bytes) } : null,
         ),
       rerender: () => setRender((value) => value + 1),
-      setDraftPolicy: (mode) => setDraftPolicy(mode),
+      // Tests call the controller immediately afterwards; commit host props
+      // before returning rather than racing React's scheduled render.
+      setDraftPolicy: (mode) => flushSync(() => setDraftPolicy(mode)),
       seedDraft: async (
         format,
         name,

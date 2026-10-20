@@ -252,7 +252,9 @@ for (const format of ["docx", "hwpx"] as const) {
     await page
       .getByRole("button", { name: "확인한 2개 셀 적용", exact: true })
       .click();
-    await expect(page.getByText(/2개 셀을 적용했습니다/)).toBeVisible();
+    await expect(
+      page.getByText(/2개 셀 적용 · \d+개 셀 검증 완료/),
+    ).toBeVisible();
     expect((await text(page)).text).toContain("-4,500.50");
   });
   test(`${format} rich mixed formatting is excluded and long Unicode replacement remains one undo`, async ({

@@ -143,6 +143,15 @@ const inventory = {
   ownLicense: "Apache-2.0",
   npm: [...packages.values()].sort((a, b) => a.name.localeCompare(b.name)),
   rust,
+  vendored: [
+    {
+      name: "kordoc/paste-clean",
+      commit: "6f9ef253cc66bb30c8b26fe87811d2c5832de995",
+      license: "MIT",
+      source: "src/hwpx/paste-clean.ts",
+      notices: ["kordoc/LICENSE", "kordoc/hwp-auto-docfit.LICENSE"],
+    },
+  ],
   exclusions: [
     "government executables/code/templates",
     "DOCX Pro/editor-api",
@@ -152,6 +161,22 @@ const inventory = {
   basis:
     "Installed production dependency graphs, bundled RHWP Studio runtime dependencies, and conservative pinned Cargo.lock inventory. This is not an independent WASM linker trace.",
 };
+for (const item of inventory.vendored) {
+  if (!permittedLicense(item.license))
+    throw new Error("Vendored license requires review.");
+  for (const file of item.notices) {
+    const content = await readFile(
+      path.join(root, "third_party", file),
+      "utf8",
+    );
+    if (
+      !content.includes("Permission is hereby granted") ||
+      !content.includes("Copyright")
+    )
+      throw new Error(`Missing vendored license: ${file}`);
+    notices.push(`--- ${item.name}/${file} (${item.license}) ---\n${content}`);
+  }
+}
 await writeFile(
   path.join(output, "sbom.json"),
   JSON.stringify(inventory, null, 2) + "\n",

@@ -28,6 +28,7 @@ export * from "./automation-forms";
 export * from "./automation-runner";
 export * from "./table-column";
 export * from "./quick-actions";
+export * from "./paste-clean";
 export * from "./mail-merge";
 export * from "./image-dimensions";
 export * from "./templates";
@@ -268,14 +269,7 @@ export interface DocumentStorage {
     expectedVersion?: string;
   }): Promise<DocumentSaveResult>;
 }
-export class SaveConflictError extends Error {
-  constructor(
-    message = "원본 문서가 변경됐습니다. 내 초안을 다운로드한 뒤 최신 문서를 다시 열어 주세요.",
-  ) {
-    super(message);
-    this.name = "SaveConflictError";
-  }
-}
+export { SaveConflictError } from "./save-conflict";
 export interface DocumentDraft {
   key: string;
   bytes: Uint8Array;
@@ -395,5 +389,8 @@ export type {
 export * from "./generated-output";
 export * from "./document-question";
 export * from "./agent-tools";
+export * from "./agent-guard";
+export * from "./agent-session-tools";
+export * from "./agent-error";
 export * from "./search-result-expired";
 export * from "./version";

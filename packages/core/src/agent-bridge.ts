@@ -25,6 +25,7 @@ import type {
   EditorController,
   DocumentCommitReceipt,
 } from "./editor-controller";
+import { AgentGuardError } from "./agent-guard";
 
 export interface AgentTarget {
   documentId: string;
@@ -132,23 +133,22 @@ export function createAgentBridge(
       );
     const state = handle.getState();
     if (state.documentId !== request.documentId)
-      throw new SaveConflictError("대상 문서가 변경됐습니다.");
+      throw new AgentGuardError("documentId");
     if (
       request.expectedSessionId !== undefined &&
       request.expectedSessionId !== state.sessionId
     )
-      throw new SaveConflictError("대상 편집 세션이 변경됐습니다.");
+      throw new AgentGuardError("sessionId");
     if (
       request.expectedVersion !== undefined &&
       request.expectedVersion !== state.version
     )
-      throw new SaveConflictError("대상 문서 버전이 변경됐습니다.");
+      throw new AgentGuardError("version");
     if (write) {
       const revision = (request as AgentWriteTarget).expectedRevision;
       if (typeof revision !== "string")
         throw new Error("expectedRevision이 필요합니다.");
-      if (revision !== state.revision)
-        throw new SaveConflictError("편집 revision이 변경됐습니다.");
+      if (revision !== state.revision) throw new AgentGuardError("revision");
     }
     return { handle, state };
   };
@@ -162,16 +162,14 @@ export function createAgentBridge(
       );
     return started;
   };
-  const complete = (started: ReturnType<typeof target>) => {
+  const complete = (
+    started: ReturnType<typeof target>,
+    effect: "none" | "unknown" = "unknown",
+  ) => {
     const current = editor().getState();
-    if (
-      current.documentId !== started.state.documentId ||
-      current.sessionId !== started.state.sessionId ||
-      current.version !== started.state.version
-    )
-      throw new SaveConflictError(
-        "작업 중 대상 문서 또는 편집 세션이 변경됐습니다.",
-      );
+    for (const field of ["documentId", "sessionId", "version"] as const)
+      if (current[field] !== started.state[field])
+        throw new AgentGuardError(field, effect);
     return {
       documentId: current.documentId,
       sessionId: current.sessionId,
@@ -401,7 +399,7 @@ export function createAgentBridge(
       if (!started.handle.readTable)
         throw new Error("표 열 편집을 지원하지 않습니다.");
       const result = await started.handle.readTable();
-      complete(started);
+      complete(started, "none");
       return result;
     },
     previewTableColumn: async (
@@ -413,7 +411,7 @@ export function createAgentBridge(
       const result = await started.handle.previewTableColumn(
         request.columnRequest,
       );
-      complete(started);
+      complete(started, "none");
       return result;
     },
     applyTableColumn: async (
@@ -433,6 +431,7 @@ export function createAgentBridge(
         request.expectedSessionId,
         request.expectedRevision,
         request.expectedSelectionKey,
+        request.expectedVersion,
         request.previewId,
       ]);
       const previous = tableOperations.get(request.operationId);
@@ -468,6 +467,15 @@ export function createAgentBridge(
         dirty: state.dirty,
         busy: state.busy,
         initialization: state.initialization,
+        capabilities: {
+          readDocument: state.ready,
+          search: state.ready,
+          tableColumnEditing: state.ready && state.tableColumnEditing === true,
+          insertText:
+            state.ready && state.commands.insertText?.enabled === true,
+          atomicTextInsertion: state.atomicTextInsertion === true,
+          atomicPresets: state.atomicPresets === true,
+        },
       };
     },
     retryInitialization: (
@@ -730,21 +738,17 @@ export function createAgentBridge(
     readDocument: async (request: AgentTarget) => {
       const started = target(request);
       const result = await started.handle.readDocument();
-      const identity = complete(started);
+      const identity = complete(started, "none");
       if (identity.revision !== result.revision)
-        throw new SaveConflictError(
-          "문서 조회 중 내용이 변경됐습니다. 다시 조회해 주세요.",
-        );
+        throw new AgentGuardError("revision");
       return { ...identity, ...result };
     },
     search: async (request: SearchOptions & AgentTarget) => {
       const started = target(request);
       const result = await started.handle.search(request);
-      const identity = complete(started);
+      const identity = complete(started, "none");
       if (identity.revision !== result.revision)
-        throw new SaveConflictError(
-          "검색 중 문서가 변경됐습니다. 다시 검색해 주세요.",
-        );
+        throw new AgentGuardError("revision");
       return { ...identity, ...result };
     },
     select: async (request: AgentWriteTarget & { matchId: string }) => {

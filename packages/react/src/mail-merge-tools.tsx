@@ -631,6 +631,45 @@ export function MailMergeTools({
           <strong>
             {preview.template.fileName} → 새 파일 {preview.files.length}개
           </strong>
+          <ul aria-label="일괄 생성 사전 검사">
+            {preview.checks.map((check) => (
+              <li key={check.id}>
+                {
+                  {
+                    "template-structure": "서식 구조",
+                    "field-mapping": "데이터 열 연결",
+                    "field-values": "빈 값·입력 값",
+                    "output-names": "파일 이름·중복",
+                  }[check.id]
+                }
+                :{" "}
+                {check.status === "passed"
+                  ? "통과"
+                  : `확인 필요 ${check.issues}건`}
+              </li>
+            ))}
+          </ul>
+          <details>
+            <summary>필드별 변경 위치 확인</summary>
+            {preview.fieldPlan.map((plan) => (
+              <div key={plan.field}>
+                <strong>
+                  {plan.dataColumn ?? "(연결 안 됨)"} → {plan.field} ·{" "}
+                  {plan.targets.length}곳
+                </strong>
+                <ul>
+                  {plan.targets.map((target, index) => (
+                    <li key={index}>
+                      {target.address} · {target.token}
+                      {target.source
+                        ? ` · 문자 ${target.source.start + 1}–${target.source.end}`
+                        : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </details>
           {!!preview.issues.length && (
             <ul role="alert">
               {preview.issues.map((item, i) => (
