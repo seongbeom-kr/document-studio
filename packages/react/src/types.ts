@@ -13,6 +13,9 @@ export interface EngineViewProps {
   onReady(session: EditorSession): void;
   onError(error: Error): void;
   onInitializationPhase?(phase: EngineInitializationPhase): void;
+  onInitializationDiagnostics?(
+    diagnostics: import("@document-studio/core").EngineInitializationDiagnostics,
+  ): void;
   onSaveRequest(): void;
   onFindRequest?(): void;
   advancedTools?: boolean;

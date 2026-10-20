@@ -1,4 +1,4 @@
-export { createAgentBridge } from "@document-studio/core";
+export { createAgentBridge, createAgentToolset } from "@document-studio/core";
 export type {
   AgentTarget,
   AgentWriteTarget,

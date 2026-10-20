@@ -16,16 +16,39 @@ export function runValidationWorker(
   }
   return new Promise((resolve, reject) => {
     let settled = false;
-    const finish = (error?: Error) => {
+    let terminated = false;
+    let completion: ReturnType<typeof setTimeout> | undefined;
+    const stopWorker = () => {
+      if (terminated) return;
+      terminated = true;
+      worker.onmessage = null;
+      worker.onerror = null;
+      worker.terminate();
+    };
+    const settle = (error?: Error) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearTimeout(completion);
       signal?.removeEventListener("abort", abort);
-      worker.terminate();
+      stopWorker();
       error ? reject(error) : resolve();
     };
+    const finish = (error?: Error) => {
+      if (settled || terminated) return;
+      stopWorker();
+      clearTimeout(timer);
+      if (error) {
+        settle(error);
+        return;
+      }
+      // Do not navigate a new editor frame in the worker's completion microtask.
+      // Give the browser a task boundary to retire its terminated worker target.
+      // Cancellation remains effective throughout this handoff.
+      completion = setTimeout(() => settle(), 0);
+    };
     const abort = () =>
-      finish(new DOMException("문서 검증이 취소됐습니다.", "AbortError"));
+      settle(new DOMException("문서 검증이 취소됐습니다.", "AbortError"));
     const timer = setTimeout(
       () => finish(new Error("문서 검증 시간이 초과됐습니다.")),
       15000,

@@ -382,6 +382,15 @@ export function createAgentBridge(
           getEditor()?.applyTableColumn,
       ),
       previewInputSchema: structuredClone(TABLE_COLUMN_SCHEMA),
+      preconditions: [
+        "Select a cell in a supported body table before readTable. Use search then select if the caret is outside the table.",
+      ],
+      readErrors: [
+        "table-selection-required",
+        "table-cell-required",
+        "table-structure-unsupported",
+        "table-limit-exceeded",
+      ],
       workflow:
         "readTable → previewTableColumn({documentId, columnRequest}) → inspect changes/excluded → applyTableColumn({documentId, expectedSessionId, expectedRevision, expectedSelectionKey, previewId, operationId}). Save separately with commit.",
       description:
@@ -445,6 +454,22 @@ export function createAgentBridge(
       return structuredClone(await task);
     },
     getState: () => editor().getState(),
+    /** Small identity snapshot for tools that do not need the full formatting/command catalogue. */
+    getContext: () => {
+      const state = editor().getState();
+      return {
+        documentId: state.documentId,
+        sessionId: state.sessionId,
+        version: state.version,
+        revision: state.revision,
+        selectionKey: state.selectionKey,
+        format: state.format,
+        ready: state.ready,
+        dirty: state.dirty,
+        busy: state.busy,
+        initialization: state.initialization,
+      };
+    },
     retryInitialization: (
       request: AgentTarget & { expectedSessionId: string },
     ) => {

@@ -5,6 +5,7 @@ import {
   SaveConflictError,
   SelectionConflictError,
   TableEditError,
+  TableReadError,
   validateTableChanges,
   type TableSnapshot,
   type TableCellChange,
@@ -38,9 +39,15 @@ export function createDocxTableColumn(editor: Editor) {
       part = surface.session.partFor(scope),
       selected = editor.getSelectedTable();
     if (scope.kind !== "body" || !part || !selected)
-      throw new TableEditError("본문 표 안의 셀을 선택해 주세요.", "none");
+      throw new TableReadError(
+        "본문 표 안의 셀을 선택해 주세요.",
+        "table-cell-required",
+      );
     if (selected.columnCount > 50)
-      throw new TableEditError("표 크기 제한을 넘었습니다.", "none");
+      throw new TableReadError(
+        "표 크기 제한을 넘었습니다.",
+        "table-limit-exceeded",
+      );
     let tableNode: OoxmlNode | undefined,
       nested = false,
       ordinal = 0,
@@ -57,9 +64,9 @@ export function createDocxTableColumn(editor: Editor) {
     };
     visit(part.root);
     if (!tableNode || nested)
-      throw new TableEditError(
+      throw new TableReadError(
         "중첩 표는 열 일괄 편집을 지원하지 않습니다.",
-        "none",
+        "table-structure-unsupported",
       );
     const tableId = crypto.randomUUID(),
       paragraphs = new Map<string, string>();

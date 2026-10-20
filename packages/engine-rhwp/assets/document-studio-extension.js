@@ -811,24 +811,37 @@ const poll = setInterval(() => {
   });
   const searchCache = new Map();
   const tableCache = new Map();
+  const tableReadError = (message, code) =>
+    Object.assign(new Error(message), { code, effect: "none" });
   const readTable = (services) => {
     const input = services.getInputHandler(),
       pos = input?.getCursorPosition(),
       wasm = services.wasm;
-    if (
-      !pos ||
-      pos.parentParaIndex === undefined ||
-      (pos.cellPath?.length ?? 0) > 1 ||
-      input.hasExcludedCellSelection()
-    )
-      throw new Error("본문의 단순한 표 셀을 선택해 주세요.");
+    if (!pos)
+      throw tableReadError(
+        "읽을 표의 셀을 먼저 선택해 주세요.",
+        "table-selection-required",
+      );
+    if (pos.parentParaIndex === undefined)
+      throw tableReadError(
+        "현재 선택은 표 밖입니다. 본문 표 안의 셀을 선택해 주세요.",
+        "table-cell-required",
+      );
+    if ((pos.cellPath?.length ?? 0) > 1 || input.hasExcludedCellSelection())
+      throw tableReadError(
+        "중첩 표·비직사각형 선택은 지원하지 않습니다. 본문의 단순한 표 셀을 선택해 주세요.",
+        "table-structure-unsupported",
+      );
     const dims = wasm.getTableDimensions(
       pos.sectionIndex,
       pos.parentParaIndex,
       pos.controlIndex,
     );
     if (!dims || dims.cellCount > 2000 || dims.colCount > 50)
-      throw new Error("표 크기 제한을 넘었습니다.");
+      throw tableReadError(
+        "표 크기 제한을 넘었습니다. 2,000셀·50열 이하 표를 선택해 주세요.",
+        "table-limit-exceeded",
+      );
     const tableId = crypto.randomUUID();
     const cells = Array.from({ length: dims.cellCount }, (_, index) => {
       const location = [
@@ -970,6 +983,26 @@ const poll = setInterval(() => {
         if (payload.method === "clearQuestionTarget") {
           clearQuestion();
           result = { cleared: true };
+        } else if (payload.method === "getQuestionRects") {
+          paintQuestion();
+          const viewport = document
+            .querySelector("#scroll-container")
+            ?.getBoundingClientRect();
+          result = [
+            ...document.querySelectorAll(".document-studio-question-box"),
+          ]
+            .map((node) => {
+              const { left, top, right, bottom } = node.getBoundingClientRect();
+              return { left, top, right, bottom };
+            })
+            .filter(
+              (rect) =>
+                !viewport ||
+                (rect.bottom > viewport.top &&
+                  rect.top < viewport.bottom &&
+                  rect.right > viewport.left &&
+                  rect.left < viewport.right),
+            );
         } else if (payload.method === "captureQuestionTarget") {
           const input = services.getInputHandler(),
             pos = input?.getCursorPosition();
@@ -977,32 +1010,53 @@ const poll = setInterval(() => {
             throw new Error(
               "질문할 본문 텍스트 단락을 먼저 클릭해 주세요. 표·그림 영역 질문은 아직 지원하지 않습니다.",
             );
-          const length = services.wasm.getParagraphLength(
-            pos.sectionIndex,
-            pos.paragraphIndex,
-          );
+          const range = input.getSelection();
+          const partial =
+            range &&
+            (range.start.charOffset !== range.end.charOffset ||
+              range.start.paragraphIndex !== range.end.paragraphIndex);
+          if (
+            partial &&
+            (range.start.sectionIndex !== range.end.sectionIndex ||
+              range.start.paragraphIndex !== range.end.paragraphIndex ||
+              range.start.parentParaIndex !== undefined ||
+              range.end.parentParaIndex !== undefined)
+          )
+            throw new Error(
+              "본문의 한 단락 안에서 질문할 부분을 선택해 주세요.",
+            );
+          const start = partial ? range.start.charOffset : 0;
+          const end = partial
+            ? range.end.charOffset
+            : services.wasm.getParagraphLength(
+                pos.sectionIndex,
+                pos.paragraphIndex,
+              );
+          const length = end - start;
           if (!length || length > 8000)
             throw new Error("텍스트가 있는 8,000자 이하 단락을 선택해 주세요.");
           const text = services.wasm.getTextRange(
             pos.sectionIndex,
             pos.paragraphIndex,
-            0,
+            start,
             length,
           );
           if (!text.trim()) throw new Error("질문할 텍스트가 없습니다.");
           clearQuestion();
-          input.cursor.clearSelection();
-          input.cursor.moveTo({ ...pos, charOffset: 0 });
-          input.cursor.setAnchor();
-          input.cursor.moveTo({ ...pos, charOffset: length });
+          if (!partial) {
+            input.cursor.clearSelection();
+            input.cursor.moveTo({ ...pos, charOffset: start });
+            input.cursor.setAnchor();
+            input.cursor.moveTo({ ...pos, charOffset: end });
+          }
           input.updateCaret();
           const key = selectionKey(services),
             rects = services.wasm.getSelectionRects(
               pos.sectionIndex,
               pos.paragraphIndex,
-              0,
+              start,
               pos.paragraphIndex,
-              length,
+              end,
             );
           question = { services, revision, key, rects };
           const layer = document.querySelector(".selection-layer");
@@ -1022,9 +1076,11 @@ const poll = setInterval(() => {
               format: "hwpx",
               section: pos.sectionIndex,
               paragraph: pos.paragraphIndex,
+              start,
+              end,
             }),
             text,
-            description: `본문 ${pos.sectionIndex + 1}구역 ${pos.paragraphIndex + 1}번째 단락`,
+            description: `본문 ${pos.sectionIndex + 1}구역 ${pos.paragraphIndex + 1}번째 단락${partial ? "의 선택한 부분" : ""}`,
           };
         } else if (payload.method === "readTable") {
           result = readTable(services);
@@ -1256,8 +1312,15 @@ const poll = setInterval(() => {
             requestId: payload.requestId,
             error: error instanceof Error ? error.message : String(error),
             conflict: Boolean(error.conflict),
-            code:
-              error.code === "search-result-expired" ? error.code : undefined,
+            code: [
+              "search-result-expired",
+              "table-selection-required",
+              "table-cell-required",
+              "table-structure-unsupported",
+              "table-limit-exceeded",
+            ].includes(error.code)
+              ? error.code
+              : undefined,
             effect:
               error.effect ??
               (payload.method === "applyTableChanges" && !tableWriteStarted

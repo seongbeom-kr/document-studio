@@ -1,10 +1,12 @@
-# Questions about a marked paragraph
+# Questions about a selected passage
 
-The first version marks a logical text paragraph and opens a question composer. It is not a freehand rectangle/image selection tool. DOCX uses the engine's paragraph anchor border. HWPX marks a body paragraph using its native selection geometry; table, picture, and arbitrary multi-paragraph regions are not supported in this version.
+Select text inside one paragraph, then choose **선택 영역 질문**. The SDK preserves that exact range and places a compact question composer beside it. With a collapsed caret, it captures the whole paragraph instead. The composer follows scrolling and zoom, flips above a selection near the bottom, and stays within the visible host. The selected text is available in an expandable preview. Escape cancels and returns focus to the opener.
+
+DOCX uses model text offsets and named highlights. HWPX uses body text offsets and native selection geometry. HWPX table/picture questions and ranges spanning multiple paragraphs remain unsupported; they produce an explicit selection instruction. This is logical text selection, not freehand image cropping. Coordinates never identify a write target.
 
 Hosts opt in with `onQuestion(request)` on React `DocumentEditor` or `mountDocumentEditor`. Custom toolbar slots receive `canAskQuestion` and `askAboutParagraph()`. The public controller also provides `captureQuestionTarget()`, `askQuestion(targetId, question)` and `clearQuestionTarget()` for custom UI.
 
-A request contains the user's question and an immutable target: `targetId`, `documentId`, SDK `sessionId`, saved `version`, live `revision`, opaque `selectionKey`, engine `anchor`, description and paragraph text. Paragraphs are limited to 8,000 characters and questions to 4,000 characters. Never reinterpret screen coordinates as a write target or manufacture a selection key.
+A request contains the user's question and an immutable target: `targetId`, `documentId`, SDK `sessionId`, saved `version`, live `revision`, opaque `selectionKey`, engine `anchor`, description and selected text. Selected text is limited to 8,000 characters and questions to 4,000 characters. A partial-range anchor includes engine paragraph identity and start/end offsets. Treat it as opaque: never manufacture a selection key or reconstruct writes from pixel positions. Custom engines can implement `EditorSession.getQuestionRects()` to return presentation-only rectangles in host viewport CSS pixels.
 
 The SDK checks identity/version/revision/selection at capture and submission. It preserves the question after a host error, prevents concurrent sends, and requires a new target when the document or selection changes. A border is view state and is excluded from document bytes and undo history. Zoom and scrolling do not authorize a different logical target.
 

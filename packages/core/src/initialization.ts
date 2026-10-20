@@ -51,8 +51,12 @@ export class EngineInitializationError extends Error {
   }
 }
 export type EngineInitializationState =
-  | { status: "loading"; phase: EngineInitializationPhase }
-  | { status: "ready" }
+  | {
+      status: "loading";
+      phase: EngineInitializationPhase;
+      diagnostics?: EngineInitializationDiagnostics;
+    }
+  | { status: "ready"; diagnostics?: EngineInitializationDiagnostics }
   | {
       status: "failed";
       error: {

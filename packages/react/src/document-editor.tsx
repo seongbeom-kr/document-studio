@@ -68,6 +68,7 @@ import { AutomationSession } from "./automation-session";
 import type { AutomationDraftStore } from "./automation-drafts";
 import { matchesSavedSource, type SavedSource } from "./save-source";
 import { fitPageWidth } from "./fit-page-width";
+import { useQuestionPosition } from "./use-question-position";
 import {
   EDITOR_TOOL_TABS,
   EditorRegion,
@@ -195,7 +196,16 @@ export const DocumentEditor = forwardRef<
   const [initializationPhase, setInitializationPhase] =
     useState<EngineInitializationPhase>("validating");
   const initializationPhaseRef = useRef(initializationPhase);
+  const initializationDiagnostics = useRef<
+    import("@document-studio/core").EngineInitializationDiagnostics | undefined
+  >(undefined);
+  const [bootProgress, setBootProgress] =
+    useState<import("@document-studio/core").EngineInitializationDiagnostics>();
   const updateInitializationPhase = (phase: EngineInitializationPhase) => {
+    if (phase !== "opening") {
+      initializationDiagnostics.current = undefined;
+      setBootProgress(undefined);
+    }
     initializationPhaseRef.current = phase;
     setInitializationPhase(phase);
   };
@@ -382,7 +392,12 @@ export const DocumentEditor = forwardRef<
       : state;
   const initializationState = (ready: boolean): EngineInitializationState =>
     ready
-      ? { status: "ready" }
+      ? {
+          status: "ready",
+          diagnostics: initializationDiagnostics.current
+            ? structuredClone(initializationDiagnostics.current)
+            : undefined,
+        }
       : engineFailure.current
         ? {
             status: "failed",
@@ -404,7 +419,13 @@ export const DocumentEditor = forwardRef<
                 retryable: false,
               },
             }
-          : { status: "loading", phase: initializationPhaseRef.current };
+          : {
+              status: "loading",
+              phase: initializationPhaseRef.current,
+              diagnostics: initializationDiagnostics.current
+                ? structuredClone(initializationDiagnostics.current)
+                : undefined,
+            };
   const snapshot = {
     ...readOnlySnapshot(effectiveSnapshot(nativeSnapshot)),
     initialization: initializationState(nativeSnapshot.ready),
@@ -1290,6 +1311,7 @@ export const DocumentEditor = forwardRef<
   const [questionText, setQuestionText] = useState("");
   const [questionError, setQuestionError] = useState("");
   const [questionSending, setQuestionSending] = useState(false);
+  const questionReturnFocus = useRef<HTMLElement | null>(null);
   const questionPort = useRef<
     Parameters<typeof createDocumentQuestionSession>[0]
   >(null!);
@@ -1322,6 +1344,8 @@ export const DocumentEditor = forwardRef<
     send: (request) => questionPort.current.send(request),
   });
   const openQuestion = () => {
+    if (!questionTarget && window.document.activeElement instanceof HTMLElement)
+      questionReturnFocus.current = window.document.activeElement;
     setQuestionError("");
     void questions
       .current!.capture()
@@ -1337,6 +1361,21 @@ export const DocumentEditor = forwardRef<
       questionTarget.version !== baseVersion.current ||
       questionTarget.revision !== snapshot.revision ||
       questionTarget.selectionKey !== snapshot.selectionKey);
+  const questionPosition = useQuestionPosition(
+    session,
+    questionTarget?.targetId,
+    Boolean(questionStale),
+  );
+  const cancelQuestion = () => {
+    if (questionSending) return;
+    questions.current!.clear();
+    setQuestionTarget(null);
+    requestAnimationFrame(() => {
+      if (questionReturnFocus.current?.isConnected)
+        questionReturnFocus.current.focus({ preventScroll: true });
+      questionReturnFocus.current = null;
+    });
+  };
   const previewCopy = async (previewId: string, row?: number) =>
     setCopyPreview(await mailMerge.previewDocument(previewId, row));
   const openStoredCopy = async (
@@ -2320,7 +2359,7 @@ export const DocumentEditor = forwardRef<
                 }
                 onClick={openQuestion}
               >
-                이 단락 질문
+                선택 영역 질문
               </button>
             )}
             <button
@@ -2550,20 +2589,50 @@ export const DocumentEditor = forwardRef<
           </button>
         </div>
       )}
-      <div className="ds-work-area">
+      <div className="ds-work-area" ref={questionPosition.host}>
         {questionTarget && (
-          <aside className="ds-question-panel" aria-label="선택 단락 질문">
+          <aside
+            className="ds-question-panel"
+            aria-label="선택 영역 질문"
+            ref={questionPosition.panel}
+            data-attached={questionPosition.position?.attached ?? false}
+            style={
+              questionPosition.position
+                ? {
+                    left: questionPosition.position.left,
+                    top: questionPosition.position.top,
+                    right: "auto",
+                    bottom: "auto",
+                  }
+                : undefined
+            }
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && !event.nativeEvent.isComposing) {
+                event.stopPropagation();
+                cancelQuestion();
+              }
+            }}
+          >
             <strong>{questionTarget.description}에 대해 질문</strong>
-            <p>답변과 수정 제안을 받습니다. 문서 적용은 별도로 확인합니다.</p>
-            <blockquote>
-              {questionTarget.text.slice(0, 500)}
-              {questionTarget.text.length > 500 ? "…" : ""}
-            </blockquote>
+            {questionPosition.position &&
+              !questionPosition.position.attached &&
+              !questionStale && (
+                <small>
+                  선택 영역이 화면 밖에 있습니다. 문서를 스크롤해 다시
+                  확인하세요.
+                </small>
+              )}
+            <details>
+              <summary>선택 내용 확인 · {questionTarget.text.length}자</summary>
+              <blockquote>{questionTarget.text}</blockquote>
+            </details>
             <label>
               질문
               <textarea
-                aria-label="선택 단락 질문 내용"
-                rows={3}
+                aria-label="선택 영역 질문 내용"
+                placeholder="이 부분에 대해 질문하거나 변경 사항을 설명하세요"
+                autoFocus
+                rows={2}
                 maxLength={4000}
                 value={questionText}
                 onChange={(event) => setQuestionText(event.target.value)}
@@ -2572,7 +2641,7 @@ export const DocumentEditor = forwardRef<
             </label>
             {questionStale && (
               <p role="alert">
-                문서 또는 선택이 바뀌었습니다. 단락을 다시 지정해 주세요.
+                문서 또는 선택이 바뀌었습니다. 영역을 다시 지정해 주세요.
               </p>
             )}
             {questionError && <p role="alert">{questionError}</p>}
@@ -2581,10 +2650,7 @@ export const DocumentEditor = forwardRef<
                 type="button"
                 className="ds-button"
                 disabled={questionSending}
-                onClick={() => {
-                  questions.current!.clear();
-                  setQuestionTarget(null);
-                }}
+                onClick={cancelQuestion}
               >
                 질문 취소
               </button>
@@ -2595,7 +2661,7 @@ export const DocumentEditor = forwardRef<
                   disabled={questionSending}
                   onClick={openQuestion}
                 >
-                  현재 단락으로 다시 지정
+                  현재 선택으로 다시 지정
                 </button>
               )}
               <button
@@ -2615,6 +2681,13 @@ export const DocumentEditor = forwardRef<
                       questions.current!.clear();
                       setQuestionTarget(null);
                       setQuestionText("");
+                      requestAnimationFrame(() => {
+                        if (questionReturnFocus.current?.isConnected)
+                          questionReturnFocus.current.focus({
+                            preventScroll: true,
+                          });
+                        questionReturnFocus.current = null;
+                      });
                     })
                     .catch((cause: unknown) =>
                       setQuestionError(
@@ -2624,9 +2697,10 @@ export const DocumentEditor = forwardRef<
                     .finally(() => setQuestionSending(false));
                 }}
               >
-                {questionSending ? "질문 전송 중…" : "선택 단락 질문 보내기"}
+                {questionSending ? "질문 전송 중…" : "선택 영역 질문 보내기"}
               </button>
             </div>
+            <small>문서 적용은 제안을 확인한 뒤 별도로 진행합니다.</small>
           </aside>
         )}
         <div
@@ -2671,6 +2745,15 @@ export const DocumentEditor = forwardRef<
                   )
                     updateInitializationPhase(phase);
                 }}
+                onInitializationDiagnostics={(value) => {
+                  if (
+                    engineMountId.current !== mountId ||
+                    engineFailure.current
+                  )
+                    return;
+                  initializationDiagnostics.current = structuredClone(value);
+                  setBootProgress(value);
+                }}
                 onSaveRequest={requestSave}
                 onFindRequest={requestFind}
                 advancedTools={nativeTools}
@@ -2684,6 +2767,13 @@ export const DocumentEditor = forwardRef<
               {initializationPhase === "opening"
                 ? "문서를 여는 중…"
                 : "편집기에 연결하는 중…"}
+              {bootProgress && (
+                <small>
+                  {INITIALIZATION_STAGE_LABELS[bootProgress.stage]} ·{" "}
+                  {Math.floor(bootProgress.elapsedMs / 1000)}초 경과 · 원본 파일
+                  유지 중
+                </small>
+              )}
             </div>
           )}
         </div>

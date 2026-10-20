@@ -179,6 +179,7 @@ export interface EditorSession {
     import("./document-question").EngineQuestionTarget
   >;
   clearQuestionTarget?(): void;
+  getQuestionRects?(): Promise<import("./document-question").QuestionRect[]>;
   readTable?(): Promise<import("./table-column").TableSnapshot>;
   applyTableChanges?(
     table: import("./table-column").TableSnapshot,
@@ -393,5 +394,6 @@ export type {
 } from "./agent-bridge";
 export * from "./generated-output";
 export * from "./document-question";
+export * from "./agent-tools";
 export * from "./search-result-expired";
 export * from "./version";

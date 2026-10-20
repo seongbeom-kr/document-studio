@@ -50,7 +50,7 @@ for (const format of ["docx", "hwpx"] as const) {
         );
       }
       await expect(
-        toolbar.getByRole("button", { name: "이 단락 질문", exact: true }),
+        toolbar.getByRole("button", { name: "선택 영역 질문", exact: true }),
       ).toBeVisible();
       await toolbar.getByRole("button", { name: "찾기", exact: true }).click();
       await expect(

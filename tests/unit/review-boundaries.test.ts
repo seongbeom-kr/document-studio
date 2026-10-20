@@ -157,6 +157,42 @@ describe("validation worker lifetime", () => {
       onerror: null,
     } as unknown as Worker;
   }
+  it("releases success only after the terminated worker's task has completed", async () => {
+    vi.useFakeTimers();
+    const w = worker();
+    const ready = vi.fn();
+    const pending = runValidationWorker(w, { bytes: new Uint8Array([1]) }).then(
+      ready,
+    );
+    w.onmessage!.call(w, new MessageEvent("message", { data: { ok: true } }));
+    await Promise.resolve();
+    expect(w.terminate).toHaveBeenCalledOnce();
+    expect(w.onmessage).toBeNull();
+    expect(ready).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(0);
+    await pending;
+    expect(ready).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it("aborting the successful-worker handoff cannot open an old document", async () => {
+    vi.useFakeTimers();
+    const w = worker(),
+      abort = new AbortController();
+    const pending = runValidationWorker(
+      w,
+      { bytes: new Uint8Array([1]) },
+      abort.signal,
+    );
+    const rejected = expect(pending).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    w.onmessage!.call(w, new MessageEvent("message", { data: { ok: true } }));
+    abort.abort();
+    await rejected;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(w.terminate).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it("rejects an oversized input before cloning or transferring it", async () => {
     const w = worker();
     await expect(

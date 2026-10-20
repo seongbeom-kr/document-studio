@@ -578,6 +578,7 @@ export function EditingTools(props: Props) {
         props.automationSession &&
         props.automationStatus ? (
           <MailMergeTools
+            format={props.format}
             previewDocument={props.previewMailMergeDocument}
             onOpenStoredCopy={props.onOpenStoredCopy}
             key={props.documentKey}

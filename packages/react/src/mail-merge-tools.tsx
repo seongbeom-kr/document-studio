@@ -77,6 +77,7 @@ export function MailMergeTools({
   snapshot,
   disabled,
   readOnly,
+  format,
   onOpenStoredCopy,
 }: {
   previewDocument?(previewId: string, row?: number): Promise<void>;
@@ -90,6 +91,7 @@ export function MailMergeTools({
   snapshot: EditorSnapshot;
   disabled: boolean;
   readOnly?: boolean;
+  format?: string;
 }) {
   const status = useSyncExternalStore(
     actions.subscribe,
@@ -563,8 +565,9 @@ export function MailMergeTools({
             />
           </label>
           <p className="ds-muted">
-            예: {`안내문-{{이름}}-{{#}}.${source?.format ?? "docx"}`} ·{" "}
-            {"{{#}}"}는 순번입니다.
+            예:{" "}
+            {`안내문-{{이름}}-{{#}}${source?.format || format ? `.${source?.format ?? format}` : ""}`}{" "}
+            · {"{{#}}"}는 순번입니다.
           </p>
           <label className="ds-check">
             <input

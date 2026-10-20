@@ -101,6 +101,7 @@ export function DocxView({
             questionGuard.selectionKey !== docxSelectionKey(editor))
         ) {
           editor.clearAnchorHighlight({ animation: false });
+          editor.clearHighlights("document-studio-question");
           questionGuard = undefined;
         }
         const commands = Object.fromEntries(
@@ -210,6 +211,58 @@ export function DocxView({
       const tableColumn = createDocxTableColumn(editor);
       const session: EditorSession = {
         async captureQuestionTarget() {
+          const semantic = (editor as DocxEditorInstance).surface?.state()
+            .selection;
+          const selectedText = editor.query({ type: "selectedText" });
+          if (selectedText && semantic) {
+            if (semantic.anchor.paragraphId !== semantic.head.paragraphId)
+              throw new Error("한 단락 안에서 질문할 부분을 선택해 주세요.");
+            if (!selectedText.trim() || selectedText.length > 8000)
+              throw new Error("질문할 텍스트는 8,000자까지 지원합니다.");
+            const start = Math.min(
+              semantic.anchor.offset,
+              semantic.head.offset,
+            );
+            const end = Math.max(semantic.anchor.offset, semantic.head.offset);
+            const blockId = semantic.anchor.paragraphId;
+            const painted = editor.setHighlights(
+              "document-studio-question",
+              [
+                {
+                  blockId,
+                  start,
+                  length: end - start,
+                  expectedText: selectedText,
+                },
+              ],
+              {
+                color: "#2563eb15",
+                className: "ds-question-range",
+                priority: 20,
+              },
+            );
+            if (painted.applied !== 1)
+              throw new Error(
+                "선택 영역의 표시 위치를 확인하지 못했습니다. 다시 선택해 주세요.",
+              );
+            editor.clearAnchorHighlight({ animation: false });
+            questionGuard = {
+              revision: currentRevision(),
+              selectionKey: docxSelectionKey(editor),
+            };
+            return {
+              ...questionGuard,
+              anchor: JSON.stringify({
+                format: "docx",
+                paragraphId: blockId,
+                start,
+                end,
+              }),
+              text: selectedText,
+              description: "선택한 부분",
+            };
+          }
+          editor.clearHighlights("document-studio-question");
           const range = editor.query({ type: "selection" });
           const anchor = range?.from;
           if (!anchor || !("paraId" in anchor))
@@ -252,6 +305,23 @@ export function DocxView({
         clearQuestionTarget() {
           questionGuard = undefined;
           editor.clearAnchorHighlight({ animation: false });
+          editor.clearHighlights("document-studio-question");
+        },
+        async getQuestionRects() {
+          if (
+            !questionGuard ||
+            questionGuard.revision !== currentRevision() ||
+            questionGuard.selectionKey !== docxSelectionKey(editor)
+          )
+            return [];
+          return Array.from(
+            surface.current?.querySelectorAll(
+              ".ds-question-anchor, .ds-question-range",
+            ) ?? [],
+          ).map((node) => {
+            const { left, top, right, bottom } = node.getBoundingClientRect();
+            return { left, top, right, bottom };
+          });
         },
         readTable: tableColumn.read,
         async applyTableChanges(table, changes, assertCurrent) {

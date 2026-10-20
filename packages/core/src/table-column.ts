@@ -82,6 +82,41 @@ export class TableEditError extends Error {
     this.name = "TableEditError";
   }
 }
+export type TableReadErrorCode =
+  | "table-selection-required"
+  | "table-cell-required"
+  | "table-structure-unsupported"
+  | "table-limit-exceeded";
+
+/** A read did not mutate the document. Resolve the precondition before retrying. */
+export class TableReadError extends TableEditError {
+  readonly retryable = false;
+  readonly requiredAction: "select-table-cell" | "select-supported-table";
+  constructor(
+    message: string,
+    readonly code: TableReadErrorCode,
+  ) {
+    super(message, "none");
+    this.name = "TableReadError";
+    this.requiredAction =
+      code === "table-selection-required" || code === "table-cell-required"
+        ? "select-table-cell"
+        : "select-supported-table";
+  }
+}
+export function isTableReadErrorCode(
+  code: unknown,
+): code is TableReadErrorCode {
+  return (
+    typeof code === "string" &&
+    [
+      "table-selection-required",
+      "table-cell-required",
+      "table-structure-unsupported",
+      "table-limit-exceeded",
+    ].includes(code)
+  );
+}
 export const TABLE_COLUMN_SCHEMA = {
   type: "object",
   additionalProperties: false,

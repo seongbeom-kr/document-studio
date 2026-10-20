@@ -1,3 +1,10 @@
+/** CSS pixels in the host viewport; presentation only, never an edit target. */
+export interface QuestionRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
 export interface EngineQuestionTarget {
   revision: string;
   selectionKey: string;
@@ -43,7 +50,7 @@ export function createDocumentQuestionSession(port: {
       state.selectionKey !== value.selectionKey
     )
       throw new Error(
-        "문서 또는 질문 대상이 변경됐습니다. 단락을 다시 지정해 주세요.",
+        "문서 또는 질문 대상이 변경됐습니다. 영역을 다시 지정해 주세요.",
       );
   };
   return {
@@ -59,7 +66,7 @@ export function createDocumentQuestionSession(port: {
         !value.selectionKey
       )
         throw new Error(
-          "질문할 텍스트 단락을 지정해 주세요. 한 단락은 8,000자까지 지원합니다.",
+          "질문할 텍스트를 지정해 주세요. 선택 영역은 8,000자까지 지원합니다.",
         );
       const captured: DocumentQuestionTarget = {
         targetId: crypto.randomUUID(),

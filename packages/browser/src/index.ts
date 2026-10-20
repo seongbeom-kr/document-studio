@@ -12,7 +12,7 @@ import {
   type EditorCloseRequest,
 } from "@document-studio/core";
 
-export { createAgentBridge } from "@document-studio/core";
+export { createAgentBridge, createAgentToolset } from "@document-studio/core";
 export type {
   EditorController,
   EditorControllerState,

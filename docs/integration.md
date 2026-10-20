@@ -138,6 +138,28 @@ HWPX의 서식 조회는 캐럿 기준, DOCX의 서식 조회는 엔진의 선�
 `agent.commit({...target, operationId})`은 저장 version, SHA-256, 저장 revision, 저장 위치 종류와 로컬 입력 상태를 반환합니다. 같은 요청 ID는 이 브리지 수명 안에서 동일 receipt를 재사용합니다. 탭 재연결까지 보장하려면 호스트가 receipt를 영속화해야 합니다. 비동기 에이전트 그림 삽입은 안전한 권한/범위 계약을 제공할 때까지 거절됩니다.
 인증된 에이전트 transport와 실행 trace 수집은 호스트가 구현합니다. 브리지 API 제공만으로 실제 LLM의 문서 작업 완료를 보장하지 않습니다.
 
+### 메서드별 도구 스키마
+
+`createAgentToolset(bridge)`는 기본 읽기·검색·단일 치환·표 열 미리보기/적용·저장을 위한 선택형 도구 10개를 제공합니다. `list()`의 각 항목은 `name`, `description`, `inputSchema`를 갖습니다. 호스트는 사용하는 모델 도구 형식으로 이 항목을 전달하고 `invoke(name, arguments)`로 호출합니다. 특정 모델 서비스나 서버 인증에는 의존하지 않습니다.
+
+```ts
+import { createAgentBridge, createAgentToolset } from "@document-studio/core";
+const bridge = createAgentBridge(() => editorRef.current);
+const tools = createAgentToolset(bridge);
+const definitions = tools.list();
+const state = await tools.invoke("getState", {});
+```
+
+도구의 `getState`는 `bridge.getContext()`로 연결되어 현재 문서·세션·버전·revision·선택 토큰·준비 상태를 반환합니다. 전체 서식/명령 목록이 필요할 때는 기존 `bridge.getState()`와 기능 조회 API를 사용합니다. `getState`에는 문서 인수를 넣지 않으며 `search`에는 `expectedRevision`을 넣지 않습니다. 잘못된 인수는 문서 실행 전에 `AgentToolArgumentError`의 `code=invalid-arguments`, `effect=none`, `requiredAction=correct-arguments`와 메서드 스키마로 반환합니다.
+
+이 도구 묶음의 `replace`는 검색 결과 하나를 대상으로 하며 입력은 10,000자까지입니다. 다른 고급 작업은 기존 브리지 API를 사용합니다. 쓰기 권한·문서/세션/revision 검증은 기존 경로를 그대로 사용하며, 사용자의 승인을 받은 다음에 실행해야 합니다. `replace` 자체의 중복 실행 보장은 없으므로 응답이 유실됐으면 현재 문서를 다시 조회해야 합니다. `commit`과 `applyTableColumn`의 같은 operationId 재호출은 동일 인수에만 허용됩니다. 호스트의 인증·승인과 연결 간 작업 기록 영속화는 별도 책임입니다.
+
+표 조회의 알려진 선행 조건 실패는 `TableReadError`로 구분합니다. `table-selection-required`/`table-cell-required`는 `requiredAction=select-table-cell`, `table-structure-unsupported`/`table-limit-exceeded`는 `select-supported-table`입니다. 모두 `effect=none`, `retryable=false`이므로 상태 조회를 반복하지 않고 선택 조건을 먼저 고칩니다. 기존 `TableEditError` 처리와도 호환됩니다.
+
+### 초기화 진단
+
+HWPX는 로딩 중 현재 단계·경과 시간·원본 유지 상태를 표시합니다. `getState().initialization.diagnostics`에는 성공한 연결에도 시도 ID, 단계별 시간, 프레임 시작 관찰이 남습니다. 실패와 재시도는 서로 다른 시도이며 재시도 성공을 최초 성공으로 집계하지 마세요. 성공 진단 제공은 모든 호스트에서의 초기화 안정성을 보증하지 않습니다. 개발/프로덕션 및 사용 브라우저에서 첫 열기와 재열기를 따로 검증해야 합니다.
+
 ## DOM API로 연결
 
 0.2.18부터 `@document-studio/browser`가 `mountDocumentEditor(element, options)`를 제공합니다. React 코드는 SDK 내부에 있으며 호스트는 DOM 요소와 일반 객체·함수를 전달합니다. `@document-studio/browser/styles.css`를 import하고 호스트 요소에 높이를 지정하세요. Vue 예제는 `examples/browser/main.ts`의 `?host=vue` 경로입니다.

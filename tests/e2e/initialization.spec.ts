@@ -9,6 +9,7 @@ test("HWPX first existing-file load releases validation workers and survives rep
   const workers = new Set<import("@playwright/test").Worker>();
   let opened = 0,
     closed = 0;
+  const attempts = new Set<string>();
   page.on("worker", (worker) => {
     opened++;
     workers.add(worker);
@@ -27,6 +28,19 @@ test("HWPX first existing-file load releases validation workers and survives rep
       .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
       .toBe(true);
     await expect.poll(() => workers.size).toBe(0);
+    const initialization = await page.evaluate(
+      () => window.documentStudioTest.state()?.initialization,
+    );
+    expect(initialization?.status).toBe("ready");
+    if (initialization?.status !== "ready") throw new Error("Not ready");
+    const diagnostics = initialization.diagnostics!;
+    expect(diagnostics.attemptId).toBeTruthy();
+    expect(attempts.has(diagnostics.attemptId!)).toBe(false);
+    attempts.add(diagnostics.attemptId!);
+    expect(
+      diagnostics.observations?.some((item) => item.event === "script-start"),
+    ).toBe(true);
+    expect(diagnostics.stage).toBe("state-connecting");
     expect(opened).toBeGreaterThan(i);
     expect(closed).toBe(opened);
     expect(
@@ -201,7 +215,12 @@ async function verifyRecoveredEditor(page: Page) {
     result.saved,
   );
   await expect
-    .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
+    .poll(() =>
+      page.evaluate((previousSession) => {
+        const state = window.documentStudioTest.state();
+        return state?.ready && state.sessionId !== previousSession;
+      }, result.state!.sessionId),
+    )
     .toBe(true);
   const reopened = await page.evaluate(() => {
     const agent = window.documentStudioTest.agent;

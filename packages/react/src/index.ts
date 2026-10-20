@@ -26,7 +26,7 @@ export type {
   AutomationDraftState,
 } from "./automation-drafts";
 export type { AutomationDraftStatus } from "./automation-session";
-export { createAgentBridge } from "./agent-bridge";
+export { createAgentBridge, createAgentToolset } from "./agent-bridge";
 export type {
   AgentTarget,
   AgentWriteTarget,

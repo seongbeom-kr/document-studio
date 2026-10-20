@@ -14,6 +14,8 @@ import {
   SearchResultExpiredError,
   SelectionConflictError,
   TableEditError,
+  TableReadError,
+  isTableReadErrorCode,
   EngineInitializationError,
   type EngineInitializationStage,
   type EngineInitializationDiagnostics,
@@ -205,6 +207,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
     onSaveRequest,
     onFindRequest,
     onInitializationPhase,
+    onInitializationDiagnostics,
     advancedTools,
     inputBlocked = false,
   }: EngineViewProps) {
@@ -215,6 +218,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
       onSaveRequest,
       onFindRequest,
       onInitializationPhase,
+      onInitializationDiagnostics,
     });
     const editorRef = useRef<RhwpEditor | null>(null);
     const blockedRef = useRef(inputBlocked);
@@ -255,6 +259,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
       onSaveRequest,
       onFindRequest,
       onInitializationPhase,
+      onInitializationDiagnostics,
     };
     useEffect(() => {
       let active = true;
@@ -308,6 +313,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
               ? input.visibility
               : undefined,
         });
+        callbacks.current.onInitializationDiagnostics?.(diagnostics());
       };
       const recordStage = (
         next: EngineInitializationStage,
@@ -321,6 +327,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
             stage: next,
             elapsedMs: Math.max(0, Math.round(performance.now() - startedAt)),
           });
+        callbacks.current.onInitializationDiagnostics?.(diagnostics());
       };
       const diagnostics = (): EngineInitializationDiagnostics => ({
         attemptId,
@@ -334,6 +341,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
       });
       const abort = new AbortController();
       let initializationTimer: ReturnType<typeof setTimeout> | undefined;
+      let diagnosticTimer: ReturnType<typeof setInterval> | undefined;
       let editor: RhwpEditor | null = null;
       let timer: ReturnType<typeof setInterval> | undefined;
       let polling = false;
@@ -387,16 +395,18 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
           calls.delete(event.data.requestId);
           if (event.data.error)
             task.reject(
-              event.data.code === "search-result-expired"
-                ? new SearchResultExpiredError()
-                : event.data.effect &&
-                    ["none", "rolled-back", "unknown"].includes(
-                      event.data.effect,
-                    )
-                  ? new TableEditError(event.data.error, event.data.effect)
-                  : event.data.conflict
-                    ? new SaveConflictError(event.data.error)
-                    : new Error(event.data.error),
+              isTableReadErrorCode(event.data.code)
+                ? new TableReadError(event.data.error, event.data.code)
+                : event.data.code === "search-result-expired"
+                  ? new SearchResultExpiredError()
+                  : event.data.effect &&
+                      ["none", "rolled-back", "unknown"].includes(
+                        event.data.effect,
+                      )
+                    ? new TableEditError(event.data.error, event.data.effect)
+                    : event.data.conflict
+                      ? new SaveConflictError(event.data.error)
+                      : new Error(event.data.error),
             );
           else task.resolve(event.data.result);
           return;
@@ -497,6 +507,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
         if (!active) return;
         active = false;
         clearTimeout(initializationTimer);
+        clearInterval(diagnosticTimer);
         clearInterval(timer);
         window.removeEventListener("message", onMessage);
         abort.abort(reason);
@@ -537,6 +548,10 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
           ),
         initializationTimeoutMs,
       );
+      diagnosticTimer = setInterval(() => {
+        if (active)
+          callbacks.current.onInitializationDiagnostics?.(diagnostics());
+      }, 1000);
       void (async () => {
         try {
           // StrictMode disposes its first effect before the next microtask. Do not
@@ -702,6 +717,25 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
               void rpc("clearQuestionTarget", {}).catch(
                 callbacks.current.onError,
               );
+            },
+            async getQuestionRects() {
+              const rects = await rpc<
+                import("@document-studio/core").QuestionRect[]
+              >("getQuestionRects", {});
+              const frame = editor!.element;
+              const bounds = frame.getBoundingClientRect();
+              const sx = frame.offsetWidth
+                ? bounds.width / frame.offsetWidth
+                : 1;
+              const sy = frame.offsetHeight
+                ? bounds.height / frame.offsetHeight
+                : 1;
+              return rects.map((rect) => ({
+                left: bounds.left + rect.left * sx,
+                top: bounds.top + rect.top * sy,
+                right: bounds.left + rect.right * sx,
+                bottom: bounds.top + rect.bottom * sy,
+              }));
             },
             setInputBlocked: setNativeBlocked,
             getSnapshot: store.getSnapshot,
@@ -908,6 +942,8 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
           await update();
           if (!active) return;
           clearTimeout(initializationTimer);
+          clearInterval(diagnosticTimer);
+          callbacks.current.onInitializationDiagnostics?.(diagnostics());
           callbacks.current.onReady(session);
           timer = setInterval(() => {
             if (

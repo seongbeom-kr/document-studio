@@ -1007,7 +1007,7 @@
   bottom: 0.75rem;
   z-index: 45;
   width: min(26rem, calc(100% - 1.5rem));
-  max-height: 65%;
+  max-height: calc(100% - 1rem);
   overflow: auto;
   background: var(--ds-panel, #fff);
   color: var(--ds-text, #111);
@@ -1015,6 +1015,24 @@
   box-shadow: 0 6px 28px #0002;
   border-radius: 0.6rem;
   padding: 0.9rem;
+}
+.ds-question-range {
+  outline: 1px dashed var(--ds-accent, #2563eb);
+}
+.ds-engine-loading small {
+  display: block;
+  margin-top: 0.5rem;
+  font-weight: normal;
+}
+.ds-question-panel summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin: 0.35rem 0;
+}
+.ds-question-panel small {
+  display: block;
+  margin-top: 0.5rem;
+  color: var(--ds-muted, #666);
 }
 .ds-question-panel blockquote {
   margin: 0.6rem 0;
