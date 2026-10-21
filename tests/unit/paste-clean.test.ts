@@ -1,5 +1,39 @@
 import { expect, it } from "vitest";
 import { previewPasteCleanup, quickActionPlan } from "@document-studio/core";
+it.each(["\n", "\r\n"])("preserves code fences with %j newlines", (newline) => {
+  for (const marker of ["````", "~~~~"]) {
+    const shorter = marker.slice(1);
+    const text = [
+      marker,
+      "\u200b【1†keep】",
+      shorter,
+      "\u200bkeep",
+      marker,
+      "",
+    ].join(newline);
+    expect(previewPasteCleanup(text)).toMatchObject({
+      after: text,
+      removed: 0,
+      changes: [],
+    });
+  }
+});
+it("preserves mixed newlines and unterminated code while cleaning only outside", () => {
+  const code = "````\r\n\u200b【1†keep】\n```\r\n\u200bkeep\n````\r\n";
+  const outside = "제목\u200b\r\n";
+  expect(previewPasteCleanup(outside + code + "끝\u200b\n").after).toBe(
+    "제목\r\n" + code + "끝\n",
+  );
+  const open = "~~~typescript\r\n\u200b【1†keep】\r\n";
+  expect(previewPasteCleanup(open).after).toBe(open);
+});
+it.each(["\ufeff", "\u200b", "\u00a0"])(
+  "does not treat an invisible non-space suffix as a closing fence: %j",
+  (suffix) => {
+    const text = `~~~\r\n~~~${suffix}\r\n\u200b【1†keep】\r\n~~~\r\n`;
+    expect(previewPasteCleanup(text).after).toBe(text);
+  },
+);
 it("previews artifacts without removing numbered references or ordinary brackets", () => {
   const before = "제목\u200b 【4:0†source】\n\\*\\*강조\\*\\* [1] 【붙임】";
   expect(previewPasteCleanup(before)).toMatchObject({

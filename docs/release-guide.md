@@ -1,5 +1,7 @@
 # 패키지 빌드와 소비
 
+`0.3.0-beta.1`부터 공개 후보는 명시적 prerelease 버전을 사용합니다. npm에 게시할 때는 `beta` dist-tag로 분리하며, `latest`를 베타로 이동하지 않습니다. 현재 작업은 GitHub 소스와 로컬 tarball 검증이며 npm registry 게시는 별도입니다. 정식 출시는 API 안정성·실제 호스트 통합·업무 문서 호환성 검증 이후 `1.0.0-rc.*`를 거쳐 `1.0.0`으로 진행합니다. 번호 변경만으로 정식 수용 검사를 통과한 것으로 간주하지 않습니다.
+
 React 연결은 기존 네 SDK 패키지를 사용합니다. DOM 연결은 `@document-studio/browser`를 함께 설치합니다. 별도 Document Studio 서비스는 필요하지 않습니다. `apps/playground`는 private 개발 예제입니다. 호스트는 사용자·문서 ID·저장소 version·초안 namespace·문서 전환·파일 목록을 소유합니다.
 
 로컬 검증 tarball은 `.build/packs/core.tgz`, `react.tgz`, `engine-docx.tgz`, `engine-rhwp.tgz`, `browser.tgz`입니다. React 소비 앱에서 앞의 네 파일을 함께 설치하고 RHWP 자산을 자신의 public 디렉터리에 복사합니다. 각각의 immutable hash 파일은 검증 cache 구분용이며 최신 패키지는 고정 이름 파일입니다.

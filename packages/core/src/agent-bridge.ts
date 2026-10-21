@@ -188,7 +188,7 @@ export function createAgentBridge(
         "expectedSelectionKey가 필요합니다. 적용 대상을 다시 선택해 주세요.",
       );
     if (request.expectedSelectionKey !== started.state.selectionKey)
-      throw new SelectionConflictError();
+      throw new SelectionConflictError("none");
     return started;
   };
   const cachedPreview = (

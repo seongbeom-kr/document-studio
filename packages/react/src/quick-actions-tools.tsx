@@ -1,34 +1,74 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import {
   officeClock,
   OFFICE_DATE_ACTIONS,
   describeQuickCommands,
+  QUICK_ACTION_DRAFT_NAME,
   type OfficeDateRequest,
   type QuickActionPreview,
   type EditorSnapshot,
   type createQuickActionEditor,
 } from "@document-studio/core";
+import type { AutomationSession } from "./automation-session";
+import { downloadAutomationDraft } from "./automation-drafts";
+import {
+  readQuickActionSettings,
+  type QuickActionSettings,
+} from "./quick-action-draft";
 
 export function QuickActionTools({
   actions,
   snapshot,
   disabled,
   readOnly,
+  session,
 }: {
   actions: ReturnType<typeof createQuickActionEditor>;
   snapshot: EditorSnapshot;
   disabled: boolean;
   readOnly?: boolean;
+  session: AutomationSession;
 }) {
   const [clock] = useState(() => officeClock());
-  const [baseDate, setBaseDate] = useState(clock.baseDate),
-    [week, setWeek] = useState<OfficeDateRequest["week"]>("workweek"),
-    [format, setFormat] = useState<OfficeDateRequest["format"]>("official");
+  const status = useSyncExternalStore(
+    session.subscribe,
+    session.getSnapshot,
+    session.getSnapshot,
+  );
+  const draft = session.get(QUICK_ACTION_DRAFT_NAME);
+  const defaults: QuickActionSettings = {
+    baseDate: clock.baseDate,
+    timeZone: clock.timeZone,
+    week: "workweek",
+    format: "official",
+  };
+  let settings = defaults,
+    settingsError = "";
+  try {
+    settings = readQuickActionSettings(draft.argument, defaults);
+  } catch {
+    settingsError =
+      "보관한 날짜 설정을 읽지 못했습니다. 입력을 내려받은 뒤 날짜 설정을 초기화해 주세요.";
+  }
+  const { baseDate, week, format, timeZone } = settings;
+  const pasteText = draft.input;
   const [preview, setPreview] = useState<QuickActionPreview | null>(null),
     [notice, setNotice] = useState(""),
     [pending, setPending] = useState(false);
   const running = useRef(false);
-  const [pasteText, setPasteText] = useState("");
+  const edit = (input: string, next = settings) => {
+    session.put(
+      QUICK_ACTION_DRAFT_NAME,
+      {
+        input,
+        argument: JSON.stringify(next),
+        transform: "trim",
+        delimiter: "auto",
+      },
+      { activate: false },
+    );
+    setPreview(null);
+  };
   const stale =
     !!preview &&
     (preview.revision !== snapshot.revision ||
@@ -42,10 +82,46 @@ export function QuickActionTools({
       setNotice(error instanceof Error ? error.message : String(error));
     }
   };
-  const enabled = snapshot.ready && !disabled && !pending;
+  const enabled =
+    snapshot.ready && !disabled && !pending && status.ready && !settingsError;
   return (
     <section className="ds-quick-actions ds-tools-panel" aria-label="빠른 작업">
       <p>작업을 선택하면 적용 대상과 결과를 먼저 보여줍니다.</p>
+      {!status.ready && (
+        <p role="status">
+          자동화 입력 복구를 완료해 주세요. ‘업무 자동화’ 탭에서 보관 상태를
+          확인할 수 있습니다.
+        </p>
+      )}
+      {(status.error || settingsError) && (
+        <p role="alert">{settingsError || status.error}</p>
+      )}
+      <p className="ds-muted">
+        {status.storage === "memory"
+          ? "원고와 날짜 설정은 이 편집 세션에 보관됩니다. 문서를 닫기 전 입력을 내려받아 주세요."
+          : "원고와 날짜 설정은 호스트가 지정한 자동화 초안 저장소에 보관됩니다."}
+      </p>
+      <button
+        type="button"
+        className="ds-button"
+        onClick={() =>
+          downloadAutomationDraft(
+            session.hasRecovery() ? session.recoveryData() : session.snapshot(),
+          )
+        }
+      >
+        빠른 작업 입력 내려받기
+      </button>
+      {settingsError && (
+        <button
+          type="button"
+          className="ds-button"
+          disabled={!status.ready}
+          onClick={() => edit(pasteText, defaults)}
+        >
+          날짜 설정 초기화
+        </button>
+      )}
       <fieldset disabled={!enabled}>
         <legend>날짜와 기간</legend>
         <div className="ds-tools-row">
@@ -56,8 +132,7 @@ export function QuickActionTools({
               aria-label="빠른 작업 기준일"
               value={baseDate}
               onChange={(e) => {
-                setBaseDate(e.target.value);
-                setPreview(null);
+                edit(pasteText, { ...settings, baseDate: e.target.value });
               }}
             />
           </label>
@@ -65,8 +140,10 @@ export function QuickActionTools({
             type="button"
             className="ds-button"
             onClick={() => {
-              setBaseDate(officeClock(clock.timeZone).baseDate);
-              setPreview(null);
+              edit(pasteText, {
+                ...settings,
+                baseDate: officeClock(timeZone).baseDate,
+              });
             }}
           >
             오늘로 갱신
@@ -77,8 +154,10 @@ export function QuickActionTools({
               aria-label="빠른 작업 주간 범위"
               value={week}
               onChange={(e) => {
-                setWeek(e.target.value as typeof week);
-                setPreview(null);
+                edit(pasteText, {
+                  ...settings,
+                  week: e.target.value as typeof week,
+                });
               }}
             >
               <option value="workweek">월~금</option>
@@ -91,8 +170,10 @@ export function QuickActionTools({
               aria-label="빠른 작업 날짜 표시"
               value={format}
               onChange={(e) => {
-                setFormat(e.target.value as typeof format);
-                setPreview(null);
+                edit(pasteText, {
+                  ...settings,
+                  format: e.target.value as typeof format,
+                });
               }}
             >
               <option value="official">공문 날짜·요일</option>
@@ -102,8 +183,8 @@ export function QuickActionTools({
           </label>
         </div>
         <p className="ds-muted">
-          오늘의 기준 시간대: {clock.timeZone}. 주간 범위는 공휴일을 따로
-          제외하지 않습니다.
+          오늘의 기준 시간대: {timeZone}. 주간 범위는 공휴일을 따로 제외하지
+          않습니다.
         </p>
         <div className="ds-quick-buttons">
           {OFFICE_DATE_ACTIONS.map((action) => (
@@ -158,8 +239,7 @@ export function QuickActionTools({
             maxLength={10000}
             value={pasteText}
             onChange={(event) => {
-              setPasteText(event.target.value);
-              setPreview(null);
+              edit(event.target.value);
             }}
           />
         </label>

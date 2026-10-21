@@ -1,0 +1,74 @@
+0.2.32 리뷰 수정 결과 — 0.3.0-beta.1
+작성일: 2026-10-21
+기준 커밋: bae2f6f1b67aaf17109359a38e7ee4c01b8c61c2
+
+판정
+리뷰의 P2 세 항목은 수정하고 검증했다. HWPX P1은 이 세션에서도 재현됐으며 미해결이다.
+이번 변경을 초기화 안정화 완료 또는 정식 출시 승인으로 표현하지 않는다.
+다섯 패키지 버전은 사용자와 합의한 prerelease 표기를 적용해 0.3.0-beta.1이다.
+SDK 소스만 반영하며 소비 프론트/General/로그인 계정/scope는 변경하지 않는다.
+npm registry 게시나 실제 서비스 배포 작업은 하지 않는다.
+
+수정한 항목
+1) U2: 원고와 날짜 설정을 AutomationSession의 별도 초안에 보관한다.
+   탭·패널 제거 뒤 다시 열어도 입력은 유지된다. 미리보기 자체는 폐기하며 새 미리보기를 요구한다.
+   automationDraftStore가 없으면 세션 메모리에만 보관한다. 임의의 영구 저장소를 만들지 않는다.
+   호스트 저장소를 제공하면 기존 문서/사용자 namespace와 flush/실패 알림/복구 정책을 따른다.
+   별도 원고가 남아 있으면 기존 입력 보관 보호가 문서 종료/전환을 막는다.
+   입력 내려받기와 손상된 날짜 설정 초기화 경로를 제공한다.
+2) S1: fence 판정에서 CRLF의 CR을 분리하고, 결과에는 원래 개행을 그대로 유지한다.
+   LF/CRLF/혼합 개행, 짧은 내부 fence, 틸드, 미종료 블록을 검증했다.
+   종료 fence 뒤의 BOM/NBSP/제로폭 공백을 일반 공백으로 간주하지 않는다.
+3) S2: 검색 만료는 search-result-expired/none/search-again을 유지한다.
+   순수 빠른 작업 계획의 오류는 QuickActionInputError로 구분하며
+   invalid-quick-action-input/none/correct-input을 반환한다.
+   SelectionConflictError의 기본 effect는 unknown. 확인된 적용 전 거절만 none을 부여한다.
+   직렬화는 confirm-selection 또는 inspect-result-or-undo를 구분하며 자동 반복을 권하지 않는다.
+   stack/cause를 노출하지 않고, 일반 TypeError를 임의로 안전한 입력 오류로 바꾸지 않는다.
+
+HWPX P1 — 진행한 원인 분리, 미해결
+기존 Chrome 프로필의 제어 브라우저 + 최소 독립 SDK 호스트:
+- 정상 검증 경로: 첫 열기 1회, 30초 iframe-loading 실패.
+- 검증 Worker를 생략한 합성 대조군: 첫 열기 성공, 다음 재열기 30초 실패.
+  검증 생략은 진단용 합성 시험에만 사용했고 제품에는 적용하지 않았다.
+- 문서 엔진/Worker가 없는 단순 iframe: 즉시 연결 10회 성공.
+- iframe을 붙인 다음 task에서 src를 지정하는 대조군: 첫 열기 실패.
+  실패 원인 해결 근거가 없어 이 실험 변경을 SDK에 넣지 않았다.
+- 지연 연결 대조군에서 HTTP HTML 응답은 서버 finish/status 200으로 기록됐으나
+  iframe DOM은 약 2~30초 동안 about:blank, readyState=complete, 빈 head/body였다.
+  script-start 이전이며 WASM 문서 로딩 성공/실패 단계까지 도달하지 못했다.
+- 동일 기본 호스트를 새 headless Chrome/Edge에서 각각 10회 열었을 때 모두 성공했다.
+  이 20회를 기존 프로필에서 실패한 시도의 재시도 성공으로 집계하지 않는다.
+- 기존 프로필/제어 조건의 차이는 확인했지만 Chrome, 확장, 다른 제어 세션,
+  자원/프로세스 수명 중 단일 원인은 확정하지 못했다. 브라우저 문제로 단정하지 않는다.
+- 시간 제한을 늘리거나 자동 재시도로 최초 실패를 숨기지 않았다.
+- 후속 검증은 같은 Chrome 프로필의 수동 조작과 단독 제어 환경에서 동일 호스트의
+  HTML 응답/프레임 탐색/스크립트 시작을 함께 대조하는 것이 우선이다.
+
+검증 결과
+- 타입 검사, 단위 539개 통과.
+- 리뷰의 독립 적대적 검사 복사본 8개 통과. 기존 진단용 SelectionConflictError 시험의
+  기대값만 올바른 code=selection-conflict/effect=unknown으로 수정했다.
+  리뷰 원본 파일은 변경하지 않았다. 기존 실패 3개는 기대값 변경 없이 통과했다.
+- 관련 Chrome/Edge E2E 90개: 최초 86개 통과, 4개는 내가 잘못 지정한 fixture 이름으로 실패.
+  실제 sample/rich fixture로 수정하고 8개 관련 시나리오를 재실행해 모두 통과했다.
+- 재실행 중 종료 직전 서버를 재사용한 별도 시도는 연결 거부/중단 7건, 통과 1건이었다.
+  이는 시험 실행 구성 오류로 보관하며, 고유 포트로 실행한 최종 8개 통과와 구분한다.
+- 실제 DOCX/HWPX 엔진의 공개 도구 오류 경로 4개 통과: 검색 만료·잘못된 날짜 복구 정보,
+  미리보기 거절 후 문서 revision/dirty 불변 확인.
+- 브라우저 기능 회귀의 고유 시나리오 수는 94개다. 초기 실패/재실행 숫자를 더하지 않는다.
+- HWPX 연결 대조군의 실패는 위 기능 회귀 통과와 별도 미해결 항목이다.
+- 5개 SDK 빌드/라이선스 gate 통과. 기존 dependency graph 유지.
+- npm tarball 소비 Next.js 빌드·Chrome/Edge 4개 및 일반 JS/Vue 8개 검증.
+- 빌드된 core/dist에서 CRLF 코드 보존·검색 복구·선택 효과·날짜 오류를 별도 확인했다.
+- 실제 모델/General/서버 저장, Word/한컴 native, 물리 IME는 이번에 검증하지 않았다.
+  이전 버전의 성공을 이번 버전 증거로 합산하지 않는다.
+
+증거
+.build/review-fixes-0.3.0-beta.1/
+  unit.log / typecheck.log / adversarial.log / build.log / packages.log
+  e2e.log / recovery-e2e.log / recovery-final-e2e.log / agent-error-e2e.log
+  package-review.json / summary.json
+  boot/results.jsonl / requests.jsonl / responses.jsonl / headless.json
+  boot/boot.ts / serve.mjs / probe.html (진단용 코드, 제품 코드 아님)
+이번에 연 Chrome 시험 탭 2개는 닫았다. 시험 서버는 종료하며 기존 사용자 서비스는 유지한다.

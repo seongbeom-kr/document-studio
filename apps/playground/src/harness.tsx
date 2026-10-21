@@ -8,6 +8,7 @@ import {
   inspectExport,
   createMailMergeSession,
   createAgentSessionTools,
+  agentToolFailure,
   type EditorCommand,
   type EditorDocument,
   type EditorSnapshot,
@@ -109,6 +110,7 @@ declare global {
       agent: ReturnType<typeof createAgentBridge>;
       createSessionTools: () => ReturnType<typeof createAgentSessionTools>;
       createMailMergeSession: typeof createMailMergeSession;
+      agentToolFailure: typeof agentToolFailure;
       execute(
         command: EditorCommand,
         options?: { expectedRevision?: string },
@@ -339,6 +341,7 @@ function Harness() {
           return engine.createDocument(template);
         },
       }),
+      agentToolFailure,
       createSessionTools: () =>
         createAgentSessionTools(window.documentStudioTest.agent),
       inspectBytes: (bytes, format) =>

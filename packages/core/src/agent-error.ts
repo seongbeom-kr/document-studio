@@ -5,11 +5,35 @@ import {
   TableVerificationError,
   TableEditError,
 } from "./table-column";
-import { QuickActionError } from "./quick-actions";
+import { QuickActionError, QuickActionInputError } from "./quick-actions";
 import { MailMergeError } from "./mail-merge";
+import { SearchResultExpiredError } from "./search-result-expired";
+import { SelectionConflictError } from "./selection-conflict";
 
 /** Safe, JSON-serializable transport failure; excludes stacks, causes and host internals. */
 export function agentToolFailure(error: unknown) {
+  if (
+    error instanceof SearchResultExpiredError ||
+    error instanceof QuickActionInputError
+  )
+    return {
+      code: error.code,
+      message: error.message,
+      effect: error.effect,
+      retryable: false,
+      requiredAction: error.requiredAction,
+    };
+  if (error instanceof SelectionConflictError)
+    return {
+      code: error.code,
+      message: error.message,
+      effect: error.effect,
+      retryable: false,
+      requiredAction:
+        error.effect === "none"
+          ? "confirm-selection"
+          : "inspect-result-or-undo",
+    };
   if (error instanceof AgentGuardError)
     return {
       code: error.code,

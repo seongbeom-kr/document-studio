@@ -590,8 +590,12 @@ export function EditingTools(props: Props) {
             disabled={disabled}
             readOnly={props.readOnly}
           />
-        ) : tab === "빠른 작업" && props.quickActions ? (
+        ) : tab === "빠른 작업" &&
+          props.quickActions &&
+          props.automationSession ? (
           <QuickActionTools
+            key={props.documentKey}
+            session={props.automationSession}
             actions={props.quickActions}
             snapshot={snapshot}
             disabled={disabled}

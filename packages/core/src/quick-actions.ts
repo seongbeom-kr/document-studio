@@ -21,6 +21,7 @@ export const OFFICE_DATE_ACTIONS = [
   { id: "thisYear", label: "올해" },
   { id: "nextYear", label: "내년" },
 ] as const;
+export const QUICK_ACTION_DRAFT_NAME = "빠른 작업 입력";
 export interface OfficeDateRequest {
   kind: "date";
   baseDate: string;
@@ -57,6 +58,20 @@ export class QuickActionError extends Error {
   ) {
     super(message, options);
     this.name = "QuickActionError";
+  }
+}
+/** Pure planning failed before any editor/storage operation. */
+export class QuickActionInputError extends TypeError {
+  readonly code = "invalid-quick-action-input";
+  readonly effect = "none";
+  readonly retryable = false;
+  readonly requiredAction = "correct-input";
+  constructor(options?: ErrorOptions) {
+    super(
+      "빠른 작업 입력을 확인해 주세요. 날짜·기간·서식 또는 원고 값이 올바르지 않습니다.",
+      options,
+    );
+    this.name = "QuickActionInputError";
   }
 }
 export const QUICK_ACTION_SCHEMA = {
@@ -205,6 +220,16 @@ export function quickActionPlan(
   request: QuickActionRequest,
   presets: readonly DocumentPreset[] = REPORT_PRESETS,
 ) {
+  try {
+    return buildQuickActionPlan(request, presets);
+  } catch (cause) {
+    throw new QuickActionInputError({ cause });
+  }
+}
+function buildQuickActionPlan(
+  request: QuickActionRequest,
+  presets: readonly DocumentPreset[],
+) {
   if (!request || typeof request !== "object" || Array.isArray(request))
     throw new TypeError("빠른 작업 입력이 올바르지 않습니다.");
   if (request.kind === "cleanPaste") {
@@ -285,7 +310,7 @@ export function createQuickActionEditor(port: {
     )
       throw new SaveConflictError("미리보기 이후 문서가 변경됐습니다.");
     if (!identity.selectionKey || state.selectionKey !== identity.selectionKey)
-      throw new SelectionConflictError();
+      throw new SelectionConflictError("none");
     return state;
   };
   return {
@@ -302,7 +327,7 @@ export function createQuickActionEditor(port: {
     preview(request: QuickActionRequest): QuickActionPreview {
       const state = port.state(),
         plan = quickActionPlan(request, port.presets());
-      if (!state.selectionKey) throw new SelectionConflictError();
+      if (!state.selectionKey) throw new SelectionConflictError("none");
       if (plan.text !== undefined && !state.atomicTextInsertion)
         throw new QuickActionError(
           "이 엔진은 날짜 입력을 한 번에 되돌리는 기능을 지원하지 않습니다. 런타임 자산을 확인해 주세요.",

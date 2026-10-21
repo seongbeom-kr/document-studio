@@ -10,7 +10,8 @@
     "Bounded preview instead of direct replacement",
     "Keep ZWNJ and word joiner",
     "Preserve inline/indented code and matching-length fenced blocks",
-    "Human-approved shared quick action"
+    "Human-approved shared quick action",
+    "Recognize CRLF fence lines without normalizing original line endings"
   ],
   "dependenciesAdded": [],
   "excluded": [

@@ -208,6 +208,12 @@ async function dispatch(name: string, input: unknown) {
 
 ### 초기화 진단
 
+0.3.0-beta.1에서도 기존 Chrome 프로필의 제어 브라우저에서 HWPX iframe이 초기 빈 문서에 머무르는 실패가 재현됐습니다. 정상 HTTP 응답 및 다른 브라우저의 성공만으로 해결됐다고 판단하지 않습니다. 실패한 최초 시도와 수동 재시도를 분리해 기록하세요.
+
+빠른 작업의 원고·날짜 설정은 기존 `automationDraftStore` 정책을 따릅니다. 저장소가 없으면 편집 세션 메모리에만 보관하고, 탭·패널 전환에는 유지합니다. 편집기를 닫거나 문서를 전환할 때는 기존 자동화 입력 보관/내려받기/폐기 보호가 적용됩니다. 별도 영구 저장소를 임의로 만들지 않습니다. 저장소 키에 새 `빠른 작업 입력` 초안이 추가됐으므로 이전 SDK로 내려갈 때 새 초안을 무시하거나 덮어쓰지 마세요.
+
+`agentToolFailure`는 `SearchResultExpiredError`를 `search-result-expired / effect:none / search-again`으로 전달합니다. 순수 빠른 작업 계획의 오류는 `invalid-quick-action-input / effect:none / correct-input`입니다. `SelectionConflictError`의 기본 effect는 `unknown`입니다. 적용 전 거절임을 확인한 SDK 경로만 `none / confirm-selection`을 표시하며, 나머지는 결과 확인 또는 undo를 안내합니다. 일반 `TypeError`를 임의로 입력 오류로 분류하거나 내부 cause/stack을 전달하지 않습니다.
+
 HWPX는 로딩 중 현재 단계·경과 시간·원본 유지 상태를 표시합니다. `getState().initialization.diagnostics`에는 성공한 연결에도 시도 ID, 단계별 시간, 프레임 시작 관찰이 남습니다. 실패와 재시도는 서로 다른 시도이며 재시도 성공을 최초 성공으로 집계하지 마세요. 성공 진단 제공은 모든 호스트에서의 초기화 안정성을 보증하지 않습니다. 개발/프로덕션 및 사용 브라우저에서 첫 열기와 재열기를 따로 검증해야 합니다.
 
 ## DOM API로 연결

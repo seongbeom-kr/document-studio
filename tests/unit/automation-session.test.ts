@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { QUICK_ACTION_DRAFT_NAME } from "@document-studio/core";
 import { AutomationSession } from "../../packages/react/src/automation-session";
 import type {
   AutomationDraftState,
@@ -40,6 +41,36 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("separate automation input drafts", () => {
+  it("keeps quick-action input/settings in the document's draft policy and retains failed writes", async () => {
+    const { store } = storage();
+    const draft = {
+      ...field("보관할 원고"),
+      argument: JSON.stringify({
+        baseDate: "2026-10-21",
+        week: "calendar",
+        format: "iso",
+        timeZone: "Asia/Seoul",
+      }),
+    };
+    const session = new AutomationSession({ store, key: "owner/doc-a" });
+    await session.start();
+    session.put(QUICK_ACTION_DRAFT_NAME, draft, { activate: false });
+    expect(session.utility).toBe("금액 한글화");
+    vi.mocked(store.put).mockRejectedValueOnce(new Error("quota"));
+    await expect(session.flush()).rejects.toThrow("quota");
+    expect(session.get(QUICK_ACTION_DRAFT_NAME)).toEqual(draft);
+    expect(session.getSnapshot()).toMatchObject({ pending: true });
+    await session.flush();
+    session.dispose();
+    const reopened = new AutomationSession({ store, key: "owner/doc-a" });
+    const other = new AutomationSession({ store, key: "owner/doc-b" });
+    await reopened.start();
+    await other.start();
+    expect(reopened.get(QUICK_ACTION_DRAFT_NAME)).toEqual(draft);
+    expect(other.get(QUICK_ACTION_DRAFT_NAME).input).toBe("");
+    reopened.dispose();
+    other.dispose();
+  });
   it.each(["input", "argument"] as const)(
     "round trips the exact limit for %s and preserves the last valid record on overflow",
     async (fieldName) => {

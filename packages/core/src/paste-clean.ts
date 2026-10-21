@@ -38,13 +38,16 @@ export function previewPasteCleanup(text: string): PasteCleanupPreview {
   const after = text
     .split("\n")
     .map((line, index) => {
-      const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+      // split preserves each CR before LF; exclude it only from fence parsing.
+      // Keep the original line for output so mixed line endings stay byte-identical.
+      const content = line.endsWith("\r") ? line.slice(0, -1) : line;
+      const marker = content.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
       if (fence) {
         if (
           marker &&
           marker[1]![0] === fence.char &&
           marker[1]!.length >= fence.length &&
-          !marker[2]!.trim()
+          /^[ \t]*$/.test(marker[2]!)
         )
           fence = null;
         return line;

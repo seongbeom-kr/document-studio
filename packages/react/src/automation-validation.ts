@@ -2,6 +2,7 @@ import {
   OFFICE_AUTOMATION_FORMS,
   AUTOMATION_INPUT_LIMIT,
   MAIL_MERGE_DRAFT_NAME,
+  QUICK_ACTION_DRAFT_NAME,
 } from "@document-studio/core";
 import type { AutomationDraft } from "./automation-session";
 import type { AutomationDraftState } from "./automation-drafts";
@@ -22,7 +23,11 @@ const transforms = new Set([
   "sequence",
 ]);
 const utilities = new Set(OFFICE_AUTOMATION_FORMS.map((form) => form.name));
-const draftNames = new Set([...utilities, MAIL_MERGE_DRAFT_NAME]);
+const draftNames = new Set([
+  ...utilities,
+  MAIL_MERGE_DRAFT_NAME,
+  QUICK_ACTION_DRAFT_NAME,
+]);
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

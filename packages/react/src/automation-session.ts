@@ -4,6 +4,7 @@ import {
   type CellTransform,
   type AutomationDraftStatus,
   MAIL_MERGE_DRAFT_NAME,
+  QUICK_ACTION_DRAFT_NAME,
 } from "@document-studio/core";
 import type {
   AutomationDraftState,
@@ -200,7 +201,10 @@ export class AutomationSession {
     await this.start();
   }
   defaults(utility: string): AutomationDraft {
-    if (utility === MAIL_MERGE_DRAFT_NAME)
+    if (
+      utility === MAIL_MERGE_DRAFT_NAME ||
+      utility === QUICK_ACTION_DRAFT_NAME
+    )
       return { input: "", argument: "", transform: "trim", delimiter: "auto" };
     const form = OFFICE_AUTOMATION_FORMS.find((item) => item.name === utility)!;
     return {
