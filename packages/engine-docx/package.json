@@ -1,6 +1,6 @@
 {
   "name": "@document-studio/engine-docx",
-  "version": "0.3.0-beta.1",
+  "version": "0.3.0-beta.2",
   "type": "module",
   "license": "Apache-2.0",
   "files": [

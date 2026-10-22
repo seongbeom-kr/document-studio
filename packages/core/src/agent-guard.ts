@@ -1,4 +1,31 @@
 import { SaveConflictError } from "./save-conflict";
+import type { EngineInitializationState } from "./initialization";
+
+/** No document operation was performed. Resolve readiness before issuing a new request. */
+export class AgentReadinessError extends Error {
+  readonly effect = "none";
+  readonly retryable = false;
+  readonly code: "editor-not-ready" | "editor-initialization-failed";
+  readonly requiredAction:
+    | "wait-for-ready"
+    | "retry-initialization"
+    | "inspect-initialization";
+  constructor(initialization?: EngineInitializationState) {
+    const failed = initialization?.status === "failed";
+    super(
+      failed
+        ? "편집기 초기화에 실패했습니다. 초기화 상태를 확인해 주세요."
+        : "편집기를 준비하는 중입니다. 준비 상태를 다시 확인해 주세요.",
+    );
+    this.name = "AgentReadinessError";
+    this.code = failed ? "editor-initialization-failed" : "editor-not-ready";
+    this.requiredAction = failed
+      ? initialization.error.retryable
+        ? "retry-initialization"
+        : "inspect-initialization"
+      : "wait-for-ready";
+  }
+}
 
 export type AgentGuardField =
   | "documentId"

@@ -25,7 +25,7 @@ import type {
   EditorController,
   DocumentCommitReceipt,
 } from "./editor-controller";
-import { AgentGuardError } from "./agent-guard";
+import { AgentGuardError, AgentReadinessError } from "./agent-guard";
 
 export interface AgentTarget {
   documentId: string;
@@ -155,11 +155,7 @@ export function createAgentBridge(
   const target = (request: AgentTarget, write = false) => {
     const started = identify(request, write);
     if (!started.state.ready)
-      throw new Error(
-        started.state.initialization?.status === "failed"
-          ? started.state.initialization.error.message
-          : "편집기를 준비하는 중입니다.",
-      );
+      throw new AgentReadinessError(started.state.initialization);
     return started;
   };
   const complete = (
@@ -170,6 +166,10 @@ export function createAgentBridge(
     for (const field of ["documentId", "sessionId", "version"] as const)
       if (current[field] !== started.state[field])
         throw new AgentGuardError(field, effect);
+    // A completed read must not confirm content from an editor that is no longer ready.
+    // Mutation/commit receipts retain their own authoritative outcome.
+    if (effect === "none" && !current.ready)
+      throw new AgentReadinessError(current.initialization);
     return {
       documentId: current.documentId,
       sessionId: current.sessionId,
@@ -682,16 +682,18 @@ export function createAgentBridge(
       const started = target(request);
       const exported = await started.handle.exportDocument();
       const structure = inspectExport(exported);
-      const identity = complete(started);
+      const identity = complete(started, "none");
       if (identity.revision !== exported.revision)
         throw new SaveConflictError("구조 조회 중 문서가 변경됐습니다.");
       const hash = await crypto.subtle.digest(
         "SHA-256",
         new Uint8Array(exported.bytes),
       );
-      complete(started);
+      const finished = complete(started, "none");
+      if (finished.revision !== exported.revision)
+        throw new AgentGuardError("revision");
       return {
-        ...identity,
+        ...finished,
         ...structure,
         digest: `sha256:${Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("")}`,
       };

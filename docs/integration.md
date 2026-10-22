@@ -104,6 +104,16 @@ HWPX 엔진은 iframe 첫 응답부터 연결·WASM 준비·문서 열기까지 
 
 `getState().initialization`과 `onStateChange`는 `loading`(validating/connecting/opening), `failed`(code/message/retryable), `ready`를 구분합니다. `ready=false`인 동안 문서 명령과 저장은 실행하지 마세요. `retryInitialization()`은 실패한 초기화만 새 세션으로 다시 시작하며 준비된 편집본을 교체하지 않습니다. 에이전트는 `agent.retryInitialization({ documentId, expectedSessionId, expectedVersion })`를 호출한 뒤 상태를 다시 읽어야 합니다. 재시도에도 실패할 수 있으므로 호스트가 횟수·총 대기 한도를 관리해야 합니다.
 
+`0.3.0-beta.2`의 `agentToolFailure`는 `AgentReadinessError`를 다음처럼 전달합니다. 세 오류 모두 `effect: "none"`, `retryable: false`이며 같은 쓰기 요청을 즉시 반복하라는 의미가 아닙니다. 초기화 상태를 확인한 뒤 대상·미리보기를 다시 검토하세요.
+
+| code                           | requiredAction           | 호스트의 다음 행동                                     |
+| ------------------------------ | ------------------------ | ------------------------------------------------------ |
+| `editor-not-ready`             | `wait-for-ready`         | 제한된 시간 안에 `getState`로 준비 상태 확인           |
+| `editor-initialization-failed` | `retry-initialization`   | 재시도 가능한 초기화 실패를 확인하고 명시적으로 재연결 |
+| `editor-initialization-failed` | `inspect-initialization` | 재시도 불가 실패의 초기화 진단 확인                    |
+
+조회 도중 준비 상태가 내려가도 같은 오류로 거절합니다. 구조 조회는 해시 계산 뒤 revision도 재검사합니다. 이미 서버가 확정한 저장 영수증은 후속 준비 상태 변경 때문에 실패로 바꾸지 않습니다. 호스트의 인증·편집권 거절은 이 오류와 별개이며 접근 검사를 생략하거나 자동 재시도로 숨기지 마세요.
+
 ## 에이전트 연결
 
 ```ts

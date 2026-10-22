@@ -96,6 +96,9 @@ for (const format of ["docx", "hwpx"] as const) {
     expect(result.stale).toMatchObject({ code: "agent-context-mismatch" });
     expect(result.committedAgain).toEqual(result.committed);
     expect(result.saves).toBe(1);
+    const previousSession = await page.evaluate(
+      () => window.documentStudioTest.agent.getState().sessionId,
+    );
     await page.evaluate(
       async ({ bytes, format }) => {
         window.documentStudioTest.loadBytes(bytes, format);
@@ -103,7 +106,12 @@ for (const format of ["docx", "hwpx"] as const) {
       { bytes: result.bytes, format },
     );
     await expect
-      .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
+      .poll(() =>
+        page.evaluate((previous) => {
+          const state = window.documentStudioTest.agent.getState();
+          return state.ready && state.sessionId !== previous;
+        }, previousSession),
+      )
       .toBe(true);
     const content = await page.evaluate(() =>
       window.documentStudioTest.agent.readDocument({

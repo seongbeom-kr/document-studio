@@ -1,0 +1,52 @@
+Document Studio 0.3.0-beta.2 — SDK readiness and read consistency
+Date: 2026-10-22
+Base: 454de8445c23192d178cacac084a21cb25ca7efd
+
+Scope
+The October 22 review's two documentEvidence defects belong to the host's
+turn classifier. Its freshness and batch-receipt fixes remain separate from
+this SDK patch. They do not require changing the SDK operationId contract.
+
+Further inspection found an SDK read boundary that needed strengthening:
+readDocument/search/readTable/previewTableColumn could finish after ready
+became false and still return success. Initialization failures also fell
+through the generic unknown-effect transport error.
+
+SDK changes
+- AgentReadinessError distinguishes editor-not-ready from initialization failure.
+- agentToolFailure retains effect:none and explicit wait-for-ready,
+  retry-initialization or inspect-initialization actions.
+- These failures never authorize an immediate automatic write retry.
+- Read completion checks readiness as well as document/session/version.
+- Export inspection rechecks readiness and revision after asynchronous hashing.
+- Confirmed commit receipts remain replayable if readiness later goes down;
+  storage success is not converted into a false failed-save response.
+- All five SDK packages use 0.3.0-beta.2. No npm registry publication is implied.
+
+Verification
+- New initial regression: 7 failures / 1 passing receipt control before the fix.
+- Final SDK unit suite: 550 passed, including 11 readiness/receipt/hash cases.
+- TypeScript and five-package production build passed.
+- License gate: 105 npm packages and 393 pinned registry crates passed.
+- First Chrome/Edge targeted browser run: 77 passed / 1 failed.
+  The failed saved-file reopen test accepted the previous session's ready flag.
+  It now requires a different ready session before reading the saved file.
+  That workflow passed 12 repeated DOCX/HWPX x Chrome/Edge checks afterwards.
+- New loading -> failed -> explicit healthy retry SDK browser test: 2 passed.
+- Isolated npm tarball consumer / Next.js production build passed.
+- DOM consumers: 8 JavaScript/Vue x browser x format combinations passed.
+
+Local host follow-up
+The integration example's lease check could reject a valid agent request
+when background renewal superseded it. Serialize checks within the current
+document lifetime, retaining cancellation, handoff and unmount invalidation.
+Also retain the new SDK recovery fields and clarify receipt/body-read labels.
+These host changes are separate from the SDK release and are not a frontend push.
+
+Limits
+This is not a new authenticated-model/server acceptance run. The previously
+observed HWPX authorization rejection and controlled-profile iframe timeout
+are not declared resolved by these isolated regressions. Native Word/Hancom,
+physical IME and real business-document compatibility remain separate checks.
+
+Local detailed evidence: .build/sdk-beta2-20261022 (Git ignored).

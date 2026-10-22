@@ -1,4 +1,4 @@
-import { AgentGuardError } from "./agent-guard";
+import { AgentGuardError, AgentReadinessError } from "./agent-guard";
 import { AgentToolArgumentError } from "./agent-tools";
 import {
   TableReadError,
@@ -12,6 +12,14 @@ import { SelectionConflictError } from "./selection-conflict";
 
 /** Safe, JSON-serializable transport failure; excludes stacks, causes and host internals. */
 export function agentToolFailure(error: unknown) {
+  if (error instanceof AgentReadinessError)
+    return {
+      code: error.code,
+      message: error.message,
+      effect: error.effect,
+      retryable: error.retryable,
+      requiredAction: error.requiredAction,
+    };
   if (
     error instanceof SearchResultExpiredError ||
     error instanceof QuickActionInputError
