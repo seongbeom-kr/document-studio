@@ -116,6 +116,10 @@ HWPX 엔진은 iframe 첫 응답부터 연결·WASM 준비·문서 열기까지 
 
 ## 에이전트 연결
 
+`0.3.0-beta.3`부터 참조 도구의 `getState` 결과와 `contextRef`는 같은 관찰 상태를 나타냅니다. 응답 대기 중 문서·세션·버전·revision·선택·준비 상태가 바뀌면 거절하므로 새 상태를 조회하고 대상을 다시 검토하세요. 기존 bridge/toolset의 `commit` 재전달도 현재 문서·세션이 같아야 합니다. 같은 세션에서 저장 후 버전이나 revision이 달라지거나 준비 상태가 내려간 경우에는 이전 확정 영수증을 그대로 반환하며 재업로드하지 않습니다.
+
+세션 참조가 유효하더라도 편집기가 준비 상태를 잃으면 `AgentReadinessError`의 복구 행동을 받습니다. 도구 목록에는 `retryInitialization`이 없으므로 호스트가 제공하는 명시 재시도 버튼이나 범위를 검증하는 `bridge.retryInitialization` 연결을 사용하세요. 준비 중에는 호스트가 정한 시간·횟수까지만 기다리고, 복구 후 새 상태와 미리보기를 확인합니다. 초기화 복구는 원래 쓰기의 자동 재실행을 허용하지 않습니다.
+
 ```ts
 import { createAgentBridge } from "@document-studio/react";
 

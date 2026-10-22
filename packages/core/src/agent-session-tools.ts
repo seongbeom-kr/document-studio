@@ -6,7 +6,7 @@ import {
   type AgentToolName,
   type AgentToolSchema,
 } from "./agent-tools";
-import { AgentGuardError } from "./agent-guard";
+import { AgentGuardError, AgentReadinessError } from "./agent-guard";
 
 type Bridge = ReturnType<typeof createAgentBridge>;
 type Context = ReturnType<Bridge["getContext"]>;
@@ -76,8 +76,18 @@ export function createAgentSessionTools(bridge: Bridge) {
     if (disposed) throw new AgentGuardError("contextRef");
     return structuredClone(bridge.getContext());
   };
-  const capture = () => {
-    const state = current();
+  const capture = (observed?: Context) => {
+    const now = current();
+    if (observed) {
+      for (const field of fields)
+        if (observed[field] !== now[field]) throw new AgentGuardError(field);
+      if (observed.ready !== now.ready) {
+        if (!now.ready) throw new AgentReadinessError(now.initialization);
+        throw new AgentGuardError("contextRef");
+      }
+    }
+    // The reference must describe the snapshot actually returned to the caller.
+    const state = observed ? structuredClone(observed) : now;
     if (!state.ready) return { ...state, contextRef: null };
     const contextRef = crypto.randomUUID();
     if (references.size >= 64)
@@ -93,7 +103,7 @@ export function createAgentSessionTools(bridge: Bridge) {
         expected[field] !== now[field]
       )
         throw new AgentGuardError(field);
-    if (!now.ready) throw new AgentGuardError("contextRef");
+    if (!now.ready) throw new AgentReadinessError(now.initialization);
   };
   const list = () =>
     tools.list().map((tool) => {
@@ -225,6 +235,8 @@ export function createAgentSessionTools(bridge: Bridge) {
               throw error(name, cause.message, schema);
             throw cause;
           }
+          if (name === "getState")
+            return { result, context: capture(result as Context) };
           if (observed && !changesContext.has(name)) assertContext(observed);
           // Saving/applying may have succeeded even if the host unmounted afterwards.
           // Preserve that receipt rather than returning a false save failure.

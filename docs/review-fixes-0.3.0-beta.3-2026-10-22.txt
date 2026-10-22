@@ -1,0 +1,29 @@
+Document Studio 0.3.0-beta.3 — 대상 보호 및 복구 오류 보완
+2026-10-22 / SDK 수정
+
+getState 참조 일치
+createAgentSessionTools가 getState의 반환 snapshot과 완료 시점의 문서/세션/버전/revision/선택/ready를 대조한다.
+변경되면 거절하며 다른 문서의 유효 참조를 발급하지 않는다. 참조에 보관하는 상태는 실제 반환 snapshot이다.
+기존의 유효 참조에서 readiness만 내려가면 초기화 오류의 requiredAction을 보존한다.
+호스트의 명시 재시도와 제한된 대기 계약은 integration.md에 기록했다. 원래 쓰기는 자동 반복하지 않는다.
+
+저장 영수증 재전달
+legacy bridge/toolset commit도 새 재전달 요청의 현재 documentId/sessionId를 확인한다.
+같은 세션의 후속 version/revision/ready 변화는 이전 확정 영수증을 무효화하지 않는다.
+진행 중 저장 이후 대상이 바뀌더라도 최초 확정 응답은 보존한다. 바뀐 대상에서 새로 요청한 replay는 거절한다.
+기존 세션 참조 API와 동일하게 대상 교체를 보호하며 중복 업로드는 하지 않는다.
+
+직접 실행한 검증
+수정 전 새 회귀 검사: 10실패/32통과. 수정 후 집중 검사42개 통과.
+전체 단위561개, 타입 검사, SDK build 통과. 라이선스 gate105 npm/393 registry crates 통과.
+Chrome/Edge의 DOCX/HWPX 업무/초기화/재열기 브라우저14개 통과.
+공개 빌드 직접 호출14개에서 기존 두 계약 불일치가 해소됨. 원래 리뷰 증거는 변경하지 않았다.
+독립 npm 소비 앱 Next.js build, React 소비 앱4조합, DOM/JS/Vue 소비 앱8조합 통과.
+새 시험용 브라우저/서버는 검증 스크립트가 종료한다. 기존 로그인 브라우저와 서비스 서버는 조작하지 않았다.
+
+범위와 한계
+다섯 SDK 패키지의 버전은 모두0.3.0-beta.3. npm 공개는 별도이며 GitHub SDK 소스 반영이다.
+이 결과는 새 실제 모델-서버 저장 왕복 완료를 뜻하지 않는다.
+기존 live 기록의 모델 connect_timeout, HWPX 제어 환경 최초 연결 및 native Word/한컴 호환성은 별도 미완료 항목이다.
+General의 안전한 오류 분류 전달과 소비 프론트 UI 연결은 SDK 제품 수정과 분리해서 검증한다.
+증거: .build/beta3-fixes-20261022

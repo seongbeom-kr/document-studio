@@ -90,6 +90,70 @@ it("advertises references, not copyable document/session/version guards", async 
     "1",
   );
 });
+it.each([
+  "documentId",
+  "sessionId",
+  "version",
+  "revision",
+  "selectionKey",
+] as const)(
+  "does not issue a context for a different getState %s",
+  async (field) => {
+    const t = setup();
+    const pending = t.tools.invoke("getState", {});
+    queueMicrotask(() => {
+      t.state[field] = "changed";
+    });
+    await expect(pending).rejects.toMatchObject({
+      code: "agent-context-mismatch",
+      field,
+      effect: "none",
+    });
+    const fresh = await t.tools.invoke("getState", {});
+    expect(fresh.context).toMatchObject({ [field]: "changed" });
+    expect(fresh.context?.contextRef).toBeTypeOf("string");
+    expect(t.editor.replace).not.toHaveBeenCalled();
+    expect(t.editor.commit).not.toHaveBeenCalled();
+  },
+);
+it("does not bind a ready getState result to a later not-ready snapshot", async () => {
+  const t = setup();
+  const pending = t.tools.invoke("getState", {});
+  queueMicrotask(() => {
+    t.state.ready = false;
+  });
+  await expect(pending).rejects.toMatchObject({
+    code: "editor-not-ready",
+    effect: "none",
+    requiredAction: "wait-for-ready",
+  });
+  const fresh = await t.tools.invoke("getState", {});
+  expect(fresh.result).toMatchObject({ ready: false });
+  expect(fresh.context?.contextRef).toBeNull();
+});
+it("preserves initialization recovery details for an otherwise current reference", async () => {
+  const t = setup(),
+    contextRef = await t.context();
+  t.state.ready = false;
+  t.state.initialization = {
+    status: "failed",
+    error: {
+      code: "engine-initialization-timeout",
+      message: "retry",
+      retryable: true,
+    },
+  };
+  await expect(
+    t.tools
+      .invoke("search", { contextRef, query: "old" })
+      .catch(agentToolFailure),
+  ).resolves.toMatchObject({
+    code: "editor-initialization-failed",
+    effect: "none",
+    requiredAction: "retry-initialization",
+  });
+  expect(t.editor.search).not.toHaveBeenCalled();
+});
 it("serializes actionable failures without stack traces or internal causes", () => {
   expect(
     JSON.parse(

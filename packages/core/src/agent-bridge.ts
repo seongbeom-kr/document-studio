@@ -717,6 +717,13 @@ export function createAgentBridge(
       if (previous) {
         if (previous.fingerprint !== fingerprint)
           throw new Error("operationId가 다른 요청에 이미 사용됐습니다.");
+        // Replaying a confirmed receipt tolerates later edits/readiness loss,
+        // but a new request must still belong to the current document/session.
+        const state = editor().getState();
+        if (state.documentId !== request.documentId)
+          throw new AgentGuardError("documentId");
+        if (state.sessionId !== request.expectedSessionId)
+          throw new AgentGuardError("sessionId");
         return structuredClone(await previous.task);
       }
       const started = target(request, true);

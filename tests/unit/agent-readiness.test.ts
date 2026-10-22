@@ -166,6 +166,67 @@ it("rejects a not-ready write before storage is invoked", async () => {
   expect(f.controller.commit).not.toHaveBeenCalled();
 });
 
+it.each(["documentId", "sessionId"] as const)(
+  "rejects legacy commit replay after the current %s changes",
+  async (field) => {
+    const f = setup();
+    const request = {
+      documentId: "doc",
+      expectedSessionId: "session",
+      expectedRevision: "1",
+      operationId: "saved",
+    };
+    await f.tools.invoke("commit", request);
+    f.state[field] = "other";
+    await expect(f.tools.invoke("commit", request)).rejects.toMatchObject({
+      code: "agent-context-mismatch",
+      field,
+      effect: "none",
+    });
+    expect(f.controller.commit).toHaveBeenCalledOnce();
+  },
+);
+it("replays the original receipt across later edits, version updates and readiness loss in the same session", async () => {
+  const f = setup();
+  const request = {
+    documentId: "doc",
+    expectedSessionId: "session",
+    expectedVersion: "v1",
+    expectedRevision: "1",
+    operationId: "saved",
+  };
+  const receipt = await f.tools.invoke("commit", request);
+  f.state.version = "v2";
+  f.state.revision = "2";
+  f.state.ready = false;
+  expect(await f.tools.invoke("commit", request)).toEqual(receipt);
+  expect(f.controller.commit).toHaveBeenCalledOnce();
+});
+it("preserves the first in-flight receipt after a target switch but rejects a new replay", async () => {
+  const f = setup();
+  let finish!: () => void;
+  vi.mocked(f.controller.commit!).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = () => resolve({ version: "v2", savedRevision: "1" } as never);
+      }),
+  );
+  const request = {
+    documentId: "doc",
+    expectedSessionId: "session",
+    expectedRevision: "1",
+    operationId: "saved",
+  };
+  const pending = f.tools.invoke("commit", request);
+  f.state.documentId = "other";
+  finish();
+  await expect(pending).resolves.toMatchObject({ version: "v2" });
+  await expect(f.tools.invoke("commit", request)).rejects.toMatchObject({
+    field: "documentId",
+  });
+  expect(f.controller.commit).toHaveBeenCalledOnce();
+});
+
 it.each(["readiness", "revision"] as const)(
   "does not confirm an export if %s changes while its digest is pending",
   async (change) => {
