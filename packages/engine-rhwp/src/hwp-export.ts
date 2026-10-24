@@ -17,6 +17,9 @@ export async function exportVerifiedHwp(
   const result = await editor.exportHwpVerify();
   if (
     !result.recovered ||
+    !Number.isSafeInteger(result.pageCountBefore) ||
+    result.pageCountBefore < 1 ||
+    !Number.isSafeInteger(result.pageCountAfter) ||
     result.pageCountBefore !== result.pageCountAfter ||
     !Number.isSafeInteger(result.bytesLen) ||
     result.bytesLen < 1

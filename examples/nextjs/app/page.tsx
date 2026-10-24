@@ -62,7 +62,7 @@ export default function Page() {
           <input
             aria-label="문서 파일"
             type="file"
-            accept=".docx,.hwpx"
+            accept=".docx,.hwpx,.hwp"
             onChange={(event) => {
               const file = event.target.files?.[0];
               if (!file) return;

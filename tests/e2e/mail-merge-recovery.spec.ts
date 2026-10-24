@@ -1,13 +1,15 @@
 import { test, expect, type Page } from "@playwright/test";
 import { draftKey } from "../../packages/core/src/index";
 
-async function load(page: Page, format: "docx" | "hwpx") {
+async function load(page: Page, format: "docx" | "hwpx", recover = false) {
   await page.goto("/harness.html");
   await page.waitForFunction(() => !!window.documentStudioTest);
   await page.evaluate(async (format) => {
     window.documentStudioTest.persistAutomation = true;
     await window.documentStudioTest.load(format, `blank.${format}`);
   }, format);
+  if (recover)
+    await page.getByRole("button", { name: "초안 복구", exact: true }).click();
   await expect
     .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
     .toBe(true);
@@ -40,6 +42,10 @@ for (const format of ["docx", "hwpx"] as const) {
       .fill(`내서식-{{#}}.${format}`);
     await page.evaluate(() => window.documentStudioTest.flushAutomationDraft());
     const bytes = await page.evaluate(() => window.documentStudioTest.export());
+    // This case tests automation-field storage independently of document recovery.
+    // CI can cross the autosave interval before reload; commit the edited document
+    // so a valid recovery offer does not block the subsequent ready assertion.
+    await page.evaluate(() => window.documentStudioTest.save());
     await load(page, format);
     await expect(
       page.getByLabel("일괄 생성 입력 데이터", { exact: true }),
@@ -97,5 +103,39 @@ for (const format of ["docx", "hwpx"] as const) {
     await expect(
       page.getByLabel("일괄 생성 입력 데이터", { exact: true }),
     ).toHaveValue("이름\n고유입력001234");
+  });
+  test(`${format} restores automation fields alongside an explicit document draft recovery`, async ({
+    page,
+  }) => {
+    await load(page, format);
+    await page.evaluate(() =>
+      window.documentStudioTest.execute({
+        id: "insertText",
+        value: "안내 {{이름}}",
+      }),
+    );
+    await page
+      .getByRole("button", { name: "현재 편집본을 서식으로 등록", exact: true })
+      .click();
+    await page
+      .getByLabel("일괄 생성 입력 데이터", { exact: true })
+      .fill("이름\n복구 입력 유지");
+    await page.evaluate(async () => {
+      await window.documentStudioTest.flushAutomationDraft();
+      await window.documentStudioTest.flushDraft();
+    });
+    await load(page, format, true);
+    await expect(
+      page.getByLabel("일괄 생성 입력 데이터", { exact: true }),
+    ).toHaveValue("이름\n복구 입력 유지");
+    const content = await page.evaluate(async () => {
+      const a = window.documentStudioTest.agent,
+        s = a.getState();
+      return a.readDocument({
+        documentId: s.documentId,
+        expectedSessionId: s.sessionId,
+      });
+    });
+    expect(content.text).toContain("안내 {{이름}}");
   });
 }

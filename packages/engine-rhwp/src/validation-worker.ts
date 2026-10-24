@@ -23,7 +23,8 @@ self.onmessage = async ({ data }) => {
     document = new module.HwpDocument(data.bytes);
     const sections = document.getSectionCount();
     let paragraphs = 0;
-    if (sections > 1000) throw new Error("문서 구역 수 제한을 넘었습니다.");
+    if (!Number.isSafeInteger(sections) || sections < 1 || sections > 1000)
+      throw new Error("문서 구역 수가 허용 범위를 벗어났습니다.");
     for (let section = 0; section < sections; section++)
       paragraphs += document.getParagraphCount(section);
     if (paragraphs > 10000)

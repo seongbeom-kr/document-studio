@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+import { PNG } from "pngjs";
 import { validateHwpDocument } from "../../packages/core/src/hwp";
 
 async function ready(page: Page) {
@@ -55,6 +56,39 @@ test("HWP uses common SDK chrome, self-hosted fonts and structure projection", a
     )
     .toBe(true);
   expect((await read(page)).text).toContain("한국어");
+  // The rich fixture intentionally has a blank first page in both original HWPX
+  // and generated HWP. Verify actual ink using the one-page text-only fixture.
+  await page.evaluate(() =>
+    window.documentStudioTest.load("hwp", "sample.hwp"),
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const s = window.documentStudioTest.state();
+        return s?.ready && s.documentId === "test:sample.hwp";
+      }),
+    )
+    .toBe(true);
+  const canvas = page
+    .frameLocator("iframe")
+    .locator("canvas.document-page-canvas")
+    .first();
+  await expect
+    .poll(async () => {
+      const png = PNG.sync.read(await canvas.screenshot());
+      let ink = 0;
+      for (let y = 8; y < png.height - 8; y++)
+        for (let x = 8; x < png.width - 8; x++) {
+          const i = (y * png.width + x) * 4;
+          if (
+            png.data[i + 3]! > 200 &&
+            png.data[i]! + png.data[i + 1]! + png.data[i + 2]! < 300
+          )
+            ink++;
+        }
+      return ink;
+    })
+    .toBeGreaterThan(200);
   await page.screenshot({
     path: ".build/hwp-integration/sdk-hwp-common-ui.png",
   });

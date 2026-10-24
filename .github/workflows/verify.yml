@@ -11,6 +11,7 @@ jobs:
     env:
       CI: "true"
       NEXT_TELEMETRY_DISABLED: "1"
+      DOCUMENT_STUDIO_TEST_SERVER: "bundle"
     steps:
       - uses: actions/checkout@v7
         with:

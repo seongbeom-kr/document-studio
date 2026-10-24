@@ -12,12 +12,14 @@ import {
   Packer,
 } from "docx";
 import { PNG } from "pngjs";
+import initHwp, { HwpDocument } from "@rhwp/core";
+let hwpInitialized = false;
 const baseURL = process.argv[2] ?? "http://127.0.0.1:4175";
 const results = [];
 for (const channel of process.env.CI ? [undefined] : ["chrome", "msedge"]) {
   const browser = await chromium.launch({ channel, headless: true });
   try {
-    for (const format of ["docx", "hwpx"]) {
+    for (const format of ["docx", "hwpx", "hwp"]) {
       console.log(`Consumer verification: ${channel ?? "chromium"}/${format}`);
       const page = await browser.newPage({
         viewport: { width: 1440, height: 1000 },
@@ -114,6 +116,77 @@ for (const channel of process.env.CI ? [undefined] : ["chrome", "msedge"]) {
         /대체 글꼴|기본 글꼴 준비됨/,
         { timeout: 30000 },
       );
+      if (format === "hwp") {
+        await page
+          .frameLocator("iframe")
+          .getByLabel("문서 편집 입력", { exact: true })
+          .focus();
+        await page.keyboard.press("Control+a");
+        await page.keyboard.insertText("패키지 HWP 저장 검증");
+        const downloading = page.waitForEvent("download");
+        await page
+          .getByRole("button", { name: "다운로드", exact: true })
+          .click();
+        const download = await downloading;
+        expect(download.suggestedFilename()).toBe("sample.hwp");
+        const bytes = new Uint8Array(await readFile(await download.path()));
+        expect([...bytes.slice(0, 8)]).toEqual([
+          0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1,
+        ]);
+        if (!hwpInitialized) {
+          await initHwp({
+            module_or_path: await readFile(
+              "node_modules/@rhwp/core/rhwp_bg.wasm",
+            ),
+          });
+          hwpInitialized = true;
+        }
+        const native = new HwpDocument(bytes);
+        try {
+          expect(
+            strFromU8(unzipSync(native.exportHwpx())["Contents/section0.xml"]),
+          ).toContain("패키지 HWP 저장 검증");
+        } finally {
+          native.free();
+        }
+        await page.close();
+        const reopened = await browser.newPage();
+        try {
+          reopened.on("pageerror", (error) => errors.push(error.message));
+          await reopened.goto(baseURL);
+          await reopened
+            .getByLabel("문서 파일")
+            .setInputFiles({
+              name: "reopened.hwp",
+              buffer: Buffer.from(bytes),
+              mimeType: "application/x-hwp",
+            });
+          await expect(
+            reopened.getByRole("button", { name: "굵게", exact: true }),
+          ).toBeEnabled({ timeout: 30000 });
+          await expect(reopened.locator(".ds-font-status-trigger")).toHaveText(
+            /대체 글꼴|기본 글꼴 준비됨/,
+          );
+        } finally {
+          await reopened.close();
+        }
+        expect(errors).toEqual([]);
+        expect(failedAssets).toEqual([]);
+        expect(external).toEqual([]);
+        results.push({
+          channel: channel ?? "chromium",
+          format,
+          checks: [
+            "packaged HWP5 opens",
+            "self-hosted font diagnostics",
+            "binary HWP download",
+            "native decode preserves edited Korean text",
+            "saved bytes reopen",
+            "no page errors or missing runtime assets",
+          ],
+        });
+        continue;
+      }
       if (format === "docx")
         await page
           .getByRole("textbox", { name: "Document content", exact: true })

@@ -212,7 +212,7 @@ export function validateHwpDocument(bytes: Uint8Array): void {
   )
     fail("지원하는 HWP 5.x 문서가 아닙니다.");
   const flags = word(header!, 36);
-  if (flags & (2 | 4 | 16 | 128 | 256 | 1024))
+  if (flags & (2 | 4 | 16 | 128 | 256 | 512 | 1024))
     fail("암호·배포 제한·DRM·전자서명 HWP 문서는 편집할 수 없습니다.");
   let expanded = 0;
   for (const [name, data] of streams) {

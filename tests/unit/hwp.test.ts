@@ -41,7 +41,7 @@ describe("HWP5 admission", () => {
     v.setUint32((fat + 1) * 512 + directory * 4, directory, true);
     expect(() => validateHwpDocument(bytes)).toThrow();
   });
-  it.each([2, 4, 16, 128, 256, 1024])(
+  it.each([2, 4, 16, 128, 256, 512, 1024])(
     "rejects restricted header flags %d",
     (flag) => {
       const bytes = fixture(),
@@ -104,6 +104,9 @@ describe("HWP verified export", () => {
   it.each([
     { recovered: false },
     { pageCountAfter: 2 },
+    { pageCountBefore: 0, pageCountAfter: 0 },
+    { pageCountBefore: undefined, pageCountAfter: undefined },
+    { pageCountBefore: NaN, pageCountAfter: NaN },
     { bytesLen: 0 },
     { bytesLen: NaN },
     { bytesLen: 3 },
