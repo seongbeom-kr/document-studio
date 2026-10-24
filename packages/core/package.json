@@ -1,6 +1,6 @@
 {
   "name": "@document-studio/core",
-  "version": "0.3.0-beta.3",
+  "version": "0.3.0-beta.4",
   "type": "module",
   "license": "Apache-2.0",
   "dependencies": {
@@ -8,13 +8,20 @@
   },
   "files": [
     "dist",
+    "bin",
     "LICENSE",
     "NOTICE"
   ],
   "exports": {
+    "./assets": {
+      "node": "./bin/copy-font-assets.mjs"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
+  },
+  "bin": {
+    "document-studio-font-assets": "./bin/copy-font-assets.mjs"
   }
 }

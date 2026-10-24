@@ -467,6 +467,7 @@ export function createAgentBridge(
         dirty: state.dirty,
         busy: state.busy,
         initialization: state.initialization,
+        fonts: state.fonts,
         capabilities: {
           readDocument: state.ready,
           search: state.ready,

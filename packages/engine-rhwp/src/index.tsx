@@ -73,6 +73,7 @@ const NATIVE: Partial<Record<CommandId, string>> = {
   mergeCells: "table:cell-merge",
 };
 interface NativeState {
+  fonts?: import("@document-studio/core").DocumentFontReport;
   revision: number;
   selectionKey?: string;
   tableColumnEditing?: boolean;
@@ -120,11 +121,14 @@ interface NativeState {
 }
 export interface RhwpOptions {
   studioUrl: string;
+  /** Self-hosted shared font assets; defaults to ../fonts/ next to the Studio directory. */
+  fontBaseUrl?: string;
   /** Whole engine boot, including iframe load and document loading (default 30s; 1–120s). */
   initializationTimeoutMs?: number;
 }
 function formatFields(native: NativeState) {
   return {
+    fonts: native.fonts,
     pageCount: native.pageCount,
     zoom: native.context.zoom,
     fontFamily: native.character.fontFamily,
@@ -195,11 +199,21 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
     throw new RangeError(
       "initializationTimeoutMs must be an integer from 1000 to 120000.",
     );
-  const cacheKey = JSON.stringify([options.studioUrl, initializationTimeoutMs]);
+  const studioUrl = new URL(
+    options.studioUrl,
+    globalThis.location?.href ?? "http://localhost/",
+  );
+  if (options.fontBaseUrl)
+    studioUrl.searchParams.set(
+      "fontBaseUrl",
+      new URL(options.fontBaseUrl, studioUrl).href,
+    );
+  const cacheKey = JSON.stringify([studioUrl.href, initializationTimeoutMs]);
   const cached = engineCache.get(cacheKey);
   if (cached) return cached;
   // Only immutable configuration is captured; sessions remain local to each mounted view.
   options = { ...options };
+  options.studioUrl = studioUrl.href;
   function RhwpView({
     document,
     onReady,

@@ -70,6 +70,8 @@ __metadata:
   resolution: "@document-studio/core@workspace:packages/core"
   dependencies:
     fflate: "npm:0.8.3"
+  bin:
+    document-studio-font-assets: ./bin/copy-font-assets.mjs
   languageName: unknown
   linkType: soft
 

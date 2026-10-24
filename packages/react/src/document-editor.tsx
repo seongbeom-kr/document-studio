@@ -1,3 +1,4 @@
+import { FontStatus } from "./font-status";
 import {
   forwardRef,
   useCallback,
@@ -2831,6 +2832,7 @@ export const DocumentEditor = forwardRef<
         render={props.slots?.statusBar}
       >
         <footer className="ds-document-footer">
+          <FontStatus report={snapshot.fonts} />
           <span>{snapshot.pageCount ? `${snapshot.pageCount}쪽` : ""}</span>
           <span>선택한 영역에 서식 적용</span>
           {viewportWidth > 0 &&

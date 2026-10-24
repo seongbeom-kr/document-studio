@@ -1,10 +1,18 @@
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useMemo,
+} from "react";
 import {
   DocxEditor,
   LocaleProvider,
   type Editor,
   type EditorCommand as NativeCommand,
   type TextMatch,
+  useFonts,
+  defineFontResolver,
 } from "@docx-editor.dev/react";
 import {
   commandForSlotValue,
@@ -46,6 +54,8 @@ import { applyDocxPreset } from "./apply-preset";
 import { docxSelectionKey } from "./selection";
 import { createDocxTableColumn } from "./table-column";
 import { koreanCommandReason } from "./command-reason";
+import { portableDocxFonts } from "./fonts";
+import type { DocxFontOptions } from "./index";
 export function DocxView({
   document,
   onReady,
@@ -53,7 +63,26 @@ export function DocxView({
   onSaveRequest,
   advancedTools,
   inputBlocked = false,
-}: EngineViewProps) {
+  fontBaseUrl,
+  fontResolver,
+}: EngineViewProps & DocxFontOptions) {
+  const fontState = useRef<
+    import("@document-studio/core").DocumentFontReport | undefined
+  >(undefined);
+  const portable = useMemo(
+    () =>
+      defineFontResolver(
+        portableDocxFonts(fontBaseUrl, (value) => {
+          fontState.current = value;
+        }),
+      ),
+    [fontBaseUrl],
+  );
+  const original = useMemo(
+    () => (fontResolver ? defineFontResolver(fontResolver) : undefined),
+    [fontResolver],
+  );
+  const fonts = useFonts(...(original ? [original, portable] : [portable]));
   const surface = useRef<HTMLDivElement>(null);
   const setInputBlocked = async (blocked: boolean) => {
     if (!surface.current) return;
@@ -148,6 +177,7 @@ export function DocxView({
           }),
         );
         store.update({
+          fonts: fontState.current,
           atomicPresets: true,
           atomicTextInsertion: true,
           tableColumnEditing: true,
@@ -601,6 +631,18 @@ export function DocxView({
       <LocaleProvider i18n={ko}>
         <DocxEditor.Root
           document={document.bytes}
+          fonts={fonts}
+          onFontError={(error) => {
+            if (fontState.current)
+              fontState.current = {
+                ...fontState.current,
+                ready: false,
+                failures: [
+                  ...fontState.current.failures,
+                  `글꼴 엔진: ${error.code}`,
+                ].slice(0, 16),
+              };
+          }}
           mode="edit"
           onReady={ready}
           zoom={1}

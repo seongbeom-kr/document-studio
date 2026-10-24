@@ -1,0 +1,5 @@
+# Audited font bytes and supporting notice/config digests must survive every checkout unchanged.
+packages/core/assets/fonts/** -text
+# Preserve the upstream license's spacing and attribution notice's line endings verbatim.
+packages/core/assets/fonts/*.txt whitespace=-trailing-space,cr-at-eol
+packages/core/src/font-pack.json text eol=lf

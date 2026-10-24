@@ -3,6 +3,13 @@ Copyright 2026 Document Studio contributors
 
 Original project code is licensed under Apache License 2.0.
 
+The Document Studio Noto font pack contains modified Noto Sans KR and Noto Serif KR
+under SIL Open Font License 1.1, copyright Adobe 2014-2021 and 2017-2024.
+Official Google Fonts Noto KR variable sources were instantiated at weights
+400/700 and static family/style identities normalized without subsetting.
+Fonts remain OFL-1.1; Apache-2.0 applies to the SDK code. Font copyright, license,
+source URLs and file hashes are included in dist/fonts and dist/licenses.
+
 Document Studio 0.2.32 includes a modified Kordoc paste-clean helper under MIT,
 copyright (c) 2026 chrisryugj, from commit
 6f9ef253cc66bb30c8b26fe87811d2c5832de995, src/hwpx/paste-clean.ts.

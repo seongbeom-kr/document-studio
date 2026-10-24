@@ -1,0 +1,78 @@
+{
+  "id": "document-studio-noto-1",
+  "license": "OFL-1.1",
+  "licenseFile": "OFL.txt",
+  "conversion": "Official Google Fonts Noto KR variable sources instantiated at weights 400/700 with fontTools 4.60.1. Canonical Noto family/style identities normalized; full character coverage retained, no subsetting. Reserved Font Name Source is not used.",
+  "faces": [
+    {
+      "family": "Noto Sans KR",
+      "weight": 400,
+      "style": "normal",
+      "file": "NotoSansKR-Regular.ttf",
+      "sha256": "9bfb68737b5839cabebe98d4650eabdfb876e59a6ea4c7dfbb9be30d26dcb991",
+      "bytes": 6224888,
+      "source": "https://raw.githubusercontent.com/google/fonts/4efc2774c63917927efe769ca845def6bd6debae/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
+      "sourceSha256": "194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252",
+      "sourceCommit": "4efc2774c63917927efe769ca845def6bd6debae",
+      "copyright": [
+        "(c) 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'."
+      ],
+      "glyphCount": 23174
+    },
+    {
+      "family": "Noto Sans KR",
+      "weight": 700,
+      "style": "normal",
+      "file": "NotoSansKR-Bold.ttf",
+      "sha256": "1397662cbf36ff822764f71adf2ad2deda2fcf51bc242d24f7be3e4e3d747c0c",
+      "bytes": 6222736,
+      "source": "https://raw.githubusercontent.com/google/fonts/4efc2774c63917927efe769ca845def6bd6debae/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
+      "sourceSha256": "194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252",
+      "sourceCommit": "4efc2774c63917927efe769ca845def6bd6debae",
+      "copyright": [
+        "(c) 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'."
+      ],
+      "glyphCount": 23174
+    },
+    {
+      "family": "Noto Serif KR",
+      "weight": 400,
+      "style": "normal",
+      "file": "NotoSerifKR-Regular.ttf",
+      "sha256": "b46de150516fd8b25e65bac2b5a49ab55ee38f946088b024339d70bcb8d4c3fd",
+      "bytes": 14122784,
+      "source": "https://raw.githubusercontent.com/google/fonts/d58d8d9f1c5c68363f51f4696bb79af59bc7cf0e/ofl/notoserifkr/NotoSerifKR%5Bwght%5D.ttf",
+      "sourceSha256": "11f8d5de6f1b79195efba3828aaa2ec95c1178f5ae976fb23c8d53250a9938f3",
+      "sourceCommit": "d58d8d9f1c5c68363f51f4696bb79af59bc7cf0e",
+      "copyright": ["(c) 2017-2024 Adobe (http://www.adobe.com/)."],
+      "glyphCount": 23124
+    },
+    {
+      "family": "Noto Serif KR",
+      "weight": 700,
+      "style": "normal",
+      "file": "NotoSerifKR-Bold.ttf",
+      "sha256": "5be4eecf5893554fe19295a061e4dd85b59a8c2e76eb0871ef77fb3bcaedd48a",
+      "bytes": 14126492,
+      "source": "https://raw.githubusercontent.com/google/fonts/d58d8d9f1c5c68363f51f4696bb79af59bc7cf0e/ofl/notoserifkr/NotoSerifKR%5Bwght%5D.ttf",
+      "sourceSha256": "11f8d5de6f1b79195efba3828aaa2ec95c1178f5ae976fb23c8d53250a9938f3",
+      "sourceCommit": "d58d8d9f1c5c68363f51f4696bb79af59bc7cf0e",
+      "copyright": ["(c) 2017-2024 Adobe (http://www.adobe.com/)."],
+      "glyphCount": 23124
+    }
+  ],
+  "supportFiles": [
+    {
+      "file": "OFL.txt",
+      "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9"
+    },
+    {
+      "file": "COPYRIGHTS.txt",
+      "sha256": "a376ae03b58d56aa645272652e1c07d4f3cb626b9ffc0e9347bfb976a28413bf"
+    },
+    {
+      "file": "fontconfig.conf",
+      "sha256": "d5350ea1f8b173af48fedef174d1190efd228f11de6aa01dc21ac1234c4fdc70"
+    }
+  ]
+}

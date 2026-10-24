@@ -16,6 +16,11 @@ try {
   );
 }
 await cp(runtime, target, { recursive: true });
+await cp(
+  new URL("../packages/core/assets/fonts/", import.meta.url),
+  new URL("../apps/playground/public/editor-assets/fonts/", import.meta.url),
+  { recursive: true },
+);
 await prepareRhwpObservation(target);
 const provenance = JSON.parse(
   await readFile(path.join(target, "provenance.json"), "utf8"),

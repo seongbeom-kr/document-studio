@@ -228,6 +228,27 @@ yarn verify:packages
 
 ## 함께 만드는 오픈소스
 
+### 기본 글꼴을 함께 배포하기
+
+SDK에는 **Noto Sans KR·Noto Serif KR의 보통/굵게** 글꼴 팩이 포함됩니다.
+글꼴은 외부 CDN 대신 앱의 정적 자산에서 읽습니다. HWPX 자산 복사 명령은
+인접한 `editor-assets/fonts` 디렉터리에도 공통 팩을 함께 복사합니다.
+DOCX만 사용하는 앱은 다음 명령으로 준비할 수 있습니다.
+
+```sh
+document-studio-font-assets public/editor-assets/fonts
+```
+
+다른 자산 경로는 `docxEngine({ fontBaseUrl })`,
+`rhwpEngine({ studioUrl, fontBaseUrl })`로 지정합니다. 편집기 하단의 글꼴
+상태와 에이전트 `getContext().fonts`에서 대체 결과와 자산 오류를 확인할 수 있습니다.
+문서의 원래 글꼴명은 유지하며, 원본 글꼴이 없는 경우 모양·줄바꿈이 달라질 수 있습니다.
+기본 팩은 전용 기호·고정폭 글꼴을 포함하지 않습니다.
+
+PDF 서버에도 같은 팩과 버전을 설치해야 합니다. 파일별 해시, 원본 출처,
+변환 내역과 **OFL-1.1** 고지는 패키지의 `dist/fonts/`에 포함됩니다.
+SDK 코드는 Apache-2.0을 유지합니다. [글꼴 구성과 서버 연결](docs/fonts.md)
+
 문서 엔진은 [RHWP](https://github.com/edwardkim/rhwp)와 [EigenPal DOCX Editor](https://github.com/eigenpal/docx-editor)를 기반으로 합니다. 사용 버전과 고지는 [라이선스 안내](docs/licensing.md)에 정리했습니다.
 
 Document Studio 자체 코드는 **[Apache-2.0](LICENSE)**입니다. 의존성의 MIT·Apache-2.0·BSD-3-Clause 등의 라이선스는 각각 유지되며, 배포 시 [NOTICE](NOTICE)와 패키지의 `dist/licenses/` 고지를 함께 제공해야 합니다.

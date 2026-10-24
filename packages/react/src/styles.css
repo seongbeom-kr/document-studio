@@ -1056,3 +1056,46 @@
   flex-wrap: wrap;
   margin-top: 0.6rem;
 }
+/* Kept inside the host's SDK footer; no separate application header. */
+.ds-font-status {
+  position: relative;
+  font-size: 12px;
+}
+.ds-font-status-trigger {
+  cursor: pointer;
+  white-space: nowrap;
+  font: inherit;
+  color: inherit;
+  border: 0;
+  padding: 4px;
+  background: transparent;
+}
+.ds-font-status-panel {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(360px, 80vw);
+  max-height: min(400px, 60dvh);
+  height: max-content;
+  overflow: auto;
+  padding: 12px;
+  z-index: 30;
+  background: var(--ds-background, #fff);
+  color: var(--ds-text, #20242a);
+  border: 1px solid var(--ds-border, #ddd);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px #0002;
+}
+.ds-font-status-panel p {
+  margin: 0 0 8px;
+  white-space: normal;
+}
+.ds-font-status-panel ul {
+  margin: 0;
+  padding-inline-start: 18px;
+}
+.ds-font-status-panel li {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  margin-block: 4px;
+}

@@ -5,12 +5,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { docxPaintPatch, DOCX_PAINT_PATCH } from "./docx-paint-patch.mjs";
 import { prepareRhwpObservation } from "./prepare-rhwp-observation.mjs";
+import { prepareFontConfig, verifyFontAssets } from "./font-assets.mjs";
 import {
   rhwpLifecyclePatch,
   RHWP_LIFECYCLE_PATCH,
 } from "./rhwp-lifecycle-patch.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const packages = ["core", "react", "engine-docx", "engine-rhwp", "browser"];
+await prepareFontConfig();
+await verifyFontAssets();
 const licenseAudit = spawnSync(
   process.execPath,
   [path.join(root, "scripts/audit-licenses.mjs")],
@@ -90,6 +93,12 @@ for (const name of packages) {
     await cp(
       path.join(root, "packages/react/src/styles.css"),
       path.join(root, "packages", name, "dist/styles.css"),
+    );
+  if (name === "core")
+    await cp(
+      path.join(root, "packages/core/assets/fonts"),
+      path.join(root, "packages/core/dist/fonts"),
+      { recursive: true },
     );
   if (name === "engine-docx")
     await writeFile(

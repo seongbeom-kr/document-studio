@@ -4,6 +4,7 @@ import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { verifyFontAssets } from "./font-assets.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const consumer = path.join(root, ".cache/package-consumer");
 const packs = path.join(root, ".build/packs");
@@ -166,6 +167,7 @@ if (existsSync(path.join(consumer, "public/editor-assets/rhwp/samples")))
   throw new Error(
     "Upstream sample documents must not be included in runtime packages.",
   );
+await verifyFontAssets(path.join(consumer, "public/editor-assets/fonts"));
 run(
   process.execPath,
   [path.join(consumer, "node_modules/next/dist/bin/next"), "build"],

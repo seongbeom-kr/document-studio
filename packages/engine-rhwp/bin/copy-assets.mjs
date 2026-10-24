@@ -2,6 +2,7 @@
 import { cp, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { copyFontAssets } from "@document-studio/core/assets";
 const destination = path.resolve(
   process.cwd(),
   process.argv[2] ?? "public/editor-assets/rhwp",
@@ -13,3 +14,4 @@ await cp(
   { recursive: true },
 );
 console.log("RHWP assets copied to", destination);
+await copyFontAssets(path.resolve(destination, "../fonts"));

@@ -40,6 +40,7 @@ export * from "./preset-error";
 export * from "./selection-conflict";
 export * from "./inspect";
 export * from "./initialization";
+export * from "./fonts";
 import type {
   CommandId,
   EditorCommand,
@@ -56,6 +57,8 @@ export interface CommandState {
   valueSchema?: Record<string, unknown>;
 }
 export interface EditorSnapshot {
+  /** Actual portable font supply and substitutions; authored font names are preserved. */
+  fonts?: import("./fonts").DocumentFontReport;
   ready: boolean;
   /** Host lifecycle, separate from document mutations and command busy state. */
   initialization?: import("./initialization").EngineInitializationState;

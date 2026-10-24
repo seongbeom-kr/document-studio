@@ -242,6 +242,9 @@ const poll = setInterval(() => {
         : undefined;
     return {
       revision: version,
+      fonts: window.documentStudioFonts?.(
+        services.wasm.getDocumentInfo().fontsUsed ?? [],
+      ),
       selectionText,
       selectionTextLength,
       tableColumnEditing: true,

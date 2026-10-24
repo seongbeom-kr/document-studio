@@ -110,6 +110,10 @@ for (const channel of process.env.CI ? [undefined] : ["chrome", "msedge"]) {
         throw error;
       }
       console.log(`Consumer editor ready in ${Date.now() - loadingStarted}ms`);
+      await expect(page.locator(".ds-font-status-trigger")).toHaveText(
+        /대체 글꼴|기본 글꼴 준비됨/,
+        { timeout: 30000 },
+      );
       if (format === "docx")
         await page
           .getByRole("textbox", { name: "Document content", exact: true })

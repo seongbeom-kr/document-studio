@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { prepareRhwpObservation } from "./prepare-rhwp-observation.mjs";
+import { prepareFontConfig, verifyFontAssets } from "./font-assets.mjs";
 import {
   cp,
   mkdir,
@@ -15,6 +16,8 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+await prepareFontConfig();
+await verifyFontAssets();
 const source = path.join(root, ".cache/rhwp-source");
 const commit = "e8800c8def63449808a4092798442652ed460552";
 const output = path.resolve(root, ".build/rhwp-studio");
@@ -145,6 +148,14 @@ if (existsSync(fontPath)) {
 }
 await cp(path.join(source, "LICENSE"), path.join(output, "LICENSE-RHWP.txt"));
 await cp(
+  path.join(root, "LICENSE"),
+  path.join(output, "LICENSE-DOCUMENT-STUDIO.txt"),
+);
+await cp(
+  path.join(root, "NOTICE"),
+  path.join(output, "NOTICE-DOCUMENT-STUDIO.txt"),
+);
+await cp(
   path.join(source, "THIRD_PARTY_LICENSES.md"),
   path.join(output, "THIRD_PARTY_LICENSES.md"),
 );
@@ -166,6 +177,26 @@ await writeFile(
           .digest("hex"),
       },
       externalWebFonts: false,
+      downstreamFontPolicy: {
+        files: await Promise.all(
+          [
+            "packages/engine-rhwp/portable-font-plugin.mjs",
+            "packages/engine-rhwp/portable-font-runtime.ts",
+            "packages/core/src/fonts.ts",
+          ].map(async (file) => ({
+            file,
+            sha256: createHash("sha256")
+              .update(await readFile(path.join(root, file)))
+              .digest("hex"),
+          })),
+        ),
+      },
+      fontPack: JSON.parse(
+        await readFile(
+          path.join(root, "packages/core/assets/fonts/manifest.json"),
+          "utf8",
+        ),
+      ),
       wasmFile: `assets/${(await readdir(runtimeAssets)).find((name) => /^rhwp_bg-.*\.wasm$/.test(name))}`,
     },
     null,

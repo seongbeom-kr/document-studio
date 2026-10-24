@@ -10,7 +10,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { permittedLicense } from "./license-policy.mjs";
 import { lockfileSha256 } from "./lockfile-hash.mjs";
+import { verifyFontAssets } from "./font-assets.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
+const fontPack = await verifyFontAssets();
 const output = path.join(root, ".build/licenses");
 await mkdir(output, { recursive: true });
 const packages = new Map(),
@@ -152,10 +154,11 @@ const inventory = {
       notices: ["kordoc/LICENSE", "kordoc/hwp-auto-docfit.LICENSE"],
     },
   ],
+  fonts: fontPack,
   exclusions: [
     "government executables/code/templates",
     "DOCX Pro/editor-api",
-    "external fonts",
+    "unaudited/proprietary fonts and external font CDNs",
     "upstream sample documents/photos",
   ],
   basis:
@@ -177,6 +180,10 @@ for (const item of inventory.vendored) {
     notices.push(`--- ${item.name}/${file} (${item.license}) ---\n${content}`);
   }
 }
+for (const name of ["OFL.txt", "COPYRIGHTS.txt"])
+  notices.push(
+    `--- Document Studio font pack/${name} (OFL-1.1) ---\n${await readFile(path.join(root, "packages/core/assets/fonts", name), "utf8")}`,
+  );
 await writeFile(
   path.join(output, "sbom.json"),
   JSON.stringify(inventory, null, 2) + "\n",

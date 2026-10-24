@@ -2,6 +2,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { cp } from "node:fs/promises";
 import { nativeHistoryPlugin } from "../packages/engine-rhwp/native-history-plugin.mjs";
+import { portableFontPlugin } from "../packages/engine-rhwp/portable-font-plugin.mjs";
 const [source, output] = process.argv.slice(2);
 if (!source || !output) throw new Error("Source and output are required.");
 const studio = path.join(source, "rhwp-studio");
@@ -22,7 +23,7 @@ await build({
   root: studio,
   base: "./",
   publicDir: false,
-  plugins: [...plugins, nativeHistoryPlugin()],
+  plugins: [...plugins, nativeHistoryPlugin(), portableFontPlugin()],
   build: { ...loaded.config.build, outDir: output, emptyOutDir: true },
 });
 // Only the runtime's own static UI files are copied. Ignore fonts symlinks and upstream sample documents.
