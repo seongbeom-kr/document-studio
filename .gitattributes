@@ -3,3 +3,7 @@ packages/core/assets/fonts/** -text
 # Preserve the upstream license's spacing and attribution notice's line endings verbatim.
 packages/core/assets/fonts/*.txt whitespace=-trailing-space,cr-at-eol
 packages/core/src/font-pack.json text eol=lf
+# Keep audited native bindings, patch and license bytes identical on Windows/Linux.
+third_party/rhwp-core/** -text
+third_party/rhwp-core/*.patch whitespace=-trailing-space,cr-at-eol
+scripts/rhwp-native/*.sh text eol=lf

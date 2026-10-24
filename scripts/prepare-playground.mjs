@@ -2,6 +2,11 @@ import { cp, access, readFile, writeFile, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { prepareRhwpObservation } from "./prepare-rhwp-observation.mjs";
+import {
+  rhwpCoreDirectory,
+  verifyRhwpCoreAssets,
+} from "./rhwp-core-assets.mjs";
+await verifyRhwpCoreAssets();
 const runtime = fileURLToPath(
   new URL("../.build/rhwp-studio/", import.meta.url),
 );
@@ -38,7 +43,7 @@ await cp(
   path.join(target, "document-studio-extension.js"),
 );
 await cp(
-  fileURLToPath(import.meta.resolve("@rhwp/core")),
+  path.join(rhwpCoreDirectory, "rhwp.js"),
   path.join(target, "validation-rhwp.js"),
 );
 console.log("SDK runtime copied to the test playground.");

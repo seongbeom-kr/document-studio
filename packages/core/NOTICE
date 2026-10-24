@@ -36,6 +36,12 @@ This project integrates third-party engines with their own licenses:
 
 RHWP Studio assets are rebuilt from commit
 e8800c8def63449808a4092798442652ed460552, paired with npm core/editor 0.8.6.
+Document Studio beta.6 rebuilds the MIT native core from the same pinned source
+with a downstream paragraph-anchor layout correction. Front-of-text pictures
+keep their host paragraph's anchor after a preceding inline table. The original
+document's relative positioning is retained on export. Modified source patch,
+matching generated JS/WASM, build instructions and hashes are included in
+third_party/rhwp-core; generated runtime provenance records this build.
 The downstream document-studio-extension.js registers external commands through
 the upstream automation extension API. Studio source files are not modified by that extension.
 External web fonts and automatic PWA service worker registration are disabled

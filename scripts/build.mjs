@@ -7,6 +7,10 @@ import { docxPaintPatch, DOCX_PAINT_PATCH } from "./docx-paint-patch.mjs";
 import { prepareRhwpObservation } from "./prepare-rhwp-observation.mjs";
 import { prepareFontConfig, verifyFontAssets } from "./font-assets.mjs";
 import {
+  rhwpCoreDirectory,
+  verifyRhwpCoreAssets,
+} from "./rhwp-core-assets.mjs";
+import {
   rhwpLifecyclePatch,
   RHWP_LIFECYCLE_PATCH,
 } from "./rhwp-lifecycle-patch.mjs";
@@ -14,6 +18,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const packages = ["core", "react", "engine-docx", "engine-rhwp", "browser"];
 await prepareFontConfig();
 await verifyFontAssets();
+await verifyRhwpCoreAssets();
 const licenseAudit = spawnSync(
   process.execPath,
   [path.join(root, "scripts/audit-licenses.mjs")],
@@ -116,7 +121,7 @@ for (const name of packages) {
       { recursive: true },
     );
     await cp(
-      fileURLToPath(import.meta.resolve("@rhwp/core")),
+      path.join(rhwpCoreDirectory, "rhwp.js"),
       path.join(root, "packages/engine-rhwp/dist/studio/validation-rhwp.js"),
     );
     await cp(

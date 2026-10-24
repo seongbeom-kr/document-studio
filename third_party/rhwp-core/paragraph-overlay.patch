@@ -1,0 +1,21 @@
+--- a/src/renderer/layout.rs
++++ b/src/renderer/layout.rs
+@@ -11578,7 +11578,17 @@
+                 })
+             })
+             .unwrap_or(false);
+-        if has_prior_non_picture_tac {
++        // Floating front-of-text pictures retain the paragraph anchor after inline tables.
++        let is_para_overlay = paragraphs
++            .get(para_index)
++            .and_then(|para| para.controls.get(control_index))
++            .is_some_and(|control| {
++                matches!(control, Control::Picture(pic)
++                if !pic.common.treat_as_char
++                    && matches!(pic.common.vert_rel_to, VertRelTo::Para)
++                    && matches!(pic.common.text_wrap, crate::model::shape::TextWrap::InFrontOfText))
++            });
++        if has_prior_non_picture_tac && !is_para_overlay {
+             // 선행 TAC Table/Shape 가 있는 경우만 진행된 y_offset 으로 갱신.
+             let needs_update = para_start_y
+                 .get(&para_index)

@@ -87,7 +87,14 @@ async function faultHost(page: Page, fault: Fault) {
     </script>`;
     await route.fulfill({ status: 200, contentType: "text/html", body: html });
   });
-  await page.goto("/harness.html?rhwpInitializationTimeoutMs=4000");
+  // An explicit load failure is immediate and needs no shortened deadline.
+  // Keep normal recovery/reopen at the public 30s default in that case; a 4s
+  // synthetic timeout can expire during otherwise healthy cold boot on CI.
+  await page.goto(
+    fault === "loadFile-error"
+      ? "/harness.html"
+      : "/harness.html?rhwpInitializationTimeoutMs=4000",
+  );
   await page.waitForFunction(() => !!window.documentStudioTest);
   return {
     errors,

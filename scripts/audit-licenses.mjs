@@ -11,8 +11,10 @@ import { fileURLToPath } from "node:url";
 import { permittedLicense } from "./license-policy.mjs";
 import { lockfileSha256 } from "./lockfile-hash.mjs";
 import { verifyFontAssets } from "./font-assets.mjs";
+import { verifyRhwpCoreAssets } from "./rhwp-core-assets.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const fontPack = await verifyFontAssets();
+const nativeCore = await verifyRhwpCoreAssets();
 const output = path.join(root, ".build/licenses");
 await mkdir(output, { recursive: true });
 const packages = new Map(),
@@ -146,6 +148,14 @@ const inventory = {
   npm: [...packages.values()].sort((a, b) => a.name.localeCompare(b.name)),
   rust,
   vendored: [
+    {
+      name: "RHWP downstream native layout",
+      commit: nativeCore.sourceCommit,
+      license: "MIT",
+      source: "src/renderer/layout.rs",
+      notices: ["rhwp-core/LICENSE"],
+      build: nativeCore,
+    },
     {
       name: "kordoc/paste-clean",
       commit: "6f9ef253cc66bb30c8b26fe87811d2c5832de995",

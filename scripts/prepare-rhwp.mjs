@@ -2,6 +2,10 @@ import { spawnSync } from "node:child_process";
 import { prepareRhwpObservation } from "./prepare-rhwp-observation.mjs";
 import { prepareFontConfig, verifyFontAssets } from "./font-assets.mjs";
 import {
+  rhwpCoreDirectory,
+  verifyRhwpCoreAssets,
+} from "./rhwp-core-assets.mjs";
+import {
   cp,
   mkdir,
   readFile,
@@ -18,6 +22,7 @@ import { createHash } from "node:crypto";
 const root = fileURLToPath(new URL("../", import.meta.url));
 await prepareFontConfig();
 await verifyFontAssets();
+const nativeCore = await verifyRhwpCoreAssets();
 const source = path.join(root, ".cache/rhwp-source");
 const commit = "e8800c8def63449808a4092798442652ed460552";
 const output = path.resolve(root, ".build/rhwp-studio");
@@ -77,6 +82,14 @@ await mkdir(path.join(source, "pkg"), { recursive: true });
 await cp(path.join(root, "node_modules/@rhwp/core"), path.join(source, "pkg"), {
   recursive: true,
 });
+// JS bindings and native WASM must come from the same downstream build.
+for (const name of [
+  "rhwp.js",
+  "rhwp_bg.wasm",
+  "rhwp.d.ts",
+  "rhwp_bg.wasm.d.ts",
+])
+  await cp(path.join(rhwpCoreDirectory, name), path.join(source, "pkg", name));
 const studio = path.join(source, "rhwp-studio");
 if (process.platform === "win32") {
   const npmCli = path.join(
@@ -159,6 +172,9 @@ await cp(
   path.join(source, "THIRD_PARTY_LICENSES.md"),
   path.join(output, "THIRD_PARTY_LICENSES.md"),
 );
+await mkdir(path.join(output, "native-core"), { recursive: true });
+for (const name of ["paragraph-overlay.patch", "provenance.json", "LICENSE", "README.txt"])
+  await cp(path.join(rhwpCoreDirectory, name), path.join(output, "native-core", name));
 await writeFile(
   path.join(output, "provenance.json"),
   JSON.stringify(
@@ -166,6 +182,7 @@ await writeFile(
       engine: "@rhwp/core",
       version: "0.8.6",
       sourceCommit: commit,
+      downstreamNativeCore: nativeCore,
       downstreamHistoryGrouping: {
         file: "packages/engine-rhwp/native-history-plugin.mjs",
         sha256: createHash("sha256")

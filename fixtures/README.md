@@ -1,5 +1,7 @@
 # 검증 문서
 
+`paragraph-overlay.hwpx`는 `node scripts/generate-overlay-fixture.mjs`가 만드는 자체 합성 문서입니다. 인라인 표 뒤에 문단 기준의 글 앞 그림을 넣어, 표가 진행시킨 흐름 좌표와 문단 기준 좌표가 혼동되지 않는지 검사합니다. 고객 문서의 내용이나 이미지는 포함하지 않습니다.
+
 모든 문서는 `scripts/generate-fixtures.mjs`가 직접 생성한 합성 문서이며 프로젝트의 Apache-2.0 라이선스로 제공합니다. 업무·정부·고객 문서와 upstream 샘플은 포함하지 않습니다. PNG 그림도 스크립트에 포함한 합성 픽셀 데이터입니다.
 
 각 형식에 `blank`, `sample`, `rich`의 세 문서가 있습니다. 빈 문서, 한국어 본문, 기본 표, 여러 페이지와 그림을 다룹니다. DOCX rich 문서에는 머리말·꼬리말과 병합 셀이 있습니다. 이것은 시험용 corpus이며 모든 Office 구조를 다루는 corpus는 아닙니다.
