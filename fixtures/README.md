@@ -6,4 +6,6 @@
 
 `yarn fixtures:generate`로 재생성합니다. 생성 결과는 `fixtures/`와 독립 앱의 `public/samples/`에 복사됩니다. 브라우저 테스트는 텍스트·표 존재·그림 bytes·서식 XML·재열기 결과를 검사합니다. 복잡한 필드·도형·댓글·변경 추적·차트·매크로와 암호화 문서는 후속 corpus가 필요합니다.
 
+HWP5의 `blank`, `sample`, `rich`, `long`은 `scripts/generate-hwp-fixtures.mjs`가 자체 제작 HWPX 문서로부터 생성합니다. HWP 바이너리 검증, 한글 조합 입력, 공통 UI·글꼴, 에이전트 치환·구조 조회, 원본 형식 저장·재열기, 초안 복구와 저장 재시도에 사용합니다. 고객 문서나 상용 샘플은 포함하지 않습니다.
+
 `node scripts/generate-complex-fixtures.mjs`는 자체 제작 rich.docx에 DATE 필드와 각주를 추가한 complex.docx를 생성합니다. 브라우저 검사는 첫 원본 직렬화와 편집본의 비대상 XML을 비교하고 미디어 bytes, 표·필드·각주, 저장·재열기를 검사합니다. ZIP 디렉터리 항목과 XML 선언/속성 순서의 정규화를 콘텐츠 손실로 세지 않습니다. 외부 실무 corpus는 포함하지 않습니다.

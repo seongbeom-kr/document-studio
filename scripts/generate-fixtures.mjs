@@ -321,11 +321,14 @@ await writeFile(
 await mkdir(new URL("../apps/playground/public/samples/", import.meta.url), {
   recursive: true,
 });
+await import("./generate-hwp-fixtures.mjs");
 for (const name of (await readdir(fixtures)).filter((name) =>
-  /\.(docx|hwpx)$/.test(name),
+  /\.(docx|hwpx|hwp)$/.test(name),
 ))
   await cp(
     new URL(`../fixtures/${name}`, import.meta.url),
     new URL(`../apps/playground/public/samples/${name}`, import.meta.url),
   );
-console.log("Generated original, redistributable DOCX and HWPX fixtures.");
+console.log(
+  "Generated original, redistributable DOCX, HWPX and HWP5 fixtures.",
+);

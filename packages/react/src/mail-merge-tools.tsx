@@ -324,7 +324,12 @@ export function MailMergeTools({
           <button
             type="button"
             className="ds-button"
-            disabled={blocked || !snapshot.ready}
+            disabled={blocked || !snapshot.ready || format === "hwp"}
+            title={
+              format === "hwp"
+                ? "HWP 일괄 생성 서식은 지원하지 않습니다. DOCX 또는 HWPX 서식을 선택해 주세요."
+                : undefined
+            }
             onClick={() =>
               void run(async () => {
                 const value = await registerCurrent();

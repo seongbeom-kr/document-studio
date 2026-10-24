@@ -188,11 +188,11 @@ export async function setSelectedParagraphSpacing(editor: EditorController) {
 | [`@document-studio/react`](packages/react)             | React 편집 UI, 호스트 UI에 연결하는 슬롯    |
 | [`@document-studio/browser`](packages/browser)         | 일반 JavaScript·Vue 등의 DOM 연결           |
 | [`@document-studio/engine-docx`](packages/engine-docx) | DOCX 엔진 어댑터                            |
-| [`@document-studio/engine-rhwp`](packages/engine-rhwp) | HWPX 엔진 어댑터와 자체 호스팅 자산         |
+| [`@document-studio/engine-rhwp`](packages/engine-rhwp) | HWP 5.x·HWPX 엔진 어댑터와 자체 호스팅 자산 |
 
 ## 지원 범위와 검증
 
-현재 편집 대상은 **HWPX·DOCX**입니다. HWP·PPTX·XLSX 편집은 아직 지원하지 않습니다. 별도 편집기 서버 없이 실행하지만, 앱의 파일 목록·인증·저장소는 직접 연결해야 합니다.
+현재 편집 대상은 **HWP 5.x·HWPX·DOCX**입니다. HWP 5.x는 beta.5부터 공통 UI와 글꼴 경로를 사용하고 원본 형식으로 저장합니다. 암호·배포 제한·DRM·전자서명 HWP와 HWP 3.x는 지원하지 않으며, 내보내기에서 내용 손실이 보고되면 저장을 차단합니다. 서식 일괄 생성은 DOCX·HWPX 대상이며, PPTX·XLSX 편집은 아직 지원하지 않습니다. 별도 편집기 서버 없이 실행하지만, 앱의 파일 목록·인증·저장소는 직접 연결해야 합니다.
 
 **0.2.23 검증 기록:** SDK 단위 **459개**, Chrome·Edge E2E **830개**, tarball을 설치한 별도 Next.js·JavaScript·Vue 소비 앱 검증을 통과했습니다. 이 수치는 해당 버전의 기록이며 현재 CI 상태는 상단 배지에서 확인합니다.
 

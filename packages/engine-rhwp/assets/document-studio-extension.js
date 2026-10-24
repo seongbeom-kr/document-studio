@@ -983,7 +983,14 @@ const poll = setInterval(() => {
       try {
         const params = payload.params ?? {};
         let result;
-        if (payload.method === "clearQuestionTarget") {
+        if (payload.method === "exportHwp") {
+          // The report and bytes belong to one native serialization transaction.
+          if (typeof services.wasm.exportHwpWithReport !== "function")
+            throw new Error(
+              "현재 HWP 런타임은 내용 손실 보고를 지원하지 않습니다.",
+            );
+          result = services.wasm.exportHwpWithReport();
+        } else if (payload.method === "clearQuestionTarget") {
           clearQuestion();
           result = { cleared: true };
         } else if (payload.method === "getQuestionRects") {

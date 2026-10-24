@@ -27,6 +27,7 @@ import {
 import type { EngineDefinition, EngineViewProps } from "@document-studio/react";
 import { receiveResponse } from "./transport";
 import { createRhwpTableColumn } from "./table-column";
+import { exportVerifiedHwp, type ReportedHwpExport } from "./hwp-export";
 
 const NATIVE: Partial<Record<CommandId, string>> = {
   selectAll: "edit:select-all",
@@ -225,6 +226,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
     advancedTools,
     inputBlocked = false,
   }: EngineViewProps) {
+    const formatLabel = document.format.toUpperCase();
     const container = useRef<HTMLDivElement>(null);
     const callbacks = useRef({
       onReady,
@@ -596,7 +598,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
             menu: Boolean(advancedRef.current),
             toolbar: false,
           });
-          editor.element.title = "HWPX 문서 편집 영역";
+          editor.element.title = `${formatLabel} 문서 편집 영역`;
           abort.signal.throwIfAborted();
           callbacks.current.onInitializationPhase?.("opening");
           recordStage("document-opening");
@@ -939,6 +941,20 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
             async exportDocument() {
               await update();
               return captureExportSnapshot(
+                document.format,
+                () => store.getSnapshot().revision,
+                () =>
+                  document.format === "hwp"
+                    ? exportVerifiedHwp(editor!, () =>
+                        rpc<ReportedHwpExport>("exportHwp", {}),
+                      )
+                    : editor!.exportHwpx(),
+                update,
+              );
+            },
+            async exportInspection() {
+              await update();
+              return captureExportSnapshot(
                 "hwpx",
                 () => store.getSnapshot().revision,
                 () => editor!.exportHwpx(),
@@ -988,7 +1004,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
   }
   const definition: EngineDefinition = {
     id: "rhwp",
-    formats: ["hwpx"],
+    formats: ["hwpx", "hwp"],
     View: RhwpView,
     validateDocument: async (document, signal) => {
       const { runValidationWorker } = await import("@document-studio/core");
@@ -998,6 +1014,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
         }),
         {
           bytes: document.bytes,
+          format: document.format,
           studioUrl: new URL(options.studioUrl, window.location.href).href,
         },
         signal,

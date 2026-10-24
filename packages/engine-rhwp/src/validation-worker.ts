@@ -3,7 +3,7 @@ import { validateDocumentArchive } from "@document-studio/core";
 self.onmessage = async ({ data }) => {
   let document: HwpDocument | undefined;
   try {
-    validateDocumentArchive(data.bytes, "hwpx");
+    validateDocumentArchive(data.bytes, data.format ?? "hwpx");
     const base = new URL(data.studioUrl),
       response = await fetch(new URL("provenance.json", base));
     if (!response.ok) throw new Error("HWPX 검증 자산 정보를 읽지 못했습니다.");

@@ -34,6 +34,11 @@ tested separately, but arbitrary document characters and proprietary symbol-font
 encodings require additional checks. Dedicated monospace, emoji and symbol fonts
 are not part of this first pack. Italic has no dedicated face in this pack.
 
+From beta.5, HWP 5.x editing also uses the RHWP adapter and this same font pack.
+Display fallback preserves the original HWP save format. Binary HWP admission and
+verified, content-loss-checked export are separate from font loading. HWP 3.x and
+protected/signed HWP documents are rejected. Mail merge still accepts DOCX/HWPX.
+
 ## Original fonts
 
 Display substitution preserves the font references in the saved DOCX/HWPX.

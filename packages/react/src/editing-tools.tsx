@@ -689,7 +689,7 @@ export function EditingTools(props: Props) {
           </div>
         ) : tab === "업무 자동화" ? (
           <ReportAutomation
-            format={props.format}
+            format={props.format === "hwp" ? "hwpx" : props.format}
             saveLocation={props.saveLocation}
             key={props.documentKey}
             session={props.automationSession}

@@ -153,7 +153,7 @@ export async function createHwpxDocument(
     return {
       id: crypto.randomUUID(),
       version: crypto.randomUUID(),
-      fileName: template.fileName.replace(/\.(docx|hwpx)$/i, "") + ".hwpx",
+      fileName: template.fileName.replace(/\.(docx|hwpx|hwp)$/i, "") + ".hwpx",
       format: "hwpx",
       bytes: document.exportHwpx(),
     };

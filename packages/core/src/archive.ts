@@ -1,4 +1,5 @@
 import { Inflate } from "fflate";
+import { validateHwpDocument } from "./hwp";
 import type { DocumentFormat } from "./index";
 export const ARCHIVE_LIMITS = Object.freeze({
   compressedBytes: 32 * 1024 * 1024,
@@ -17,6 +18,7 @@ export function validateDocumentArchive(
   bytes: Uint8Array,
   format: DocumentFormat,
 ): void {
+  if (format === "hwp") return validateHwpDocument(bytes);
   const fail = () => {
     throw new Error(
       "문서 ZIP 구조 또는 실제 압축 해제 크기가 허용 범위를 벗어났습니다.",

@@ -123,7 +123,7 @@ declare global {
       exportMailMerge(operationId: string): {
         id: string;
         fileName: string;
-        format: "docx" | "hwpx";
+        format: "docx" | "hwpx" | "hwp";
         bytes: number[];
       }[];
       inspectBytes(
@@ -136,8 +136,8 @@ declare global {
       releaseInputLock(): Promise<void>;
       flushDraft(): Promise<void>;
       closeAfterDraft(): Promise<void>;
-      load(format: "docx" | "hwpx", name?: string): Promise<void>;
-      loadBytes(bytes: number[], format: "docx" | "hwpx"): void;
+      load(format: "docx" | "hwpx" | "hwp", name?: string): Promise<void>;
+      loadBytes(bytes: number[], format: "docx" | "hwpx" | "hwp"): void;
       copyStore: {
         onOpen?: (file: GeneratedStoredFile) => Promise<void>;
         opened: string[];

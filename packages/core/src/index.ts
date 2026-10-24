@@ -1,4 +1,4 @@
-export type DocumentFormat = "hwpx" | "docx";
+export type DocumentFormat = "hwp" | "hwpx" | "docx";
 export interface EditorDocument {
   id: string;
   fileName: string;
@@ -33,6 +33,7 @@ export * from "./mail-merge";
 export * from "./image-dimensions";
 export * from "./templates";
 export * from "./archive";
+export * from "./hwp";
 export * from "./validation";
 export * from "./export-snapshot";
 export * from "./report-graphics";
@@ -211,6 +212,8 @@ export interface EditorSession {
     },
   ): Promise<void>;
   exportDocument(): Promise<ExportSnapshot>;
+  /** Structure-only projection; HWP uses HWPX without changing the original save format. */
+  exportInspection?(): Promise<ExportSnapshot>;
   markSaved(revision: string): Promise<void>;
   readDocument?(): Promise<DocumentContent>;
   search?(input: SearchOptions): Promise<SearchResult>;
@@ -291,8 +294,9 @@ export function draftKey(namespace: string, documentId: string): string {
 }
 export function detectFormat(name: string): DocumentFormat {
   const extension = name.split(".").at(-1)?.toLowerCase();
-  if (extension === "docx" || extension === "hwpx") return extension;
-  throw new Error("첫 버전에서는 HWPX와 DOCX 문서를 열 수 있습니다.");
+  if (extension === "docx" || extension === "hwpx" || extension === "hwp")
+    return extension;
+  throw new Error("HWP 5.x, HWPX와 DOCX 문서를 열 수 있습니다.");
 }
 export class SessionStore {
   private listeners = new Set<() => void>();

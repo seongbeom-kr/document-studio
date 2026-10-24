@@ -142,9 +142,11 @@ export function downloadDocument(
   const url = URL.createObjectURL(
     new Blob([copy.buffer], {
       type:
-        format === "hwpx"
-          ? "application/hwp+zip"
-          : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        format === "hwp"
+          ? "application/x-hwp"
+          : format === "hwpx"
+            ? "application/hwp+zip"
+            : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }),
   );
   const link = window.document.createElement("a");
@@ -1237,30 +1239,40 @@ export const DocumentEditor = forwardRef<
     apply: (...args) => quickPort.current.apply(...args),
   });
   const quickActions = quickActionsRef.current;
-  const exportDocument = useCallback(async () => {
-    if (!session?.getSnapshot().ready || editingSource.current !== document)
-      throw new Error("편집기를 준비하는 중입니다.");
-    const identity = sessionId.current;
-    const assertSession = () => {
-      if (
-        !mounted.current ||
-        sessionId.current !== identity ||
-        editingSource.current !== document
-      )
-        throw new SaveConflictError(
-          "편집 세션이 변경됐습니다. 현재 문서를 다시 확인해 주세요.",
-        );
-    };
-    while (commandTasks.current.size) {
-      await Promise.all([...commandTasks.current]);
+  const exportCurrent = useCallback(
+    async (inspection = false) => {
+      if (!session?.getSnapshot().ready || editingSource.current !== document)
+        throw new Error("편집기를 준비하는 중입니다.");
+      const identity = sessionId.current;
+      const assertSession = () => {
+        if (
+          !mounted.current ||
+          sessionId.current !== identity ||
+          editingSource.current !== document
+        )
+          throw new SaveConflictError(
+            "편집 세션이 변경됐습니다. 현재 문서를 다시 확인해 주세요.",
+          );
+      };
+      while (commandTasks.current.size) {
+        await Promise.all([...commandTasks.current]);
+        assertSession();
+      }
+      await draftExport.current;
       assertSession();
-    }
-    await draftExport.current;
-    assertSession();
-    const exported = await session.exportDocument();
-    assertSession();
-    return exported;
-  }, [session, document]);
+      const exported = await (inspection && session.exportInspection
+        ? session.exportInspection()
+        : session.exportDocument());
+      assertSession();
+      return exported;
+    },
+    [session, document],
+  );
+  const exportDocument = useCallback(() => exportCurrent(), [exportCurrent]);
+  const exportInspection = useCallback(
+    () => exportCurrent(true),
+    [exportCurrent],
+  );
   const mailPort = useRef<Parameters<typeof createMailMergeSession>[0]>(null!);
   mailPort.current = {
     storage: () => latest.current.generatedStorage,
@@ -1740,6 +1752,7 @@ export const DocumentEditor = forwardRef<
       sourceBlocked,
       storage,
       exportDocument,
+      exportInspection,
       drafts,
       activeKey,
       reportError,
@@ -1800,6 +1813,7 @@ export const DocumentEditor = forwardRef<
       },
       acquireInputLock,
       exportDocument,
+      exportInspection,
       flushDraft,
       flushAutomationDraft: () => automationSession.flush(),
       retryInitialization,
@@ -1857,6 +1871,7 @@ export const DocumentEditor = forwardRef<
       execute,
       acquireInputLock,
       exportDocument,
+      exportInspection,
       flushDraft,
       automationSession,
       save,

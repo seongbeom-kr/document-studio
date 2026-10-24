@@ -107,6 +107,8 @@ export interface EditorController {
     options?: { expectedRevision?: string; expectedSelectionKey?: string },
   ): Promise<void>;
   exportDocument(): Promise<ExportSnapshot>;
+  /** A structure projection may use a different container; never use it for saving. */
+  exportInspection?(): Promise<ExportSnapshot>;
   /** Await before unmounting or replacing a document. Rejects if the latest draft cannot be persisted. */
   flushDraft(): Promise<void>;
   /** Retry automation storage independently, without exporting or uploading document bytes. */

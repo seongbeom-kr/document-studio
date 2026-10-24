@@ -4,6 +4,8 @@ import type { ExportSnapshot } from "./index";
 
 /** Browser XML inspection of the exported snapshot, not a native page-layout assertion. */
 export function inspectExport(snapshot: ExportSnapshot) {
+  if (snapshot.format === "hwp")
+    throw new Error("HWP 구조 조회에는 편집기의 HWPX 구조 투영이 필요합니다.");
   validateDocumentArchive(snapshot.bytes, snapshot.format);
   const parts = unzipSync(snapshot.bytes, {
     filter: (entry) =>

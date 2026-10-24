@@ -29,17 +29,13 @@ describe("file and draft identity", () => {
   it.each([
     ["example.DOCX", "docx"],
     ["한글 문서.hwpx", "hwpx"],
+    ["한글 원본.HWP", "hwp"],
   ])("recognizes %s", (name, expected) =>
     expect(detectFormat(name)).toBe(expected),
   );
-  it.each([
-    "sample.hwp",
-    "sample.xlsx",
-    "sample.exe",
-    "sample",
-    "sample.docx.exe",
-  ])("rejects unsupported %s", (name) =>
-    expect(() => detectFormat(name)).toThrow(),
+  it.each(["sample.xlsx", "sample.exe", "sample", "sample.docx.exe"])(
+    "rejects unsupported %s",
+    (name) => expect(() => detectFormat(name)).toThrow(),
   );
   it("separates namespaces even when ids contain delimiters", () => {
     expect(draftKey("user:a", "b")).not.toBe(draftKey("user", "a:b"));

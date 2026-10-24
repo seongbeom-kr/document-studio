@@ -681,7 +681,8 @@ export function createAgentBridge(
     },
     inspect: async (request: AgentTarget) => {
       const started = target(request);
-      const exported = await started.handle.exportDocument();
+      const exported = await (started.handle.exportInspection?.() ??
+        started.handle.exportDocument());
       const structure = inspectExport(exported);
       const identity = complete(started, "none");
       if (identity.revision !== exported.revision)
@@ -696,6 +697,8 @@ export function createAgentBridge(
       return {
         ...finished,
         ...structure,
+        format: started.state.format,
+        inspectedFormat: exported.format,
         digest: `sha256:${Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("")}`,
       };
     },
