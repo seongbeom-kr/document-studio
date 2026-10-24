@@ -161,8 +161,16 @@ for (const format of ["docx", "hwpx"] as const) {
     }) => {
       await page.addInitScript(() => {
         const original = File.prototype.arrayBuffer;
+        const gate = { pending: false, release: () => {} };
+        (
+          window as unknown as { delayedDocumentFileRead: typeof gate }
+        ).delayedDocumentFileRead = gate;
         File.prototype.arrayBuffer = async function () {
-          await new Promise((resolve) => setTimeout(resolve, 1500));
+          gate.pending = true;
+          await new Promise<void>((resolve) => {
+            gate.release = resolve;
+          });
+          File.prototype.arrayBuffer = original;
           return original.call(this);
         };
       });
@@ -170,7 +178,20 @@ for (const format of ["docx", "hwpx"] as const) {
       await page
         .getByLabel("문서 파일")
         .setInputFiles(`fixtures/sample.${second}`);
+      await page.waitForFunction(
+        () =>
+          (
+            window as unknown as {
+              delayedDocumentFileRead: { pending: boolean };
+            }
+          ).delayedDocumentFileRead.pending,
+      );
       await edit(page, format, "읽기 대기 중에 작성한 새 변경사항");
+      await page.evaluate(() =>
+        (
+          window as unknown as { delayedDocumentFileRead: { release(): void } }
+        ).delayedDocumentFileRead.release(),
+      );
       await expect(page.getByRole("dialog")).toBeVisible();
       await expect(
         page.getByRole("heading", { name: `예제 문서.${format}`, exact: true }),
