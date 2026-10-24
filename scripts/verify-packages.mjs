@@ -70,7 +70,7 @@ const manifest = {
   ),
   devDependencies: {
     vue: "3.5.44",
-    next: "16.3.8",
+    next: "16.4.1",
     react: "19.3.0",
     "react-dom": "19.3.0",
     typescript: "5.9.3",
@@ -228,7 +228,7 @@ await writeFile(
       completedAt: new Date().toISOString(),
       consumer: ".cache/package-consumer",
       packages: names,
-      framework: "Next.js 16.3.8",
+      framework: "Next.js 16.4.1",
       installation: "npm from Yarn-generated tarballs",
       sourceAliases: false,
     },
