@@ -58,7 +58,10 @@ rhwp export-pdf document.hwpx -o document.pdf \
 
 Use the exact same pack bytes on both sides. Licensed original fonts may be added
 separately. The fontconfig aliases accept the portable family after the original
-family; they do not replace an original installed face. These font settings do not
+family; they do not replace an original installed face. LibreOffice also has its
+own substitution table: fontconfig aliases alone may select a different installed
+face. Configure a per-conversion LibreOffice profile to replace missing original
+families, while retaining genuinely installed originals. These font settings do not
 guarantee identical layout across native, browser and LibreOffice renderers.
 In particular the pinned RHWP 0.8.6 WASM does not expose the later
 `setFontEnvironment` API, so this change does not claim native/WASM layout parity.

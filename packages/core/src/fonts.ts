@@ -1,4 +1,4 @@
-import manifest from "./font-pack.json";
+import manifest from "./font-pack.json" with { type: "json" };
 
 /** The font files keep OFL-1.1; this does not change the SDK's Apache-2.0 license. */
 export const DOCUMENT_STUDIO_FONT_PACK = manifest;
