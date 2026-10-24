@@ -154,13 +154,11 @@ for (const channel of process.env.CI ? [undefined] : ["chrome", "msedge"]) {
         try {
           reopened.on("pageerror", (error) => errors.push(error.message));
           await reopened.goto(baseURL);
-          await reopened
-            .getByLabel("문서 파일")
-            .setInputFiles({
-              name: "reopened.hwp",
-              buffer: Buffer.from(bytes),
-              mimeType: "application/x-hwp",
-            });
+          await reopened.getByLabel("문서 파일").setInputFiles({
+            name: "reopened.hwp",
+            buffer: Buffer.from(bytes),
+            mimeType: "application/x-hwp",
+          });
           await expect(
             reopened.getByRole("button", { name: "굵게", exact: true }),
           ).toBeEnabled({ timeout: 30000 });
@@ -174,7 +172,9 @@ for (const channel of process.env.CI ? [undefined] : ["chrome", "msedge"]) {
         expect(failedAssets).toEqual([]);
         expect(external).toEqual([]);
         results.push({
-          channel: channel ?? "chromium",
+          browser: channel ?? "chromium",
+          version: browser.version(),
+          passed: true,
           format,
           checks: [
             "packaged HWP5 opens",

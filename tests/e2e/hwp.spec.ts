@@ -56,8 +56,8 @@ test("HWP uses common SDK chrome, self-hosted fonts and structure projection", a
     )
     .toBe(true);
   expect((await read(page)).text).toContain("한국어");
-  // The rich fixture intentionally has a blank first page in both original HWPX
-  // and generated HWP. Verify actual ink using the one-page text-only fixture.
+  // The current native layout has a blank first page for this rich fixture in
+  // both original HWPX and generated HWP. Check ink with a one-page text fixture.
   await page.evaluate(() =>
     window.documentStudioTest.load("hwp", "sample.hwp"),
   );

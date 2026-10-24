@@ -4,6 +4,30 @@ import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { unzipSync, strFromU8 } from "fflate";
+import initHwp, { HwpDocument } from "@rhwp/core";
+let hwpInitialized = false;
+async function outputText(bytes, format) {
+  if (format !== "hwp")
+    return strFromU8(
+      unzipSync(bytes)[
+        format === "docx" ? "word/document.xml" : "Contents/section0.xml"
+      ],
+    );
+  if (!hwpInitialized) {
+    await initHwp({
+      module_or_path: await readFile(
+        path.join(root, "node_modules/@rhwp/core/rhwp_bg.wasm"),
+      ),
+    });
+    hwpInitialized = true;
+  }
+  const document = new HwpDocument(bytes);
+  try {
+    return strFromU8(unzipSync(document.exportHwpx())["Contents/section0.xml"]);
+  } finally {
+    document.free();
+  }
+}
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const consumer = path.resolve(
@@ -30,13 +54,13 @@ try {
     const browser = await chromium.launch({ channel, headless: true });
     try {
       for (const host of ["plain", "vue"])
-        for (const format of ["docx", "hwpx"]) {
+        for (const format of ["docx", "hwpx", "hwp"]) {
           const page = await browser.newPage();
           page.setDefaultTimeout(30000);
           const errors = [];
           page.on("pageerror", (error) => errors.push(error.message));
           try {
-            await page.goto(`http://127.0.0.1:4177/?host=${host}`);
+            await page.goto(`http://127.0.0.1:4177/?host=${host}&verify=true`);
             await page
               .getByLabel("문서 파일")
               .setInputFiles(path.join(root, `fixtures/blank.${format}`));
@@ -59,10 +83,13 @@ try {
             const download = page.waitForEvent("download");
             await save.click();
             const bytes = await readFile(await (await download).path());
-            const part =
-              format === "docx" ? "word/document.xml" : "Contents/section0.xml";
-            expect(strFromU8(unzipSync(bytes)[part])).toContain(
-              "범용 SDK 검증",
+            expect(await outputText(bytes, format)).toContain("범용 SDK 검증");
+            const inspection = await page.evaluate(() =>
+              window.documentStudioExample.inspect(),
+            );
+            expect(inspection.format).toBe(format);
+            expect(inspection.inspectedFormat).toBe(
+              format === "hwp" ? "hwpx" : format,
             );
             await expect(save).toBeEnabled();
             await page.getByLabel("문서 파일").setInputFiles({
@@ -76,7 +103,7 @@ try {
             const reopened = await readFile(
               await (await reopenedDownload).path(),
             );
-            expect(strFromU8(unzipSync(reopened)[part])).toContain(
+            expect(await outputText(reopened, format)).toContain(
               "범용 SDK 검증",
             );
             await expect(save).toBeEnabled();

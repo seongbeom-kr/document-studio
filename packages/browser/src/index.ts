@@ -231,6 +231,12 @@ export async function mountDocumentEditor(
     getState: () => current(true).getState(),
     execute: async (...args) => current().execute(...args),
     exportDocument: async () => current().exportDocument(),
+    exportInspection: async () => {
+      const editor = current();
+      return editor.exportInspection
+        ? editor.exportInspection()
+        : editor.exportDocument();
+    },
     flushDraft: async () => current().flushDraft(),
     flushAutomationDraft: async () => current().flushAutomationDraft(),
     retryInitialization: () => current().retryInitialization?.(),
