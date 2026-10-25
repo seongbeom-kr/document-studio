@@ -109,6 +109,7 @@ __metadata:
     react-dom: ^19.0.0
   bin:
     document-studio-rhwp-assets: ./bin/copy-assets.mjs
+    document-studio-rhwp-runtime: ./bin/copy-runtime.mjs
   languageName: unknown
   linkType: soft
 
