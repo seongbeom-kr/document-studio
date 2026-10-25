@@ -1,7 +1,9 @@
 # Self-hosted fonts
 
-The core package includes the `document-studio-noto-1` font pack: Noto Sans KR and
-Noto Serif KR, weights 400 and 700. Official Google Fonts variable TTFs are
+The core package includes the `document-studio-noto-2` font pack: Noto Sans KR and
+Noto Serif KR, weights 400 and 700, plus an unmodified Noto Sans Symbols 2 regular
+face for characters absent from the body fonts, including U+2981 and U+2219.
+The Korean faces are official Google Fonts variable TTFs
 instantiated without subsetting. The font pack retains Korean, Hanja and supported
 symbols. It is not an exact replacement for Human, Hanyang or Hancom fonts.
 
@@ -31,8 +33,9 @@ The report distinguishes requested names, actual substitute families, source and
 asset errors. A requested name is not proof of installation or a visible run.
 Glyph coverage is explicitly `not-assessed` at runtime: the packaged fonts are
 tested separately, but arbitrary document characters and proprietary symbol-font
-encodings require additional checks. Dedicated monospace, emoji and symbol fonts
-are not part of this first pack. Italic has no dedicated face in this pack.
+encodings require additional checks. Dedicated monospace and emoji faces are not
+part of this pack. The Unicode symbol fallback does not implement proprietary
+Wingdings/Webdings encodings. Italic has no dedicated face in this pack.
 
 From beta.5, HWP 5.x editing also uses the RHWP adapter and this same font pack.
 Display fallback preserves the original HWP save format. Binary HWP admission and

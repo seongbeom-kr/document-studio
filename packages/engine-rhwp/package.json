@@ -1,6 +1,6 @@
 {
   "name": "@document-studio/engine-rhwp",
-  "version": "0.3.0-beta.6",
+  "version": "0.3.0-beta.7",
   "type": "module",
   "license": "Apache-2.0",
   "files": [
@@ -10,7 +10,8 @@
     "NOTICE"
   ],
   "bin": {
-    "document-studio-rhwp-assets": "./bin/copy-assets.mjs"
+    "document-studio-rhwp-assets": "./bin/copy-assets.mjs",
+    "document-studio-rhwp-runtime": "./bin/copy-runtime.mjs"
   },
   "exports": {
     ".": {

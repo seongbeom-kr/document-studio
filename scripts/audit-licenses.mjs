@@ -190,7 +190,7 @@ for (const item of inventory.vendored) {
     notices.push(`--- ${item.name}/${file} (${item.license}) ---\n${content}`);
   }
 }
-for (const name of ["OFL.txt", "COPYRIGHTS.txt"])
+for (const name of ["OFL.txt", "COPYRIGHTS.txt", "NotoSansSymbols2-OFL.txt"])
   notices.push(
     `--- Document Studio font pack/${name} (OFL-1.1) ---\n${await readFile(path.join(root, "packages/core/assets/fonts", name), "utf8")}`,
   );

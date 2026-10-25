@@ -1,8 +1,8 @@
 {
-  "id": "document-studio-noto-1",
+  "id": "document-studio-noto-2",
   "license": "OFL-1.1",
   "licenseFile": "OFL.txt",
-  "conversion": "Official Google Fonts Noto KR variable sources instantiated at weights 400/700 with fontTools 4.60.1. Canonical Noto family/style identities normalized; full character coverage retained, no subsetting. Reserved Font Name Source is not used.",
+  "conversion": "Official Google Fonts Noto KR variable sources instantiated at weights 400/700 with fontTools 4.60.1. Canonical Noto family/style identities normalized; full character coverage retained, no subsetting. Reserved Font Name Source is not used. Noto Sans Symbols 2 is an unmodified official static TTF added for missing-glyph fallback.",
   "faces": [
     {
       "family": "Noto Sans KR",
@@ -63,6 +63,23 @@
         "(c) 2017-2024 Adobe (http://www.adobe.com/)."
       ],
       "glyphCount": 23124
+    },
+    {
+      "family": "Noto Sans Symbols 2",
+      "weight": 400,
+      "style": "normal",
+      "file": "NotoSansSymbols2-Regular.ttf",
+      "sha256": "7d5fb73b7ca67a6798101741f5d280a3d016a56a197afcd4199dbb57b4b82a21",
+      "bytes": 1233128,
+      "source": "https://raw.githubusercontent.com/google/fonts/8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5/ofl/notosanssymbols2/NotoSansSymbols2-Regular.ttf",
+      "sourceSha256": "7d5fb73b7ca67a6798101741f5d280a3d016a56a197afcd4199dbb57b4b82a21",
+      "sourceCommit": "8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5",
+      "copyright": [
+        "Copyright 2022 The Noto Project Authors (https://github.com/notofonts/symbols)"
+      ],
+      "glyphCount": 2976,
+      "licenseFile": "NotoSansSymbols2-OFL.txt",
+      "unmodified": true
     }
   ],
   "supportFiles": [
@@ -72,11 +89,15 @@
     },
     {
       "file": "COPYRIGHTS.txt",
-      "sha256": "a376ae03b58d56aa645272652e1c07d4f3cb626b9ffc0e9347bfb976a28413bf"
+      "sha256": "1e6c7b2dde51481bc49fa18d307287c5bad7472737e8be9c51ff5429f40eb3d8"
     },
     {
       "file": "fontconfig.conf",
-      "sha256": "d5350ea1f8b173af48fedef174d1190efd228f11de6aa01dc21ac1234c4fdc70"
+      "sha256": "fb1d152a551f5bb93ea56360601375be737bc253be00e6fee789fd9993aeac20"
+    },
+    {
+      "file": "NotoSansSymbols2-OFL.txt",
+      "sha256": "b118dd41337806a5d4797052c77caf3bd096aed783e5eb21b4d11154351e1ac0"
     }
   ]
 }

@@ -21,6 +21,11 @@ for face in manifest["faces"]:
     with urllib.request.urlopen(face["source"], timeout=30) as response:
         source = response.read(40 * 1024 * 1024)
     assert hashlib.sha256(source).hexdigest() == face["sourceSha256"], "Upstream source mismatch"
+    if face.get("unmodified"):
+        assert hashlib.sha256(source).hexdigest() == face["sha256"], "Unmodified font mismatch"
+        (args.output / face["file"]).write_bytes(source)
+        print(face["file"], "copied unmodified")
+        continue
     font = TTFont(io.BytesIO(source), recalcTimestamp=False)
     instantiateVariableFont(font, {"wght": face["weight"]}, inplace=True, optimize=True)
     style = "Bold" if face["weight"] == 700 else "Regular"

@@ -6,7 +6,7 @@ export async function copyFontAssets(destination) {
   const source = fileURLToPath(new URL("../dist/fonts/", import.meta.url));
   const manifest = JSON.parse(await readFile(path.join(source, "manifest.json"), "utf8"));
   await mkdir(destination, { recursive: true });
-  for (const file of [...manifest.faces.map(face => face.file), "manifest.json", "OFL.txt", "COPYRIGHTS.txt", "fontconfig.conf"]) {
+  for (const file of [...manifest.faces.map(face => face.file), ...manifest.supportFiles.map(item => item.file), "manifest.json"]) {
     if (path.basename(file) !== file) throw new Error("Invalid font asset path.");
     await cp(path.join(source, file), path.join(destination, file));
   }

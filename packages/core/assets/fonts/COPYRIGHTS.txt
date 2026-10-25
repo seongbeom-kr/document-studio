@@ -3,3 +3,6 @@
 
 Modified distribution: Document Studio font pack. Official Google Fonts Noto KR variable sources instantiated at weights 400/700 with fontTools 4.60.1. Canonical Noto family/style identities normalized; full character coverage retained, no subsetting. Reserved Font Name Source is not used.
 All font files remain SIL OFL 1.1; see OFL.txt.
+
+Noto Sans Symbols 2: Copyright 2022 The Noto Project Authors (https://github.com/notofonts/symbols).
+Unmodified official static TTF. SIL OFL 1.1; see NotoSansSymbols2-OFL.txt.

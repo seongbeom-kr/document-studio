@@ -111,6 +111,7 @@ for (const name of packages) {
       JSON.stringify(DOCX_PAINT_PATCH, null, 2),
     );
   if (name === "engine-rhwp") {
+    await cp(rhwpCoreDirectory, path.join(root, "packages/engine-rhwp/dist/runtime"), { recursive: true });
     await writeFile(
       path.join(root, "packages", name, "dist", "native-patch.json"),
       JSON.stringify(RHWP_LIFECYCLE_PATCH, null, 2),

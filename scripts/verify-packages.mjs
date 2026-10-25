@@ -168,6 +168,15 @@ if (existsSync(path.join(consumer, "public/editor-assets/rhwp/samples")))
     "Upstream sample documents must not be included in runtime packages.",
   );
 await verifyFontAssets(path.join(consumer, "public/editor-assets/fonts"));
+run(process.execPath, [path.join(consumer, "node_modules/@document-studio/engine-rhwp/bin/copy-runtime.mjs"), path.join(consumer, "report-runtime")], consumer);
+run(process.execPath, ["--input-type=module", "-e", `
+  import { readFile } from "node:fs/promises";
+  import init, { HwpDocument } from "./report-runtime/third_party/rhwp-core/rhwp.js";
+  await init({ module_or_path: await readFile("./report-runtime/third_party/rhwp-core/rhwp_bg.wasm") });
+  const document = new HwpDocument(await readFile(${JSON.stringify(path.join(root, "fixtures/blank.hwpx"))}));
+  try { if (document.getParagraphCount(0) < 1) throw new Error("Portable runtime could not open HWPX"); }
+  finally { document.free(); }
+`], consumer);
 run(
   process.execPath,
   [path.join(consumer, "node_modules/next/dist/bin/next"), "build"],

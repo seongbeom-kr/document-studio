@@ -19,7 +19,7 @@ const bytes = async (file: string) =>
   );
 
 describe("portable font pack", () => {
-  it("all four real faces cover Hanja, Korean, bullets and report symbols", async () => {
+  it("body faces cover Korean reports and the symbol face supplies the missing report bullets", async () => {
     for (const face of pack.faces) {
       const data = await bytes(face.file);
       const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
@@ -65,7 +65,10 @@ describe("portable font pack", () => {
           }
           return false;
         });
-      for (const character of "가힣한글漢字■▪□○─①ⅠΩ")
+      const characters = face.family === "Noto Sans Symbols 2"
+        ? "⦁∙•☞□○"
+        : "가힣한글漢字■▪□○─①ⅠΩ";
+      for (const character of characters)
         expect(
           hasGlyph(character.codePointAt(0)!),
           `${face.file}: ${character}`,
@@ -80,6 +83,7 @@ describe("portable font pack", () => {
       ["Noto Sans KR", 700],
       ["Noto Serif KR", 400],
       ["Noto Serif KR", 700],
+      ["Noto Sans Symbols 2", 400],
     ]);
   });
   it.each([
@@ -139,7 +143,7 @@ describe("portable font pack", () => {
       return new Response(await bytes(url.pathname.split("/").at(-1)!));
     });
     const faces = await loadDocumentFontPack("http://localhost:4173/a/fonts");
-    expect(faces).toHaveLength(4);
+    expect(faces).toHaveLength(5);
     expect(
       requested.every((url) =>
         url.startsWith("http://localhost:4173/a/fonts/Noto"),
@@ -148,6 +152,13 @@ describe("portable font pack", () => {
     expect(createHash("sha256").update(faces[0]!.data).digest("hex")).toBe(
       pack.faces[0]!.sha256,
     );
+  });
+  it("recognizes the supplied Unicode symbol family without claiming Wingdings support", () => {
+    expect(bundledFontFamily("Noto Sans Symbols 2")).toBe("Noto Sans Symbols 2");
+    const report = fontReport(["Noto Sans Symbols 2", "Wingdings"]);
+    expect(report.families[0]?.status).toBe("available");
+    expect(report.families[1]?.status).toBe("missing");
+    expect(report.glyphCoverage).toBe("not-assessed");
   });
   it("rejects a changed font with a forged matching Content-Length", async () => {
     vi.stubGlobal("fetch", async (url: URL) => {

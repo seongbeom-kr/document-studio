@@ -75,7 +75,7 @@ for (const format of ["docx", "hwpx"] as const) {
             .filter((font) => font.family.startsWith("Noto"))
             .map((font) => [font.family, font.weight, font.status]),
         );
-      expect(loaded).toHaveLength(4);
+      expect(loaded).toHaveLength(5);
       expect(loaded.every((face) => face[2] === "loaded")).toBe(true);
     }
   });

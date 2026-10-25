@@ -23,7 +23,7 @@ export interface DocumentFontReport {
   failures: readonly string[];
 }
 export function fontClass(family: string): FontClass {
-  if (/wingdings|webdings|^symbol$|eqn|수식/i.test(family)) return "symbol";
+  if (/wingdings|webdings|^symbol$|^Noto Sans Symbols 2$|eqn|수식/i.test(family)) return "symbol";
   if (
     /coding|courier|consolas|monospace|mono\b|굴림체|바탕체|gulimche|batangche/i.test(
       family,
@@ -39,6 +39,10 @@ export function fontClass(family: string): FontClass {
     : "sans";
 }
 export function bundledFontFamily(requested: string): string {
+  const bundled = manifest.faces.find(
+    (face) => face.family.toLowerCase() === requested.trim().toLowerCase(),
+  );
+  if (bundled) return bundled.family;
   return fontClass(requested) === "serif" ? "Noto Serif KR" : "Noto Sans KR";
 }
 export function fontReport(
@@ -73,13 +77,16 @@ export function fontReport(
         ? (exact.family ?? null)
         : bundledFontFamily(requested);
       const category = fontClass(requested);
+      const bundled = manifest.faces.some(
+        (face) => face.family.toLowerCase() === requested.toLowerCase(),
+      );
       return {
         requested,
         resolved,
         source: exact?.source ?? "bundled",
         status: exact
           ? "available"
-          : failures.length || category === "symbol"
+          : failures.length || (category === "symbol" && !bundled)
             ? "missing"
             : requested.toLowerCase() === resolved?.toLowerCase()
               ? "available"
@@ -90,7 +97,7 @@ export function fontReport(
             : { reason: "host-resolver-details-unavailable" }
           : {
               reason:
-                category === "symbol"
+                category === "symbol" && !bundled
                   ? "symbol-font-not-bundled"
                   : category === "monospace"
                     ? "monospace-font-not-bundled"

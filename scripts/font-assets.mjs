@@ -9,10 +9,10 @@ export async function verifyFontAssets(directory = fontDirectory) {
   const manifest = JSON.parse(
     await readFile(path.join(directory, "manifest.json"), "utf8"),
   );
-  if (manifest.license !== "OFL-1.1" || manifest.faces.length !== 4)
+  if (manifest.license !== "OFL-1.1" || manifest.faces.length !== 5)
     throw new Error("Unexpected font pack policy.");
   for (const face of manifest.faces) {
-    if (!/^(NotoSansKR|NotoSerifKR)-(Regular|Bold)\.ttf$/.test(face.file))
+    if (!/^(?:(NotoSansKR|NotoSerifKR)-(Regular|Bold)|NotoSansSymbols2-Regular)\.ttf$/.test(face.file))
       throw new Error("Unexpected font file.");
     const bytes = await readFile(path.join(directory, face.file));
     if (
@@ -40,10 +40,10 @@ export async function verifyFontAssets(directory = fontDirectory) {
   if (JSON.stringify(runtime) !== JSON.stringify(manifest))
     throw new Error("Runtime font manifest is stale.");
   if (
-    manifest.supportFiles?.length !== 3 ||
+    manifest.supportFiles?.length !== 4 ||
     manifest.supportFiles.some(
       (entry) =>
-        !["OFL.txt", "COPYRIGHTS.txt", "fontconfig.conf"].includes(entry.file),
+        !["OFL.txt", "COPYRIGHTS.txt", "fontconfig.conf", "NotoSansSymbols2-OFL.txt"].includes(entry.file),
     )
   )
     throw new Error("Font support inventory is invalid.");
@@ -109,7 +109,7 @@ export async function prepareFontConfig() {
     )
     .replace(
       "</fontconfig>",
-      '<selectfont><rejectfont><glob>/usr/share/fonts/opentype/noto/*</glob></rejectfont></selectfont>\n<match target="pattern"><edit name="family" mode="append" binding="strong"><string>Noto Sans KR</string></edit></match>\n</fontconfig>',
+      '<selectfont><rejectfont><glob>/usr/share/fonts/opentype/noto/*</glob></rejectfont></selectfont>\n<match target="pattern"><edit name="family" mode="append" binding="strong"><string>Noto Sans KR</string><string>Noto Sans Symbols 2</string></edit></match>\n</fontconfig>',
     );
   await writeFile(path.join(fontDirectory, "fontconfig.conf"), isolated);
 }

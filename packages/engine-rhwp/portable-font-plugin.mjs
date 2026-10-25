@@ -16,6 +16,19 @@ export function portableFontPlugin() {
     transform(code, file) {
       const id = file.replaceAll("\\", "/");
       code = code.replaceAll("\r\n", "\n");
+      if (id.endsWith("/view/canvaskit-renderer.ts")) {
+        const anchor = "?? 'fonts/D2Coding-Regular.woff2';";
+        const defaultAnchor = "options.defaultFontUrl ?? 'fonts/NotoSansKR-Regular.woff2'";
+        if (code.split(anchor).length !== 2 || code.split(defaultAnchor).length !== 2)
+          throw new Error("Pinned RHWP fallback font contract changed.");
+        return {
+          code:
+            `import { portableSymbolFontUrl, portableDefaultFontUrl } from ${JSON.stringify(runtime)};\n` +
+            code.replace(anchor, "?? portableSymbolFontUrl;")
+              .replace(defaultAnchor, "options.defaultFontUrl ?? portableDefaultFontUrl"),
+          map: null,
+        };
+      }
       if (id.endsWith("/core/font-loader.ts")) {
         const anchor =
           "const FONT_LIST: readonly FontEntry[] = FONT_RULE_WEBFONT_ENTRIES;";
@@ -51,7 +64,7 @@ export function portableFontPlugin() {
         code = insert(code, "): FontRuleResolution {\n  if (!fontName", "");
         code = code.replace(
           "): FontRuleResolution {\n  if (!fontName",
-          "): FontRuleResolution {\n  return { fontName: installedFaceName(fontName) ?? portableFamily(fontName), ruleIds: ['document-studio-noto-1'] };\n  if (!fontName",
+          "): FontRuleResolution {\n  return { fontName: installedFaceName(fontName) ?? portableFamily(fontName), ruleIds: [portableRuleId] };\n  if (!fontName",
         );
         code = insert(
           code,
@@ -59,12 +72,12 @@ export function portableFontPlugin() {
           `
   const exact = installedFaceName(fontName, options.confirmedLocalFonts);
   recordPortableChoice(fontName, exact ?? portableFamily(fontName), exact ? 'local' : 'bundled');
-  return { candidates: [...new Set([exact, portableFamily(fontName)].filter(Boolean))] as string[], ruleIds: ['document-studio-noto-1'] };
+  return { candidates: [...new Set([exact, ...portableFamilies(fontName)].filter(Boolean))] as string[], ruleIds: [portableRuleId] };
 `,
         );
         return {
           code:
-            `import { portableFamily, recordPortableChoice } from ${JSON.stringify(runtime)};\n` +
+            `import { portableFamily, portableFamilies, portableRuleId, recordPortableChoice } from ${JSON.stringify(runtime)};\n` +
             code,
           map: null,
         };
