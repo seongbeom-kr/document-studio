@@ -28,6 +28,7 @@ import type { EngineDefinition, EngineViewProps } from "@document-studio/react";
 import { receiveResponse } from "./transport";
 import { createRhwpTableColumn } from "./table-column";
 import { exportVerifiedHwp, type ReportedHwpExport } from "./hwp-export";
+import { readRhwpFrameState } from "./frame-diagnostics";
 
 const NATIVE: Partial<Record<CommandId, string>> = {
   selectAll: "edit:select-all",
@@ -282,6 +283,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
       const startedAt = performance.now();
       const attemptId = crypto.randomUUID();
       let frameReadyVia: "load" | "runtime" | undefined;
+      let bootFrame: HTMLIFrameElement | undefined;
       let stage: EngineInitializationStage = "iframe-loading";
       let transport: EngineInitializationDiagnostics["transport"];
       const steps: EngineInitializationDiagnostics["steps"] = [];
@@ -299,6 +301,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
           typeof input.event !== "string" ||
           ![
             "frame-attached",
+            "frame-timeout",
             "script-start",
             "dom-ready",
             "window-loaded",
@@ -349,6 +352,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
         attemptId,
         frameUrl: studioUrl.origin + studioUrl.pathname,
         frameReadyVia,
+        frame: bootFrame ? readRhwpFrameState(bootFrame, studioUrl) : undefined,
         stage,
         transport,
         elapsedMs: Math.max(0, Math.round(performance.now() - startedAt)),
@@ -539,6 +543,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
         calls.clear();
         if (editorRef.current === editor) editorRef.current = null;
         editor?.destroy();
+        bootFrame = undefined;
       };
       const failInitialization = (cause: unknown) => {
         if (!active) return;
@@ -553,17 +558,16 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
         dispose(failure);
         callbacks.current.onError(failure);
       };
-      initializationTimer = setTimeout(
-        () =>
-          failInitialization(
-            new EngineInitializationError(
-              "HWPX 편집기 연결 시간이 초과됐습니다. 다시 시도해 주세요.",
-              "engine-initialization-timeout",
-              { diagnostics: diagnostics() },
-            ),
+      initializationTimer = setTimeout(() => {
+        observeFrame({ event: "frame-timeout" });
+        failInitialization(
+          new EngineInitializationError(
+            "HWPX 편집기 연결 시간이 초과됐습니다. 다시 시도해 주세요.",
+            "engine-initialization-timeout",
+            { diagnostics: diagnostics() },
           ),
-        initializationTimeoutMs,
-      );
+        );
+      }, initializationTimeoutMs);
       diagnosticTimer = setInterval(() => {
         if (active)
           callbacks.current.onInitializationDiagnostics?.(diagnostics());
@@ -583,6 +587,9 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
             signal: abort.signal,
             onInitializationStage: recordStage,
             onFrameObservation: observeFrame,
+            onFrameCreated: (frame: HTMLIFrameElement) => {
+              bootFrame = frame;
+            },
             onFrameReady: (via: "load" | "runtime") => {
               frameReadyVia = via;
             },

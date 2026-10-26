@@ -6,10 +6,34 @@ export type EngineInitializationStage =
   | "controls-connecting"
   | "document-opening"
   | "state-connecting";
+export interface EngineInitializationFrameDiagnostics {
+  connected: boolean;
+  containerConnected: boolean;
+  navigation:
+    | "initial-blank"
+    | "expected-runtime"
+    | "other"
+    | "inaccessible"
+    | "unavailable";
+  documentReadyState:
+    | "loading"
+    | "interactive"
+    | "complete"
+    | "inaccessible"
+    | "unavailable";
+  /** Resource completion does not establish that the boot script executed. */
+  bootScript:
+    | "absent"
+    | "present-no-completion"
+    | "resource-finished"
+    | "inaccessible"
+    | "unavailable";
+}
 export interface EngineInitializationDiagnostics {
   attemptId?: string;
   frameUrl?: string;
   frameReadyVia?: "load" | "runtime";
+  frame?: EngineInitializationFrameDiagnostics;
   observations?: {
     event: string;
     elapsedMs: number;

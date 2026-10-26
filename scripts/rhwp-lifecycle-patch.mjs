@@ -6,7 +6,7 @@ export const RHWP_LIFECYCLE_PATCH = Object.freeze({
   inputSha256:
     "c9fab3743e713c46fd72c20f798333a4e70021ed7fcc7bdc56f0e144dd7b9431",
   change:
-    "Accept an origin/source/attempt-bound runtime boot signal before full iframe load; abort loading, transport negotiation, ready polling and chrome setup with complete cleanup.",
+    "Accept an origin/source/attempt-bound runtime boot signal before full iframe load; expose the created frame for bounded initialization diagnostics; abort loading, transport negotiation, ready polling and chrome setup with complete cleanup.",
 });
 
 // Bundle this checked modification of MIT-licensed @rhwp/editor. Consumers do
@@ -35,6 +35,7 @@ export function patchRhwpLifecycle(code) {
   signal?.addEventListener('abort', onAbort, { once: true });
   try {
     signal?.throwIfAborted();
+    options.onFrameCreated?.(iframe);
     options.onInitializationStage?.('iframe-loading');
     await new Promise((resolve, reject) => {
       const frameUrl = new URL(studioUrl);

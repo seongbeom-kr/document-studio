@@ -135,6 +135,29 @@ afterEach(() => {
 });
 
 describe("pinned RHWP initialization cancellation", () => {
+  it("exposes its created frame before attachment so timeout diagnostics can inspect it before disposal", async () => {
+    const f = fixture("load");
+    let created: Frame | undefined;
+    let createdAtAppend: Frame | undefined;
+    f.container.appendChild.mockImplementation(() => {
+      createdAtAppend = created;
+    });
+    const task = upstream.createStudio(f.container, {
+      studioUrl: "https://editor.test/",
+      signal: f.abort.signal,
+      onFrameCreated: (frame: Frame) => {
+        created = frame;
+      },
+    });
+    try {
+      expect(createdAtAppend).toBe(f.frame);
+      expect(created?.removed).toBe(false);
+    } finally {
+      f.abort.abort(new Error("timeout after capture"));
+      await expect(task).rejects.toThrow("timeout after capture");
+    }
+    expect(f.frame.removed).toBe(true);
+  });
   it("records boot observations only from the bound frame and never treats them as ready", async () => {
     const f = fixture("load"),
       observations: unknown[] = [];
