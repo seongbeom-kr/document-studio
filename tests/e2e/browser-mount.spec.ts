@@ -318,17 +318,40 @@ for (const format of ["docx", "hwpx"]) {
     expect(result.duplicate && result.owner && result.write).toBe(true);
     expect(result.after).toBe(result.before);
     await expect(page.locator(".ds-browser-mount")).toHaveCount(1);
-    if (format === "hwpx")
-      await expect(
-        page.frameLocator("iframe").locator("html"),
-      ).toHaveJSProperty("inert", true);
+    const nativeFrame = page.frameLocator("iframe");
+    const nativeInput = nativeFrame.locator(
+      'textarea[aria-label="문서 편집 입력"]',
+    );
+    if (format === "hwpx") {
+      // Read-only preserves selection while denying native editing.
+      await expect(nativeFrame.locator("html")).toHaveJSProperty(
+        "inert",
+        false,
+      );
+      await expect(nativeInput).toHaveJSProperty("readOnly", true);
+      const observe = () =>
+        page.evaluate(async () => {
+          const editor = window.browserStudioTest.controller();
+          const text = (await editor.readDocument()).text;
+          const { revision, dirty } = editor.getState();
+          return { text, revision, dirty };
+        });
+      const beforeNativeInput = await observe();
+      await nativeInput.focus();
+      await expect(nativeInput).toBeFocused();
+      await page.keyboard.type("FORBIDDEN_NATIVE_MOUNT_INPUT");
+      expect(await observe()).toEqual(beforeNativeInput);
+    }
     await page.evaluate(() =>
       window.browserStudioTest.controller().update({ readOnly: false }),
     );
-    if (format === "hwpx")
-      await expect(
-        page.frameLocator("iframe").locator("html"),
-      ).toHaveJSProperty("inert", false);
+    if (format === "hwpx") {
+      await expect(nativeFrame.locator("html")).toHaveJSProperty(
+        "inert",
+        false,
+      );
+      await expect(nativeInput).toHaveJSProperty("readOnly", false);
+    }
     await page.evaluate(async () => {
       const api = window.browserStudioTest;
       const source = api.files.get("A")!;
