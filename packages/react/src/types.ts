@@ -7,8 +7,10 @@ import type {
   EngineInitializationPhase,
 } from "@document-studio/core";
 export interface EngineViewProps {
-  /** Includes readonly permissions, modal dialogs, and serialization/host transitions. */
+  /** Freeze all interaction during modal dialogs and serialization/host transitions. */
   inputBlocked?: boolean;
+  /** Native edit permission; selection remains available. Session must expose setReadOnly. */
+  readOnly?: boolean;
   document: EditorDocument;
   onReady(session: EditorSession): void;
   onError(error: Error): void;

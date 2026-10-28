@@ -193,6 +193,8 @@ export interface EditorSession {
   ): Promise<void>;
   /** Freeze native user input; SDK-owned commands already in flight may finish. */
   setInputBlocked?(blocked: boolean): Promise<void>;
+  /** Deny native document mutations while retaining caret and text selection. */
+  setReadOnly?(readOnly: boolean): Promise<void>;
   getSnapshot(): EditorSnapshot;
   subscribe(listener: () => void): () => void;
   execute(

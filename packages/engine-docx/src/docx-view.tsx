@@ -63,6 +63,7 @@ export function DocxView({
   onSaveRequest,
   advancedTools,
   inputBlocked = false,
+  readOnly = false,
   fontBaseUrl,
   fontResolver,
 }: EngineViewProps & DocxFontOptions) {
@@ -84,6 +85,53 @@ export function DocxView({
   );
   const fonts = useFonts(...(original ? [original, portable] : [portable]));
   const surface = useRef<HTMLDivElement>(null);
+  const nativeEditor = useRef<DocxEditorInstance | null>(null);
+  const pointerAnchor = useRef<{ paragraphId: string; offset: number } | null>(
+    null,
+  );
+  const pointerPosition = (x: number, y: number) => {
+    // Native viewing keeps the browser caret separate from the facade's selection.
+    const caret = window.document.caretPositionFromPoint(x, y);
+    const node = caret?.offsetNode;
+    const element =
+      node?.nodeType === Node.ELEMENT_NODE
+        ? (node as Element)
+        : node?.parentElement;
+    if (
+      element?.closest(
+        "[data-docx-field], [data-docx-tab-leader], [data-docx-hf]:not([data-docx-hf-active])",
+      )
+    )
+      return null;
+    const run = element?.closest<HTMLElement>(
+      "[data-paragraph-id][data-start]",
+    );
+    if (!caret || !run || !surface.current?.contains(run)) return null;
+    const start = Number(run.dataset.start);
+    const end = Number(
+      run.dataset.end ?? start + (run.textContent?.length ?? 0),
+    );
+    if (
+      !Number.isSafeInteger(start) ||
+      !Number.isSafeInteger(end) ||
+      start < 0 ||
+      end < start
+    )
+      return null;
+    const prefix = window.document.createRange();
+    prefix.selectNodeContents(run);
+    prefix.setEnd(caret.offsetNode, caret.offset);
+    return {
+      paragraphId: run.dataset.paragraphId!,
+      // The pinned semantic model stores UTF-16 positions, bounded by the painted model range.
+      offset:
+        caret.offsetNode === run
+          ? caret.offset > 0
+            ? end
+            : start
+          : start + Math.min(prefix.toString().length, end - start),
+    };
+  };
   const setInputBlocked = async (blocked: boolean) => {
     if (!surface.current) return;
     surface.current.inert = blocked;
@@ -100,6 +148,7 @@ export function DocxView({
   const ready = useCallback(
     (editor: Editor) => {
       disposeRef.current?.();
+      nativeEditor.current = editor as DocxEditorInstance;
       const store = new SessionStore();
       const revisions = new RevisionState(
         String(editor.getDocumentHandle().revision),
@@ -359,6 +408,10 @@ export function DocxView({
           update();
         },
         setInputBlocked,
+        async setReadOnly(value) {
+          nativeEditor.current?.setMode(value ? "view" : "edit");
+          update();
+        },
         getSnapshot: store.getSnapshot,
         subscribe: store.subscribe,
         async executePreset(commands, options) {
@@ -627,7 +680,24 @@ export function DocxView({
     [document.recovered],
   );
   return (
-    <div ref={surface} className="ds-docx-surface docx-editor">
+    <div
+      ref={surface}
+      className="ds-docx-surface docx-editor"
+      onPointerDown={(event) => {
+        pointerAnchor.current = readOnly
+          ? pointerPosition(event.clientX, event.clientY)
+          : null;
+      }}
+      onPointerUp={(event) => {
+        const anchor = pointerAnchor.current;
+        pointerAnchor.current = null;
+        const head = readOnly
+          ? pointerPosition(event.clientX, event.clientY)
+          : null;
+        if (anchor && head)
+          nativeEditor.current?.surface?.setSelection({ anchor, head });
+      }}
+    >
       <LocaleProvider i18n={ko}>
         <DocxEditor.Root
           document={document.bytes}
@@ -643,7 +713,7 @@ export function DocxView({
                 ].slice(0, 16),
               };
           }}
-          mode="edit"
+          mode={readOnly ? "view" : "edit"}
           onReady={ready}
           zoom={1}
           locale="ko-KR"

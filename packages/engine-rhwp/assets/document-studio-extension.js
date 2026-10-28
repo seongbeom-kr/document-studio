@@ -8,6 +8,8 @@ if (!parentOrigin || !/^https?:\/\//.test(parentOrigin))
 let revision = 0;
 let boundServices;
 let sdkInputDepth = 0;
+let readOnly =
+  new URL(location.href).searchParams.get("documentStudioReadOnly") === "true";
 let inputBlocked =
   new URL(location.href).searchParams.get("documentStudioInputBlocked") ===
   "true";
@@ -19,14 +21,14 @@ const applyInputBlock = (blocked) => {
   for (const textarea of document.querySelectorAll(
     'textarea[aria-label="문서 편집 입력"]',
   )) {
-    textarea.readOnly = blocked;
+    textarea.readOnly = blocked || readOnly;
     if (blocked) textarea.value = "";
   }
   if (blocked) document.activeElement?.blur?.();
 };
 applyInputBlock(inputBlocked);
 new MutationObserver(() => {
-  if (inputBlocked)
+  if (inputBlocked || readOnly)
     for (const textarea of document.querySelectorAll(
       'textarea[aria-label="문서 편집 입력"]',
     ))
@@ -43,6 +45,8 @@ for (const type of [
   "compositionupdate",
   "compositionend",
   "pointerdown",
+  "mousemove",
+  "mouseup",
   "click",
   "dblclick",
   "contextmenu",
@@ -50,7 +54,35 @@ for (const type of [
   window.addEventListener(
     type,
     (event) => {
-      if (!inputBlocked || sdkInputDepth > 0) return;
+      if ((!inputBlocked && !readOnly) || sdkInputDepth > 0) return;
+      if (!inputBlocked) {
+        // Read-only keeps native caret/selection. Object drag writes are never allowed.
+        if (["pointerdown", "click"].includes(type)) return;
+        if (["mousemove", "mouseup"].includes(type)) {
+          const input = boundServices?.getInputHandler();
+          if (input?.isDragging || input?.cellSelectionDragState) return;
+        }
+        if (
+          type === "keydown" &&
+          ([
+            "ArrowLeft",
+            "ArrowRight",
+            "ArrowUp",
+            "ArrowDown",
+            "Home",
+            "End",
+            "PageUp",
+            "PageDown",
+            "Escape",
+            "Shift",
+            "Control",
+            "Meta",
+          ].includes(event.key) ||
+            ((event.ctrlKey || event.metaKey) &&
+              ["a", "c", "f"].includes(event.key.toLowerCase())))
+        )
+          return;
+      }
       // Retain the host find shortcut and copy. All document editing handlers run after this guard.
       if (
         type === "keydown" &&
@@ -88,6 +120,21 @@ const poll = setInterval(() => {
   if (!automation) return;
   clearInterval(poll);
   automation.registerCommand({
+    id: "ext:document-studio:read-only",
+    label: "Document Studio 읽기 전용",
+    canExecute: () => true,
+    execute(services, params) {
+      if (typeof params?.readOnly !== "boolean")
+        throw new Error("Invalid read-only permission.");
+      const input = services.getInputHandler();
+      if (!input?.setDocumentStudioReadOnly)
+        throw new Error("HWPX 읽기 전용 런타임을 최신화해 주세요.");
+      input.setDocumentStudioReadOnly(params.readOnly);
+      readOnly = params.readOnly;
+      applyInputBlock(inputBlocked);
+    },
+  });
+  automation.registerCommand({
     id: "ext:document-studio:input-block",
     label: "Document Studio 입력 잠금",
     canExecute: () => true,
@@ -104,7 +151,7 @@ const poll = setInterval(() => {
     },
   });
   const editable = (ctx) =>
-    ctx.hasDocument && ctx.isEditable && !ctx.isFormMode;
+    ctx.hasDocument && ctx.isEditable && !ctx.isFormMode && !readOnly;
   const selectionKey = (services) => {
     const input = services.getInputHandler();
     return JSON.stringify({

@@ -283,6 +283,15 @@ export const DocumentEditor = forwardRef<
   } | null>(null);
   const inputLocks = useRef(new Set<symbol>());
   const [inputLockCount, setInputLockCount] = useState(0);
+  const [appliedPermission, setAppliedPermission] = useState<{
+    session: EditorSession;
+    readOnly: boolean;
+  } | null>(null);
+  const inputSync = useRef<{
+    session: EditorSession | null;
+    generation: number;
+    task: Promise<void>;
+  }>({ session: null, generation: 0, task: Promise.resolve() });
   const modalBlocked = useRef(false);
   const automationPending = useRef(false);
   const automationReady = useRef(true);
@@ -305,17 +314,59 @@ export const DocumentEditor = forwardRef<
     overlayTools ||
     inputLockCount > 0 ||
     modalBlocked.current ||
-    Boolean(props.readOnly);
+    appliedPermission?.session !== session ||
+    appliedPermission?.readOnly !== Boolean(props.readOnly) ||
+    Boolean(props.readOnly && !session?.setReadOnly);
   const syncInputBlock = useCallback(async () => {
-    const blocked =
-      !session ||
-      busyRef.current ||
-      expandedTools.current ||
-      inputLocks.current.size > 0 ||
-      modalBlocked.current ||
-      Boolean(latest.current.readOnly);
-    if (body.current) body.current.inert = blocked;
-    await session?.setInputBlocked?.(blocked);
+    // Keep interaction closed until native permission is acknowledged, including toggles.
+    if (body.current) body.current.inert = true;
+    const identity = sessionId.current;
+    if (inputSync.current.session !== session)
+      inputSync.current = { session, generation: 0, task: Promise.resolve() };
+    const queue = inputSync.current;
+    const generation = ++queue.generation;
+    const current = () =>
+      inputSync.current === queue &&
+      queue.generation === generation &&
+      identity === sessionId.current &&
+      mounted.current;
+    const task = queue.task
+      .catch(() => undefined)
+      .then(async () => {
+        if (!session || !current()) return;
+        const readOnly = Boolean(latest.current.readOnly);
+        await session.setReadOnly?.(readOnly);
+        if (!current() || readOnly !== Boolean(latest.current.readOnly)) return;
+        const blocked =
+          busyRef.current ||
+          expandedTools.current ||
+          inputLocks.current.size > 0 ||
+          modalBlocked.current ||
+          Boolean(readOnly && !session.setReadOnly);
+        await session.setInputBlocked?.(blocked);
+        if (!current() || readOnly !== Boolean(latest.current.readOnly)) return;
+        if (body.current) body.current.inert = blocked;
+        setAppliedPermission((previous) =>
+          previous?.session === session && previous.readOnly === readOnly
+            ? previous
+            : { session, readOnly },
+        );
+      });
+    queue.task = task;
+    // A layout update may supersede this request while native permission is pending.
+    // Lock callers must await the replacement freeze acknowledgement in the same session.
+    let pending = task;
+    while (true) {
+      await pending;
+      if (
+        inputSync.current !== queue ||
+        identity !== sessionId.current ||
+        !mounted.current
+      )
+        return;
+      if (queue.task === pending) return;
+      pending = queue.task;
+    }
   }, [session]);
   const acquireInputLock = useCallback(async () => {
     if (!mounted.current || !session?.getSnapshot().ready)
@@ -750,7 +801,7 @@ export const DocumentEditor = forwardRef<
   };
   useLayoutEffect(() => {
     void syncInputBlock().catch(reportError);
-  }, [inputBlocked, session, syncInputBlock, reportError]);
+  }, [inputBlocked, props.readOnly, session, syncInputBlock, reportError]);
   const execute = useCallback(
     async (
       command: EditorCommand,
@@ -2740,6 +2791,7 @@ export const DocumentEditor = forwardRef<
             >
               <View
                 inputBlocked={inputBlocked}
+                readOnly={Boolean(props.readOnly)}
                 document={document}
                 onReady={(value) => {
                   if (

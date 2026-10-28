@@ -226,6 +226,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
     onInitializationDiagnostics,
     advancedTools,
     inputBlocked = false,
+    readOnly = false,
   }: EngineViewProps) {
     const formatLabel = document.format.toUpperCase();
     const container = useRef<HTMLDivElement>(null);
@@ -240,6 +241,20 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
     const editorRef = useRef<RhwpEditor | null>(null);
     const blockedRef = useRef(inputBlocked);
     blockedRef.current = inputBlocked;
+    const readOnlyRef = useRef(readOnly);
+    readOnlyRef.current = readOnly;
+    const setNativeReadOnly = async (value: boolean) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      const result = await editor.commands.execute(
+        "ext:document-studio:read-only",
+        { readOnly: value },
+      );
+      if (!result.ok)
+        throw new Error(
+          result.message ?? "HWPX 읽기 전용 권한을 적용하지 못했습니다.",
+        );
+    };
     const blocking = useRef<Promise<void>>(Promise.resolve());
     const setNativeBlocked = async (blocked: boolean) => {
       const editor = editorRef.current;
@@ -389,6 +404,10 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
       studioUrl.searchParams.set(
         "documentStudioInputBlocked",
         String(blockedRef.current),
+      );
+      studioUrl.searchParams.set(
+        "documentStudioReadOnly",
+        String(readOnlyRef.current),
       );
       studioUrl.searchParams.set(
         "documentStudioOrigin",
@@ -642,6 +661,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
               initialZoom.message ?? "HWPX 초기 배율을 설정하지 못했습니다.",
             );
           const store = new SessionStore();
+          await setNativeReadOnly(readOnlyRef.current);
           await setNativeBlocked(blockedRef.current);
           const initial = await readState();
           const revisions = new RevisionState(
@@ -761,6 +781,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
               }));
             },
             setInputBlocked: setNativeBlocked,
+            setReadOnly: setNativeReadOnly,
             getSnapshot: store.getSnapshot,
             subscribe: store.subscribe,
             async executePreset(commands, options) {

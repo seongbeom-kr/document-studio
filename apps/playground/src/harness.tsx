@@ -50,6 +50,34 @@ function FaultInjectionView(props: EngineViewProps) {
       onReady={(session) =>
         props.onReady({
           ...session,
+          setInputBlocked: session.setInputBlocked
+            ? async (blocked) => {
+                const api = window.documentStudioTest;
+                if (blocked && api.pauseNextInputBlock) {
+                  api.pauseNextInputBlock = false;
+                  await new Promise<void>((resolve) => {
+                    api.releasePausedInputBlock = resolve;
+                  });
+                }
+                await session.setInputBlocked!(blocked);
+              }
+            : undefined,
+          setReadOnly: new URLSearchParams(location.search).has(
+            "noNativeReadOnly",
+          )
+            ? undefined
+            : session.setReadOnly
+              ? async (value) => {
+                  const api = window.documentStudioTest;
+                  if (api.pauseNextPermission) {
+                    api.pauseNextPermission = false;
+                    await new Promise<void>((resolve) => {
+                      api.releasePausedPermission = resolve;
+                    });
+                  }
+                  await session.setReadOnly!(value);
+                }
+              : undefined,
           executePreset: session.executePreset
             ? async (commands, options) => {
                 const api = window.documentStudioTest;
@@ -137,7 +165,11 @@ declare global {
       flushDraft(): Promise<void>;
       closeAfterDraft(): Promise<void>;
       load(format: "docx" | "hwpx" | "hwp", name?: string): Promise<void>;
-      loadBytes(bytes: number[], format: "docx" | "hwpx" | "hwp"): void;
+      loadBytes(
+        bytes: number[],
+        format: "docx" | "hwpx" | "hwp",
+        id?: string,
+      ): void;
       copyStore: {
         onOpen?: (file: GeneratedStoredFile) => Promise<void>;
         opened: string[];
@@ -175,6 +207,11 @@ declare global {
       releasePausedExport?: () => void;
       failEngineAcknowledgement: boolean;
       readOnly: boolean;
+      pauseNextPermission: boolean;
+      pauseNextInputBlock: boolean;
+      releasePausedInputBlock?: () => void;
+      inputLockReturned: boolean;
+      releasePausedPermission?: () => void;
       pauseNextCommand: boolean;
       failPausedCommand: boolean;
       releasePausedCommand?: () => void;
@@ -217,6 +254,8 @@ declare global {
         | "invalid-version";
       fixedSaveVersion?: string;
       saves: number;
+      pauseNextSave: boolean;
+      releasePausedSave?: () => void;
       expectedVersions: (string | undefined)[];
     };
   }
@@ -271,6 +310,12 @@ function Harness() {
       const api = window.documentStudioTest;
       api.saves++;
       api.expectedVersions.push(input.expectedVersion);
+      if (api.pauseNextSave) {
+        api.pauseNextSave = false;
+        await new Promise<void>((resolve) => {
+          api.releasePausedSave = resolve;
+        });
+      }
       if (api.mode === "failure") throw new Error("테스트 저장 실패");
       if (api.mode === "conflict") throw new SaveConflictError();
       if (api.mode === "delayed")
@@ -408,10 +453,10 @@ function Harness() {
           version: "v1",
         });
       },
-      loadBytes: (bytes, format) => {
+      loadBytes: (bytes, format, id = "invalid") => {
         setClosed(false);
         setDocument({
-          id: "invalid",
+          id,
           fileName: `invalid.${format}`,
           format,
           bytes: new Uint8Array(bytes),
@@ -489,6 +534,9 @@ function Harness() {
       pauseNextExport: false,
       failEngineAcknowledgement: false,
       readOnly: false,
+      pauseNextPermission: false,
+      pauseNextInputBlock: false,
+      inputLockReturned: false,
       pauseNextCommand: false,
       failPausedCommand: false,
       commandsStarted: [],
@@ -515,6 +563,7 @@ function Harness() {
       saved: [],
       mode: "success",
       saves: 0,
+      pauseNextSave: false,
       expectedVersions: [],
     };
   }, []);
@@ -563,7 +612,11 @@ function Harness() {
               }
             },
           }))}
-          storage={storage.current}
+          storage={
+            new URLSearchParams(location.search).has("noStorage")
+              ? undefined
+              : storage.current
+          }
           generatedStorage={
             new URLSearchParams(location.search).has("generatedStorage")
               ? generatedStorage.current

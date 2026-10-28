@@ -37,12 +37,65 @@ export function nativeHistoryPlugin() {
         return { code, map: null };
       }
       if (id.endsWith("/engine/input-handler.ts")) {
+        code = code.replaceAll("\r\n", "\n");
+        const importAnchor =
+          "import * as _picture from './input-handler-picture';";
+        if (code.split(importAnchor).length !== 2)
+          throw new Error("Pinned RHWP object helper imports changed.");
+        code = code.replace(
+          importAnchor,
+          `${importAnchor}\nimport * as _connector from './input-handler-connector';`,
+        );
         const anchor = "  executeOperation(desc: OperationDescriptor): void {";
-        if (!code.includes(anchor))
+        const permissionAnchor =
+          "  private isOperationAllowedInEditMode(desc: OperationDescriptor): boolean {";
+        if (!code.includes(anchor) || !code.includes(permissionAnchor))
           throw new Error("Pinned RHWP input contract changed.");
         code = code.replace(
+          permissionAnchor,
+          `${permissionAnchor}
+    if (this.documentStudioReadOnly) return false;`,
+        );
+        code = code.replace(
           anchor,
-          `  finishDocumentStudioComposition(): void {
+          `  private documentStudioReadOnly = false;
+  private documentStudioPointerEvent: MouseEvent | null = null;
+  setDocumentStudioReadOnly(value: boolean): void {
+    if (value && !this.documentStudioReadOnly) {
+      this.finishDocumentStudioComposition();
+      this.finishDocumentStudioObjectGestures();
+    }
+    this.documentStudioReadOnly = value;
+    if (value) this.removeFormOverlay();
+    this.textarea.readOnly = value;
+  }
+
+  private cancelDocumentStudioObjectPlacement(): void {
+    if (this.imagePlacementMode) this.cancelImagePlacement();
+    if (this.textboxPlacementMode) this.cancelTextboxPlacement();
+    if (this.polygonDrawingMode) this.cancelPolygonDrawing();
+    if (this.connectorDrawingMode) _connector.exitConnectorDrawingMode.call(this);
+  }
+
+  private finishDocumentStudioObjectGestures(): void {
+    // Direct native updates already accepted in edit mode need their normal undo record.
+    // Use the last real editable pointer event, never fabricated mouseup coordinates.
+    const pointer = this.documentStudioPointerEvent;
+    if (this.isMoveDragging) this.finishMoveDrag();
+    if (this.isPictureMoveDragging) this.finishPictureMoveDrag();
+    if (this.isLineEndpointDragging) this.finishLineEndpointDrag();
+    if (this.isPictureRotateDragging && pointer) this.finishPictureRotateDrag(pointer);
+    if (this.isPictureResizeDragging && pointer) this.finishPictureResizeDrag(pointer);
+    // Table resizing is preview-only before mouseup; discard it without applying geometry.
+    if (this.isResizeDragging) this.cleanupResizeDrag();
+    if (this.isPictureResizeDragging) this.cleanupPictureResizeDrag();
+    this.isPictureRotateDragging = false;
+    this.pictureRotateState = null;
+    this.documentStudioPointerEvent = null;
+    this.cancelDocumentStudioObjectPlacement();
+  }
+
+  finishDocumentStudioComposition(): void {
     // Commit text already shown in the document before freezing its input stream.
     // A later browser compositionend must not keep the old native composition anchor alive.
     if (this.isComposing) this.onCompositionEnd();
@@ -102,6 +155,97 @@ export function nativeHistoryPlugin() {
 
 ${anchor}`,
         );
+        const formAnchor =
+          "  handleFormObjectClick(formHit: FormObjectHitResult, pageIdx: number, _zoom: number): void {";
+        if (!code.includes(formAnchor))
+          throw new Error("Pinned RHWP form pointer contract changed.");
+        code = code.replace(
+          formAnchor,
+          `${formAnchor}
+    // Checkbox/radio and overlay forms write before the operation-history router.
+    if (this.documentStudioReadOnly) return;`,
+        );
+        const comboAnchor =
+          "      row.addEventListener('mousedown', (e) => {\n        e.preventDefault();";
+        const editAnchor =
+          "    const commit = () => {\n      if (committed) return;\n      committed = true;";
+        if (
+          code.split(comboAnchor).length !== 2 ||
+          code.split(editAnchor).length !== 2
+        )
+          throw new Error("Pinned RHWP form overlay contract changed.");
+        code = code.replace(
+          comboAnchor,
+          `${comboAnchor}
+        if (this.documentStudioReadOnly || this.formOverlay !== dropdown) return;`,
+        );
+        code = code.replace(
+          editAnchor,
+          `${editAnchor}
+      if (this.documentStudioReadOnly || this.formOverlay !== input) return;`,
+        );
+        for (const method of ["onClick", "onMouseMove"]) {
+          const pointerAnchor = `  private ${method}(e: MouseEvent): void {`;
+          if (code.split(pointerAnchor).length !== 2)
+            throw new Error("Pinned RHWP pointer routing contract changed.");
+          code = code.replace(
+            pointerAnchor,
+            `${pointerAnchor}
+    if (!this.documentStudioReadOnly) this.documentStudioPointerEvent = e;
+    ${method === "onClick" ? "if (this.documentStudioReadOnly) this.cancelDocumentStudioObjectPlacement();" : ""}`,
+          );
+        }
+        // These helpers write WASM before operation-history admission. Keep text navigation
+        // available while refusing selected-object movement and keyboard table resizing.
+        for (const call of [
+          "_table.startResizeDrag.call(this, edge, pageX, pageY, pageBboxes, shiftResize)",
+          "_table.moveSelectedTable.call(this, key)",
+          "_table.moveSelectedPicture.call(this, key)",
+          "_picture.resizeSelectedPicture.call(this, key)",
+          "_table.resizeCellByKeyboard.call(this, key)",
+          "_table.resizeCellLocalByKeyboard.call(this, key)",
+          "_table.resizeCellBoundaryByKeyboard.call(this, key)",
+          "_table.resizeTableProportional.call(this, key)",
+        ]) {
+          const callAnchor = `    ${call};`;
+          if (code.split(callAnchor).length !== 2)
+            throw new Error("Pinned RHWP object editing contract changed.");
+          code = code.replace(
+            callAnchor,
+            `    if (this.documentStudioReadOnly) return;
+${callAnchor}`,
+          );
+        }
+        return { code, map: null };
+      }
+      if (id.endsWith("/engine/input-handler-mouse.ts")) {
+        code = code.replaceAll("\r\n", "\n");
+        const anchor =
+          "function bringShapeToFront(this: any, picHit: any): void {";
+        if (!code.includes(anchor))
+          throw new Error("Pinned RHWP shape pointer contract changed.");
+        code = code.replace(
+          anchor,
+          `${anchor}
+  // Selection cannot reorder an object or announce a write rejected by read-only mode.
+  if (this.documentStudioReadOnly) return;`,
+        );
+        for (const [flag, count] of [
+          ["isMoveDragging", 1],
+          ["isPictureMoveDragging", 2],
+          ["isPictureResizeDragging", 2],
+          ["isPictureRotateDragging", 1],
+          ["isLineEndpointDragging", 1],
+        ]) {
+          const gestureAnchor = `this.${flag} = true;`;
+          if (code.split(gestureAnchor).length !== count + 1)
+            throw new Error("Pinned RHWP object gesture contract changed.");
+          code = code.replaceAll(
+            gestureAnchor,
+            `if (this.documentStudioReadOnly) return;
+            ${gestureAnchor}`,
+          );
+        }
         return { code, map: null };
       }
     },

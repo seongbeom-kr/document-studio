@@ -169,7 +169,7 @@ for (const format of ["docx", "hwpx"] as const) {
     await page.keyboard.insertText("저장직전");
     const before = await text(page, format);
     await page.evaluate(() => {
-      window.documentStudioTest.mode = "delayed";
+      window.documentStudioTest.pauseNextSave = true;
       void window.documentStudioTest.save();
     });
     await expect
@@ -177,6 +177,7 @@ for (const format of ["docx", "hwpx"] as const) {
       .toBe(1);
     await attemptInput(page, format);
     expect(await text(page, format)).toBe(before);
+    await page.evaluate(() => window.documentStudioTest.releasePausedSave?.());
     await expect
       .poll(() => page.evaluate(() => window.documentStudioTest.state()?.busy))
       .toBe(false);
