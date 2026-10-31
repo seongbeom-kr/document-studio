@@ -1,6 +1,8 @@
 # 패키지 빌드와 소비
 
-`0.3.0-beta.1`부터 공개 후보는 명시적 prerelease 버전을 사용합니다. npm에 게시할 때는 `beta` dist-tag로 분리하며, `latest`를 베타로 이동하지 않습니다. 현재 작업은 GitHub 소스와 로컬 tarball 검증이며 npm registry 게시는 별도입니다. 정식 출시는 API 안정성·실제 호스트 통합·업무 문서 호환성 검증 이후 `1.0.0-rc.*`를 거쳐 `1.0.0`으로 진행합니다. 번호 변경만으로 정식 수용 검사를 통과한 것으로 간주하지 않습니다.
+현재 공식 패키지 버전은 `0.3.0`입니다. `0.3.0-beta.9`의 편집 구현을 유지하면서 다섯 SDK 패키지에서 prerelease 표기를 제거했습니다. 배포 범위는 GitHub 소스와 설치용 tarball이며 npm registry 게시는 별도입니다. [0.3.0 릴리즈 노트](releases/0.3.0.md)에 구성과 제한을 정리했습니다.
+
+`0.x` 단계에서는 공개 API가 변경될 수 있으므로 소비 앱은 검증한 버전과 tarball 해시를 고정합니다. API 호환성 정책을 확정하는 `1.0.0`은 별도 이정표입니다. 버전 승격은 새로운 업무 문서 호환성이나 실제 호스트 수용 검증을 자동으로 보장하지 않습니다. 이후 prerelease를 npm에 게시할 때는 `beta` 등 별도 dist-tag를 사용하고 `latest`와 구분합니다.
 
 React 연결은 기존 네 SDK 패키지를 사용합니다. DOM 연결은 `@document-studio/browser`를 함께 설치합니다. 별도 Document Studio 서비스는 필요하지 않습니다. `apps/playground`는 private 개발 예제입니다. 호스트는 사용자·문서 ID·저장소 version·초안 namespace·문서 전환·파일 목록을 소유합니다.
 

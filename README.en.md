@@ -8,7 +8,7 @@
   <a href="https://github.com/seongbeom-kr/document-studio/actions/workflows/verify.yml"><img src="https://github.com/seongbeom-kr/document-studio/actions/workflows/verify.yml/badge.svg?branch=main" alt="Verify CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-6d8fe0?style=flat" alt="Apache-2.0 license" /></a>
   <a href="packages/core"><img src="https://img.shields.io/badge/TypeScript-typed_API-3178c6?style=flat" alt="TypeScript API" /></a>
-  <a href="docs/release-guide.md"><img src="https://img.shields.io/badge/status-source_preview-287d68?style=flat" alt="Source preview — not yet published to npm" /></a>
+  <a href="docs/releases/0.3.0.md"><img src="https://img.shields.io/badge/release-0.3.0-287d68?style=flat" alt="Document Studio 0.3.0" /></a>
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
 
 **Document Studio** is an open-source **HWPX and DOCX document editor SDK** for web applications. It brings document editing, paragraph and table formatting, office workflows, storage adapters, draft recovery, and agent commands into a shared UI and TypeScript API. Use React components or the DOM adapter for plain JavaScript and Vue.
 
-> **Source preview:** packages are not yet published to npm. Build from source and install tarballs. Try the local playground below; there is no public hosted demo at this stage.
+> **0.3.0 release:** build from source and install tarballs; packages are not yet published to npm. See the [release scope and installation notes](docs/releases/0.3.0.md) and try the local playground below.
 
 ## See it in action
 

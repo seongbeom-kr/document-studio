@@ -8,7 +8,7 @@
   <a href="https://github.com/seongbeom-kr/document-studio/actions/workflows/verify.yml"><img src="https://github.com/seongbeom-kr/document-studio/actions/workflows/verify.yml/badge.svg?branch=main" alt="Verify CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-6d8fe0?style=flat" alt="Apache-2.0 license" /></a>
   <a href="packages/core"><img src="https://img.shields.io/badge/TypeScript-typed_API-3178c6?style=flat" alt="TypeScript API" /></a>
-  <a href="docs/release-guide.md"><img src="https://img.shields.io/badge/status-source_preview-287d68?style=flat" alt="Source preview — npm 배포 전" /></a>
+  <a href="docs/releases/0.3.0.md"><img src="https://img.shields.io/badge/release-0.3.0-287d68?style=flat" alt="Document Studio 0.3.0" /></a>
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
 
 **Document Studio**는 웹 프론트 앱에 넣어 쓰는 오픈소스 문서 편집기 SDK입니다. HWPX·DOCX 편집, 문단·표 서식, 업무 자동화, 저장·초안 복구를 공통 UI와 TypeScript API로 연결합니다. React 컴포넌트 또는 일반 JavaScript·Vue용 DOM API를 사용할 수 있습니다.
 
-> **개발 프리뷰:** 현재는 소스 빌드와 tarball로 설치합니다. npm registry에는 아직 게시하지 않았습니다. 공개 호스팅 데모 대신 아래의 로컬 playground에서 직접 실행할 수 있습니다.
+> **0.3.0 릴리즈:** 소스 빌드와 tarball로 설치합니다. npm registry에는 아직 게시하지 않았습니다. [릴리즈 범위와 설치 안내](docs/releases/0.3.0.md)를 확인하고, 아래의 로컬 playground에서 직접 실행할 수 있습니다.
 
 ## 화면으로 보기
 
