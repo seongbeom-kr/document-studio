@@ -11,6 +11,8 @@ export interface EngineViewProps {
   inputBlocked?: boolean;
   /** Native edit permission; selection remains available. Session must expose setReadOnly. */
   readOnly?: boolean;
+  /** Explicit user gesture in a read-only authoring view (also fires for an empty paragraph). */
+  onSourceSelection?(error?: Error): void;
   document: EditorDocument;
   onReady(session: EditorSession): void;
   onError(error: Error): void;

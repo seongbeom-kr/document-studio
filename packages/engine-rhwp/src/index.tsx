@@ -23,6 +23,7 @@ import {
   validateSearch,
   validateReplace,
   validateCommand,
+  sourceBytesHash,
 } from "@document-studio/core";
 import type { EngineDefinition, EngineViewProps } from "@document-studio/react";
 import { receiveResponse } from "./transport";
@@ -222,6 +223,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
     onError,
     onSaveRequest,
     onFindRequest,
+    onSourceSelection,
     onInitializationPhase,
     onInitializationDiagnostics,
     advancedTools,
@@ -235,6 +237,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
       onError,
       onSaveRequest,
       onFindRequest,
+      onSourceSelection,
       onInitializationPhase,
       onInitializationDiagnostics,
     });
@@ -290,6 +293,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
       onError,
       onSaveRequest,
       onFindRequest,
+      onSourceSelection,
       onInitializationPhase,
       onInitializationDiagnostics,
     };
@@ -425,6 +429,10 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
         }
         if (event.data?.type === "document-studio:find") {
           callbacks.current.onFindRequest?.();
+          return;
+        }
+        if (event.data?.type === "document-studio:source-selection") {
+          callbacks.current.onSourceSelection?.();
           return;
         }
         if (event.data?.type === "document-studio:rpc") {
@@ -749,6 +757,35 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
             });
           };
           const session: EditorSession = {
+            async captureSourceSelection() {
+              if (document.format !== "hwpx")
+                throw new Error("TEMPLATE_SELECTION_NORMALIZED_HWPX_REQUIRED");
+              const sourceHash = await sourceBytesHash(document.bytes);
+              return {
+                ...(await rpc<
+                  Omit<
+                    import("@document-studio/core").SourceSelection,
+                    "sourceHash"
+                  >
+                >("captureSourceSelection", {
+                  expectedRevision: String(initial.revision),
+                })),
+                sourceHash,
+              };
+            },
+            async highlightSourceSelection(selection) {
+              if (document.format !== "hwpx")
+                throw new Error("TEMPLATE_SELECTION_NORMALIZED_HWPX_REQUIRED");
+              if (
+                selection &&
+                selection.sourceHash !== (await sourceBytesHash(document.bytes))
+              )
+                throw new Error("TEMPLATE_SELECTION_STALE");
+              await rpc("highlightSourceSelection", {
+                selection,
+                expectedRevision: String(initial.revision),
+              });
+            },
             async captureQuestionTarget() {
               const value = await rpc<
                 import("@document-studio/core").EngineQuestionTarget

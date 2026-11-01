@@ -113,7 +113,7 @@ async function visit(directory, bundled = false) {
     await visit(await resolve(name, directory), bundled);
   }
 }
-for (const name of ["core", "react", "engine-docx", "engine-rhwp", "browser"])
+for (const name of ["core", "react", "engine-docx", "engine-rhwp", "browser", "template"])
   await visit(path.join(root, "packages", name));
 const studio = path.join(root, ".cache/rhwp-source/rhwp-studio");
 const studioManifest = JSON.parse(

@@ -147,6 +147,7 @@ __metadata:
   resolution: "@document-studio/react@workspace:packages/react"
   dependencies:
     "@document-studio/core": "workspace:^"
+    "@document-studio/template": "workspace:^"
     react: "npm:19.3.0"
     react-dom: "npm:19.3.0"
   peerDependencies:
@@ -164,6 +165,18 @@ __metadata:
     "@document-studio/engine-rhwp": "workspace:*"
     "@document-studio/react": "workspace:*"
     react: "npm:19.3.0"
+  languageName: unknown
+  linkType: soft
+
+"@document-studio/template@workspace:^, @document-studio/template@workspace:packages/template":
+  version: 0.0.0-use.local
+  resolution: "@document-studio/template@workspace:packages/template"
+  dependencies:
+    "@document-studio/core": "workspace:*"
+    "@xmldom/xmldom": "npm:0.9.12"
+    fflate: "npm:0.8.3"
+  bin:
+    document-studio-template: bin/template-cli.mjs
   languageName: unknown
   linkType: soft
 
@@ -1418,6 +1431,13 @@ __metadata:
   version: 3.5.44
   resolution: "@vue/shared@npm:3.5.44"
   checksum: 10c0/d33082cb159b1c8c38fb7e7d9747d9ba1909f80f5883b82dd0000412366048aa369b96acfa332cb32bfeeeee504b7c96f1103eb45b9b4543e95ec360b0047342
+  languageName: node
+  linkType: hard
+
+"@xmldom/xmldom@npm:0.9.12":
+  version: 0.9.12
+  resolution: "@xmldom/xmldom@npm:0.9.12"
+  checksum: 10c0/0a9ef38e203213717dde8d16c62743c26c37eb4195aeb4f286550a0aec2145c063a6c3633f253c29f75202f922d7c961d1acaad4dd93e5db1ef05c813354d178
   languageName: node
   linkType: hard
 

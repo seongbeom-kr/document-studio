@@ -1,4 +1,7 @@
 export { DocumentEditor, downloadDocument } from "./document-editor";
+export { TemplateAuthoringEditor } from "./template-authoring-editor";
+export type { TemplateAuthoringEditorProps } from "./template-authoring-editor";
+export type { TemplateSelection } from "@document-studio/core";
 export { GeneratedOutputActions } from "./generated-output-actions";
 export type {
   DocumentEditorHandle,

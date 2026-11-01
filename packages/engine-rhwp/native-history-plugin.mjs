@@ -59,6 +59,12 @@ export function nativeHistoryPlugin() {
         code = code.replace(
           anchor,
           `  private documentStudioReadOnly = false;
+  getDocumentStudioPaintRects(rects: Array<{pageIndex:number;x:number;y:number;width?:number;height:number}>): Array<{left:number;top:number;width:number;height:number}> {
+    const content = this.container.querySelector('#scroll-content') as HTMLElement | null;
+    if (!content) return [];
+    const zoom = this.viewportManager.getZoom();
+    return rects.map(rect => ({left:this.virtualScroll.getPageLeftResolved(rect.pageIndex, content.clientWidth)+rect.x*zoom,top:this.virtualScroll.getPageOffset(rect.pageIndex)+rect.y*zoom,width:Math.max(6,(rect.width??0)*zoom),height:Math.max(8,rect.height*zoom)}));
+  }
   private documentStudioPointerEvent: MouseEvent | null = null;
   setDocumentStudioReadOnly(value: boolean): void {
     if (value && !this.documentStudioReadOnly) {
@@ -220,6 +226,17 @@ ${callAnchor}`,
       }
       if (id.endsWith("/engine/input-handler-mouse.ts")) {
         code = code.replaceAll("\r\n", "\n");
+        const tableEntryAnchor =
+          "          if (px >= bbox.x && px <= bbox.x + bbox.width &&\n              py >= bbox.y && py <= bbox.y + bbox.height) {\n            clickedInsideSelectedTable = true;";
+        if (code.split(tableEntryAnchor).length !== 2)
+          throw new Error("Pinned RHWP table text entry contract changed.");
+        // Upstream enters a selected table's text through the object-move mouseup path.
+        // In read-only mode, a verified interior hit must reach normal text navigation
+        // without starting that forbidden move. Border/handle hits retain object selection.
+        code = code.replace(
+          tableEntryAnchor,
+          "          if ((!this.documentStudioReadOnly || !enterCellHit) &&\n              px >= bbox.x && px <= bbox.x + bbox.width &&\n              py >= bbox.y && py <= bbox.y + bbox.height) {\n            clickedInsideSelectedTable = true;",
+        );
         const anchor =
           "function bringShapeToFront(this: any, picHit: any): void {";
         if (!code.includes(anchor))
