@@ -7,6 +7,7 @@ import {
   verifyRhwpCoreAssets,
 } from "./rhwp-core-assets.mjs";
 await verifyRhwpCoreAssets();
+await import("./prepare-template-authoring-fixtures.mjs");
 const runtime = fileURLToPath(
   new URL("../.build/rhwp-studio/", import.meta.url),
 );

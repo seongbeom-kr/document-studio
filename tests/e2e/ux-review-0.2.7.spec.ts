@@ -400,8 +400,9 @@ for (const context of ["title", "body", "table", "page-boundary"] as const)
     await page.goto("/harness.html");
     await page.waitForFunction(() => window.documentStudioTest);
     await page.evaluate(
-      (bytes) => window.documentStudioTest.loadBytes(bytes, "docx"),
-      Array.from(bytes),
+      ({ bytes, context }) =>
+        window.documentStudioTest.loadBytes(bytes, "docx", `inline-${context}`),
+      { bytes: Array.from(bytes), context },
     );
     await expect
       .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
@@ -468,11 +469,19 @@ for (const context of ["title", "body", "table", "page-boundary"] as const)
     );
     for (const phase of ["inserted", "reopened"]) {
       if (phase === "reopened") {
+        // Persist the edited source deterministically, then open the exported
+        // file under a new ID so recovery cannot substitute its draft bytes.
+        await page.evaluate(() => window.documentStudioTest.flushDraft());
         await page.reload();
         await page.waitForFunction(() => window.documentStudioTest);
         await page.evaluate(
-          (bytes) => window.documentStudioTest.loadBytes(bytes, "docx"),
-          exported,
+          ({ bytes, context }) =>
+            window.documentStudioTest.loadBytes(
+              bytes,
+              "docx",
+              `inline-${context}-reopened`,
+            ),
+          { bytes: exported, context },
         );
         await expect
           .poll(() =>
