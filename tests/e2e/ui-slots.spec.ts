@@ -135,6 +135,15 @@ for (const format of ["docx", "hwpx"]) {
       ),
     ).toBe("blocked");
     await page.evaluate(() => window.uiStudioTest.readonly(false));
+    // A React prop update does not await the native engine's permission and
+    // command-state refresh. Use the public availability state before acting.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => window.uiStudioTest.state().commands.insertText?.enabled,
+        ),
+      )
+      .toBe(true);
     await page.evaluate(() => window.uiStudioTest.customCommand());
     await page.evaluate(() => window.uiStudioTest.toolbar("throw"));
     await expect(page.locator("#top .ds-toolbar")).toBeVisible();

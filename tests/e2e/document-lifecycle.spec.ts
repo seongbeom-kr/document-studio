@@ -429,8 +429,8 @@ for (const format of ["docx", "hwpx"] as const) {
       await edit(page, format, "서버 저장 완료를 기다려야 하는 내용");
       await page.evaluate(() => {
         window.documentStudioTest.mode = "delayed";
-        void window.documentStudioTest.save();
       });
+      const saving = page.evaluate(() => window.documentStudioTest.save());
       await expect
         .poll(() => page.evaluate(() => window.documentStudioTest.saves))
         .toBe(1);
@@ -446,6 +446,9 @@ for (const format of ["docx", "hwpx"] as const) {
       await expect(page.getByText("편집기 닫힘", { exact: true })).toHaveCount(
         0,
       );
+      // A clean revision can be published before markSaved, draft cleanup and
+      // host callbacks settle. Wait for the actual save before switching.
+      await saving;
       await expect
         .poll(() =>
           page.evaluate(() => window.documentStudioTest.state()?.dirty),
