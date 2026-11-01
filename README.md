@@ -21,12 +21,7 @@
 
 **Document Studio**는 웹 프론트 앱에 넣어 쓰는 오픈소스 문서 편집기 SDK입니다. HWPX·DOCX 편집, 문단·표 서식, 업무 자동화, 저장·초안 복구를 공통 UI와 TypeScript API로 연결합니다. React 컴포넌트 또는 일반 JavaScript·Vue용 DOM API를 사용할 수 있습니다.
 
-> **0.4.0 패키지:** npm에서 같은 버전으로 설치합니다. [릴리즈 범위와 설치 안내](docs/releases/0.4.0.md)를 확인하세요. 소스 빌드와 로컬 playground도 지원합니다.
-
-```sh
-npm install --save-exact @document-studio/core@0.4.0 @document-studio/react@0.4.0 @document-studio/engine-docx@0.4.0 @document-studio/engine-rhwp@0.4.0 @document-studio/template@0.4.0
-npx document-studio-rhwp-assets public/editor-assets/rhwp
-```
+> **0.4.0 패키지:** 같은 소스에서 생성한 tarball로 설치합니다. npm 게시는 보류되어 있으며, 현재 소비 앱은 검증한 패키지 파일과 해시를 고정합니다. [릴리즈 범위와 설치 안내](docs/releases/0.4.0.md)를 확인하세요.
 
 ## 화면으로 보기
 

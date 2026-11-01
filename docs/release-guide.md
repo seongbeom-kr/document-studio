@@ -1,23 +1,23 @@
 # 패키지 빌드와 소비
 
-현재 작업 브랜치의 패키지 버전은 `0.4.0`입니다. 문서 위 작성 위치 지정과 선언형 양식 실행 패키지를 추가했습니다. 소스는 GitHub에서 관리하고 패키지는 npm의 `@document-studio` 범위에서 배포합니다. [0.4.0 변경·검증 범위](releases/0.4.0.md)를 확인하세요. 패키지 갱신만으로 소비 서비스가 배포되지는 않습니다.
+현재 작업 브랜치의 패키지 버전은 `0.4.0`입니다. 문서 위 작성 위치 지정과 선언형 양식 실행 패키지를 추가했습니다. 소스는 GitHub에서 관리하고 현재 패키지는 검증한 tarball로 전달합니다. npm 게시는 보류했으며 registry에 설치 가능한 패키지가 있다고 가정하지 않습니다. [0.4.0 변경·검증 범위](releases/0.4.0.md)를 확인하세요. 패키지 갱신만으로 소비 서비스가 배포되지는 않습니다.
 
 `0.x` 단계에서는 공개 API가 변경될 수 있으므로 소비 앱은 검증한 버전과 tarball 해시를 고정합니다. API 호환성 정책을 확정하는 `1.0.0`은 별도 이정표입니다. 버전 승격은 새로운 업무 문서 호환성이나 실제 호스트 수용 검증을 자동으로 보장하지 않습니다. 이후 prerelease를 npm에 게시할 때는 `beta` 등 별도 dist-tag를 사용하고 `latest`와 구분합니다.
 
 React 연결은 편집 엔진 두 개와 core·react·template 다섯 SDK 패키지를 사용합니다. DOM 연결은 `@document-studio/browser`를 함께 설치합니다. 별도 Document Studio 서비스는 필요하지 않습니다. `apps/playground`는 private 개발 예제입니다. 호스트는 사용자·문서 ID·저장소 version·초안 namespace·문서 전환·파일 목록을 소유합니다.
 
-## npm으로 설치
+## 검증한 tarball로 설치
 
 ```sh
-npm install --save-exact @document-studio/core@0.4.0 @document-studio/react@0.4.0 @document-studio/engine-docx@0.4.0 @document-studio/engine-rhwp@0.4.0 @document-studio/template@0.4.0
+npm install /path/to/core.tgz /path/to/react.tgz /path/to/engine-docx.tgz /path/to/engine-rhwp.tgz /path/to/template.tgz
 npx document-studio-rhwp-assets public/editor-assets/rhwp
 ```
 
-DOM 호스트는 `@document-studio/browser@0.4.0`도 설치합니다. 소비 앱은 버전과 잠금 파일을 커밋하고 기존 CI에서 `yarn install --immutable` 또는 `npm ci`로 설치합니다. 실행 중 다운로드하는 방식이 아니며 이미지 빌드 시 SDK와 정적 자산이 포함됩니다.
+DOM 호스트는 같은 버전의 `browser.tgz`도 설치합니다. 소비 앱은 패키지 파일·SHA256·잠금 파일을 함께 커밋합니다. 기존 CI의 `yarn install --immutable` 또는 `npm ci`가 이를 설치하고, 이미지 빌드 때 SDK와 정적 자산을 포함합니다. 실행 중 npm에서 내려받지 않습니다.
 
-## 소스 빌드와 게시
+## 소스 빌드와 향후 npm 게시
 
-게시할 때는 버전을 올리고 `yarn install`, `yarn build`, `yarn typecheck`, `yarn test`, `yarn verify:packages`를 완료합니다. `yarn verify:packages`가 만든 `.build/packs/*.tgz`를 사용하면 `workspace:` 내부 의존성이 npm 버전으로 변환됩니다. 원본 workspace 폴더에서 `npm pack`으로 대체하지 마세요.
+현재 npm 게시는 수행하지 않습니다. 향후 게시할 때는 버전을 올리고 `yarn install`, `yarn build`, `yarn typecheck`, `yarn test`, `yarn verify:packages`를 완료합니다. `yarn verify:packages`가 만든 `.build/packs/*.tgz`를 사용하면 `workspace:` 내부 의존성이 npm 버전으로 변환됩니다. 원본 workspace 폴더에서 `npm pack`으로 대체하지 마세요.
 
 게시 순서는 core → template → react → engine-docx/engine-rhwp → browser입니다. 각 파일을 `npm publish .build/packs/<패키지>.tgz --access public --registry=https://registry.npmjs.org/`로 게시합니다. npm 로그인과 게시 인증은 게시자가 수행합니다. 기존 버전을 덮어쓰지 않으며 registry의 버전·integrity와 다운로드 바이트를 확인한 뒤 소비 앱을 갱신합니다.
 

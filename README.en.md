@@ -21,12 +21,7 @@
 
 **Document Studio** is an open-source **HWPX and DOCX document editor SDK** for web applications. It brings document editing, paragraph and table formatting, office workflows, storage adapters, draft recovery, and agent commands into a shared UI and TypeScript API. Use React components or the DOM adapter for plain JavaScript and Vue.
 
-> **0.4.0 packages:** install matching versions from npm. See the [release scope and installation notes](docs/releases/0.4.0.md). Source builds and the local playground remain available.
-
-```sh
-npm install --save-exact @document-studio/core@0.4.0 @document-studio/react@0.4.0 @document-studio/engine-docx@0.4.0 @document-studio/engine-rhwp@0.4.0 @document-studio/template@0.4.0
-npx document-studio-rhwp-assets public/editor-assets/rhwp
-```
+> **0.4.0 packages:** install verified tarballs built from the same source. npm publication is deferred; consumers pin the package files and their hashes. See the [release scope and installation notes](docs/releases/0.4.0.md).
 
 ## See it in action
 
