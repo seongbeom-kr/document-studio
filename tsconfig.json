@@ -20,6 +20,7 @@
       "vite/client"
     ],
     "paths": {
+      "@document-studio/template": ["./packages/template/src/index.ts"],
       "@document-studio/core": [
         "./packages/core/src/index.ts"
       ],

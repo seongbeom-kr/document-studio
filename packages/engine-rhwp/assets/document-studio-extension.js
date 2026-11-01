@@ -27,6 +27,48 @@ const applyInputBlock = (blocked) => {
   if (blocked) document.activeElement?.blur?.();
 };
 applyInputBlock(inputBlocked);
+let sourcePointerStarted = false;
+window.addEventListener(
+  "pointerdown",
+  (event) => {
+    sourcePointerStarted = Boolean(
+      event.target?.closest?.(".document-page-canvas"),
+    );
+  },
+  true,
+);
+for (const type of ["pointerup", "keyup"])
+  window.addEventListener(type, (event) => {
+    const sourceGesture =
+      type === "pointerup"
+        ? sourcePointerStarted &&
+          Boolean(event.target?.closest?.(".document-page-canvas"))
+        : Boolean(
+            event.target?.closest?.('textarea[aria-label="문서 편집 입력"]'),
+          );
+    if (type === "pointerup") sourcePointerStarted = false;
+    if (
+      !sourceGesture ||
+      !readOnly ||
+      inputBlocked ||
+      (type === "keyup" &&
+        ![
+          "ArrowLeft",
+          "ArrowRight",
+          "ArrowUp",
+          "ArrowDown",
+          "Home",
+          "End",
+        ].includes(event.key))
+    )
+      return;
+    queueMicrotask(() =>
+      window.parent.postMessage(
+        { type: "document-studio:source-selection" },
+        parentOrigin,
+      ),
+    );
+  });
 new MutationObserver(() => {
   if (inputBlocked || readOnly)
     for (const textarea of document.querySelectorAll(
@@ -179,6 +221,126 @@ const poll = setInterval(() => {
       );
   };
   let question = null;
+  let sourceHighlight = null;
+  const clearSourceHighlight = () => {
+    sourceHighlight = null;
+    document
+      .querySelectorAll(".document-studio-template-box")
+      .forEach((node) => node.remove());
+  };
+  const sourceAddress = (pos) => {
+    if (!pos || pos.isTextBox || (pos.cellPath?.length ?? 0) > 1)
+      throw new Error("TEMPLATE_SELECTION_UNSUPPORTED");
+    return {
+      format: "hwpx",
+      section: pos.sectionIndex,
+      paragraph: pos.parentParaIndex ?? pos.paragraphIndex,
+      ...(pos.parentParaIndex !== undefined
+        ? {
+            control: pos.controlIndex,
+            cell: pos.cellIndex,
+            cellParagraph: pos.cellParaIndex ?? 0,
+          }
+        : {}),
+    };
+  };
+  const sourceText = (services, address) => {
+    const {
+        section: s,
+        paragraph: p,
+        control: c,
+        cell,
+        cellParagraph: cp,
+      } = address,
+      wasm = services.wasm;
+    return c === undefined
+      ? wasm.getTextRange(s, p, 0, wasm.getParagraphLength(s, p))
+      : wasm.getTextInCell(
+          s,
+          p,
+          c,
+          cell,
+          cp,
+          0,
+          wasm.getCellParagraphLength(s, p, c, cell, cp),
+        );
+  };
+  const paintSourceHighlight = () => {
+    if (!sourceHighlight) return;
+    if (!readOnly || sourceHighlight.revision !== revision) {
+      clearSourceHighlight();
+      return;
+    }
+    const { services, selection } = sourceHighlight,
+      input = services.getInputHandler(),
+      a = selection.address;
+    const length = Array.from(selection.text).length;
+    const start =
+      selection.start === undefined
+        ? 0
+        : Array.from(selection.text.slice(0, selection.start)).length;
+    const end =
+      selection.end === undefined
+        ? length
+        : Array.from(selection.text.slice(0, selection.end)).length;
+    const args = [a.section, a.paragraph];
+    const raw =
+      start === end
+        ? [
+            a.control === undefined
+              ? services.wasm.getCursorRect(...args, start)
+              : services.wasm.getCursorRectInCell(
+                  ...args,
+                  a.control,
+                  a.cell,
+                  a.cellParagraph,
+                  start,
+                ),
+          ]
+        : a.control === undefined
+          ? services.wasm.getSelectionRects(...args, start, a.paragraph, end)
+          : services.wasm.getSelectionRectsInCell(
+              ...args,
+              a.control,
+              a.cell,
+              a.cellParagraph,
+              start,
+              a.cellParagraph,
+              end,
+            );
+    const rects = input.getDocumentStudioPaintRects(raw);
+    const content = document.querySelector("#scroll-content");
+    if (!content || !rects.length)
+      throw new Error("TEMPLATE_SELECTION_UNSUPPORTED");
+    const signature = JSON.stringify(rects);
+    if (
+      signature === sourceHighlight.signature &&
+      document.querySelector(".document-studio-template-box")
+    )
+      return;
+    sourceHighlight.signature = signature;
+    document
+      .querySelectorAll(".document-studio-template-box")
+      .forEach((node) => node.remove());
+    for (const rect of rects) {
+      const node = document.createElement("div");
+      node.className = "document-studio-template-box";
+      node.setAttribute("aria-hidden", "true");
+      Object.assign(node.style, {
+        position: "absolute",
+        pointerEvents: "none",
+        border: "2px solid #2563eb",
+        background: "#2563eb18",
+        boxSizing: "border-box",
+        zIndex: "12",
+        left: `${rect.left}px`,
+        top: `${rect.top}px`,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`,
+      });
+      content.appendChild(node);
+    }
+  };
   let questionObserver;
   const clearQuestion = () => {
     question = null;
@@ -252,6 +414,7 @@ const poll = setInterval(() => {
   };
   const snapshot = (services, version = revision) => {
     paintQuestion();
+    paintSourceHighlight();
     const input = services.getInputHandler();
     const pos = input?.getCursorPosition();
     const selected = input?.getSelection();
@@ -1030,7 +1193,87 @@ const poll = setInterval(() => {
       try {
         const params = payload.params ?? {};
         let result;
-        if (payload.method === "exportHwp") {
+        if (
+          payload.method === "captureSourceSelection" ||
+          payload.method === "highlightSourceSelection"
+        ) {
+          if (
+            !readOnly ||
+            String(revision) !== String(params.expectedRevision ?? 0)
+          )
+            throw new Error("TEMPLATE_SELECTION_READ_ONLY_REQUIRED");
+          const input = services.getInputHandler();
+          if (payload.method === "captureSourceSelection") {
+            if (
+              input?.cursor?.isInHeaderFooter?.() ||
+              input?.cursor?.isInFootnote?.() ||
+              input?.getSelectedTableRef?.() ||
+              input?.getSelectedCellRange?.() ||
+              (input?.getSelectedPictureRefs?.()?.length ?? 0) > 0 ||
+              input?.hasExcludedCellSelection()
+            )
+              throw new Error("TEMPLATE_SELECTION_UNSUPPORTED");
+            const pos = input?.getCursorPosition(),
+              address = sourceAddress(pos),
+              range = input.getSelection(),
+              text = sourceText(services, address);
+            let offsets = {};
+            if (range) {
+              if (
+                JSON.stringify(sourceAddress(range.start)) !==
+                JSON.stringify(sourceAddress(range.end))
+              )
+                throw new Error("TEMPLATE_SELECTION_SINGLE_PARAGRAPH");
+              if (
+                JSON.stringify(sourceAddress(range.start)) !==
+                JSON.stringify(address)
+              )
+                throw new Error("TEMPLATE_SELECTION_SINGLE_PARAGRAPH");
+              const start = Math.min(
+                  range.start.charOffset,
+                  range.end.charOffset,
+                ),
+                end = Math.max(range.start.charOffset, range.end.charOffset),
+                chars = Array.from(text);
+              if (start < 0 || end > chars.length)
+                throw new Error("TEMPLATE_SELECTION_RANGE");
+              if (start !== end)
+                offsets = {
+                  start: chars.slice(0, start).join("").length,
+                  end: chars.slice(0, end).join("").length,
+                };
+            }
+            result = { address, text, ...offsets };
+          } else {
+            clearSourceHighlight();
+            const selection = params.selection;
+            if (selection) {
+              if (
+                selection.address?.format !== "hwpx" ||
+                sourceText(services, selection.address) !== selection.text
+              )
+                throw new Error("TEMPLATE_SELECTION_PROVENANCE");
+              if (typeof input?.getDocumentStudioPaintRects !== "function")
+                throw new Error("TEMPLATE_SELECTION_RUNTIME_UPDATE_REQUIRED");
+              sourceHighlight = { services, selection, revision };
+              const a = selection.address;
+              const rect =
+                a.control === undefined
+                  ? services.wasm.getCursorRect(a.section, a.paragraph, 0)
+                  : services.wasm.getCursorRectInCell(
+                      a.section,
+                      a.paragraph,
+                      a.control,
+                      a.cell,
+                      a.cellParagraph,
+                      0,
+                    );
+              services.gotoPage?.(rect.pageIndex);
+              paintSourceHighlight();
+            }
+            result = { highlighted: Boolean(selection) };
+          }
+        } else if (payload.method === "exportHwp") {
           // The report and bytes belong to one native serialization transaction.
           if (typeof services.wasm.exportHwpWithReport !== "function")
             throw new Error(
@@ -1330,31 +1573,86 @@ const poll = setInterval(() => {
             throw new Error(
               "중첩 표의 자동 치환은 지원하지 않습니다. 표를 직접 편집해 주세요.",
             );
-          if (hits.length)
-            operation(services, "replace", (wasm) => {
-              for (const hit of [...hits].reverse()) {
-                const c = hit.cellContext;
-                const changed = c
-                  ? wasm.replaceTextInCellDeferredPagination(
+          if (hits.length) {
+            let writeStarted = false,
+              before;
+            try {
+              before = new Uint8Array(services.wasm.exportHwpx());
+              operation(services, "replace", (wasm) => {
+                writeStarted = true;
+                for (const hit of [...hits].reverse()) {
+                  const c = hit.cellContext;
+                  if (c) {
+                    const location = [
                       hit.sec,
                       c.parentPara,
                       c.ctrlIdx,
                       c.cellIdx,
                       c.cellPara,
-                      hit.charOffset,
-                      hit.length,
-                      params.replacement,
-                    )
-                  : wasm.replaceText(
+                    ];
+                    const length = wasm.getCellParagraphLength(...location);
+                    // Deferred cell replacement is only for 1..8 plain characters. The full
+                    // operations retain the original run and share this snapshot/undo boundary.
+                    if (params.replacement) {
+                      const raw = wasm.insertTextInCell(
+                        ...location,
+                        hit.charOffset,
+                        params.replacement,
+                      );
+                      if (!(typeof raw === "string" ? JSON.parse(raw) : raw).ok)
+                        throw new Error("셀 텍스트 삽입이 거절됐습니다.");
+                    }
+                    const inserted =
+                      wasm.getCellParagraphLength(...location) - length;
+                    if (inserted < 0 || (params.replacement && inserted === 0))
+                      throw new Error(
+                        "셀 텍스트 삽입 결과를 확인하지 못했습니다.",
+                      );
+                    if (hit.length) {
+                      const raw = wasm.deleteTextInCell(
+                        ...location,
+                        hit.charOffset + inserted,
+                        hit.length,
+                      );
+                      if (!(typeof raw === "string" ? JSON.parse(raw) : raw).ok)
+                        throw new Error("셀 텍스트 삭제가 거절됐습니다.");
+                    }
+                  } else {
+                    const changed = wasm.replaceText(
                       hit.sec,
                       hit.para,
                       hit.charOffset,
                       hit.length,
                       params.replacement,
                     );
-                if (!changed.ok) throw new Error("텍스트를 바꾸지 못했습니다.");
+                    if (!changed.ok)
+                      throw new Error("텍스트를 바꾸지 못했습니다.");
+                  }
+                }
+              });
+            } catch (cause) {
+              const error =
+                cause instanceof Error ? cause : new Error(String(cause));
+              error.effect = writeStarted ? "unknown" : "none";
+              if (
+                writeStarted &&
+                before &&
+                !(cause instanceof AggregateError)
+              ) {
+                try {
+                  const after = services.wasm.exportHwpx();
+                  if (
+                    before.length === after.length &&
+                    before.every((value, index) => value === after[index])
+                  )
+                    error.effect = "rolled-back";
+                } catch {
+                  /* No proof of restoration: retain unknown. */
+                }
               }
-            });
+              throw error;
+            }
+          }
           searchCache.clear();
           result = { count: hits.length };
         } else throw new Error("지원하지 않는 문서 탐색 명령입니다.");

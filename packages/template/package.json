@@ -1,0 +1,45 @@
+{
+  "name": "@document-studio/template",
+  "version": "0.4.0",
+  "description": "Declarative DOCX and HWPX template inspection, binding and generation",
+  "type": "module",
+  "license": "Apache-2.0",
+  "files": [
+    "dist",
+    "bin",
+    "runtime-manifest.json",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "document-studio-template": "bin/template-cli.mjs"
+  },
+  "devDependencies": {
+    "@document-studio/core": "workspace:*",
+    "@xmldom/xmldom": "0.9.12",
+    "fflate": "0.8.3"
+  },
+  "dependencies": {
+    "@xmldom/xmldom": "0.9.12",
+    "fflate": "0.8.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seongbeom-kr/document-studio.git",
+    "directory": "packages/template"
+  },
+  "homepage": "https://github.com/seongbeom-kr/document-studio#readme",
+  "bugs": {
+    "url": "https://github.com/seongbeom-kr/document-studio/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

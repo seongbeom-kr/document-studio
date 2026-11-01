@@ -52,6 +52,8 @@ import {
 import { ko } from "./ko";
 import { applyDocxPreset } from "./apply-preset";
 import { docxSelectionKey } from "./selection";
+import { createDocxSourceSelection } from "./source-selection";
+import { docxReplacementOps } from "./replace-text";
 import { createDocxTableColumn } from "./table-column";
 import { koreanCommandReason } from "./command-reason";
 import { portableDocxFonts } from "./fonts";
@@ -64,6 +66,7 @@ export function DocxView({
   advancedTools,
   inputBlocked = false,
   readOnly = false,
+  onSourceSelection,
   fontBaseUrl,
   fontResolver,
 }: EngineViewProps & DocxFontOptions) {
@@ -86,11 +89,21 @@ export function DocxView({
   const fonts = useFonts(...(original ? [original, portable] : [portable]));
   const surface = useRef<HTMLDivElement>(null);
   const nativeEditor = useRef<DocxEditorInstance | null>(null);
+  const sourceReadOnly = useRef(readOnly);
+  sourceReadOnly.current = readOnly;
   const pointerAnchor = useRef<{ paragraphId: string; offset: number } | null>(
     null,
   );
   const pointerPosition = (x: number, y: number) => {
     // Native viewing keeps the browser caret separate from the facade's selection.
+    const hit = window.document.elementFromPoint(x, y);
+    const hitParagraph = hit?.closest<HTMLElement>("[data-paragraph-id]");
+    if (
+      !hitParagraph ||
+      !surface.current?.contains(hitParagraph) ||
+      hit?.closest("[data-docx-field], [data-docx-tab-leader], [data-docx-hf]")
+    )
+      return null;
     const caret = window.document.caretPositionFromPoint(x, y);
     const node = caret?.offsetNode;
     const element =
@@ -106,7 +119,11 @@ export function DocxView({
     const run = element?.closest<HTMLElement>(
       "[data-paragraph-id][data-start]",
     );
-    if (!caret || !run || !surface.current?.contains(run)) return null;
+    if (!caret || !run || !surface.current?.contains(run)) {
+      return !hitParagraph.textContent
+        ? { paragraphId: hitParagraph.dataset.paragraphId!, offset: 0 }
+        : null;
+    }
     const start = Number(run.dataset.start);
     const end = Number(
       run.dataset.end ?? start + (run.textContent?.length ?? 0),
@@ -288,7 +305,14 @@ export function DocxView({
         });
       };
       const tableColumn = createDocxTableColumn(editor);
+      const sourceSelection = createDocxSourceSelection(
+        editor,
+        document.bytes,
+        () => sourceReadOnly.current,
+        () => surface.current,
+      );
       const session: EditorSession = {
+        ...sourceSelection,
         async captureQuestionTarget() {
           const semantic = (editor as DocxEditorInstance).surface?.state()
             .selection;
@@ -409,6 +433,7 @@ export function DocxView({
         },
         setInputBlocked,
         async setReadOnly(value) {
+          sourceReadOnly.current = value;
           nativeEditor.current?.setMode(value ? "view" : "edit");
           update();
         },
@@ -534,9 +559,15 @@ export function DocxView({
             foundMatches = [found.match];
           }
           if (!foundMatches.length) return { count: 0 };
-          if (input.all) {
+          if (
+            input.all ||
+            foundMatches.every(
+              (match) => !match.scope || match.scope.kind === "body",
+            )
+          ) {
             // The painted editor's replaceMatch command is unavailable in this pin.
-            // Its public automation host commits a planned batch as ONE native undo unit.
+            // Its public replaceSpan preserves the source run properties and commits ONE undo unit.
+            // Plain-text paste strips those properties when replacing a complete paragraph.
             if (
               foundMatches.some(
                 (match) => match.scope && match.scope.kind !== "body",
@@ -548,6 +579,32 @@ export function DocxView({
             // React's callback narrows the concrete instance to the generic Editor contract.
             if (!("surface" in editor))
               throw new Error("이 편집기는 원자적 치환을 지원하지 않습니다.");
+            if (/[\r\n\t]/.test(input.replacement)) {
+              const surface = (editor as DocxEditorInstance).surface;
+              const part = surface?.session.partFor({ kind: "body" });
+              if (!surface || !part)
+                throw new Error("본문을 준비한 뒤 다시 치환해 주세요.");
+              const ops = docxReplacementOps(
+                part,
+                foundMatches,
+                input.replacement,
+              );
+              const result = surface.applyAutomationOps(
+                () => {
+                  checkRevision(expected);
+                  return ops;
+                },
+                { kind: "body" },
+              );
+              if (result.rejected)
+                throw new Error(
+                  String(result.reason ?? "문서가 치환을 거절했습니다."),
+                );
+              matches.clear();
+              editor.focus();
+              update();
+              return { count: result.committed ? foundMatches.length : 0 };
+            }
             const host = createBrowserAutomationHost(
               editor as DocxEditorInstance,
             );
@@ -670,6 +727,7 @@ export function DocxView({
       ];
       const timer = setInterval(update, 300);
       disposeRef.current = () => {
+        sourceSelection.dispose();
         active = false;
         clearInterval(timer);
         unsubs.forEach((off) => off());
@@ -683,6 +741,20 @@ export function DocxView({
     <div
       ref={surface}
       className="ds-docx-surface docx-editor"
+      onKeyUp={(event) => {
+        if (
+          readOnly &&
+          [
+            "ArrowLeft",
+            "ArrowRight",
+            "ArrowUp",
+            "ArrowDown",
+            "Home",
+            "End",
+          ].includes(event.key)
+        )
+          onSourceSelection?.();
+      }}
       onPointerDown={(event) => {
         pointerAnchor.current = readOnly
           ? pointerPosition(event.clientX, event.clientY)
@@ -694,8 +766,11 @@ export function DocxView({
         const head = readOnly
           ? pointerPosition(event.clientX, event.clientY)
           : null;
-        if (anchor && head)
+        if (anchor && head) {
           nativeEditor.current?.surface?.setSelection({ anchor, head });
+          if (readOnly) onSourceSelection?.();
+        } else if (readOnly)
+          onSourceSelection?.(new Error("TEMPLATE_SELECTION_UNSUPPORTED"));
       }}
     >
       <LocaleProvider i18n={ko}>

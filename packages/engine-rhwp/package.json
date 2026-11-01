@@ -1,6 +1,6 @@
 {
   "name": "@document-studio/engine-rhwp",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "license": "Apache-2.0",
   "files": [
@@ -33,5 +33,19 @@
   "devDependencies": {
     "react": "19.3.0",
     "react-dom": "19.3.0"
+  },
+  "description": "HWPX and HWP engine adapter and static runtime assets",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seongbeom-kr/document-studio.git",
+    "directory": "packages/engine-rhwp"
+  },
+  "homepage": "https://github.com/seongbeom-kr/document-studio#readme",
+  "bugs": {
+    "url": "https://github.com/seongbeom-kr/document-studio/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

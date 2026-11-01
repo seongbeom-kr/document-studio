@@ -14,6 +14,7 @@
   "scripts": {
     "dev:playground": "node scripts/prepare-playground.mjs && vite --config apps/playground/vite.config.ts --host 127.0.0.1",
     "build": "node scripts/build.mjs",
+    "build:template": "node scripts/build-template.mjs",
     "build:playground": "node scripts/prepare-playground.mjs && vite build --config apps/playground/vite.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

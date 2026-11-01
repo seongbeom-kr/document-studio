@@ -1,6 +1,6 @@
 {
   "name": "@document-studio/react",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "license": "Apache-2.0",
   "files": [
@@ -16,7 +16,8 @@
     "./styles.css": "./dist/styles.css"
   },
   "dependencies": {
-    "@document-studio/core": "workspace:^"
+    "@document-studio/core": "workspace:^",
+    "@document-studio/template": "workspace:^"
   },
   "peerDependencies": {
     "react": "^19.0.0",
@@ -25,5 +26,19 @@
   "devDependencies": {
     "react": "19.3.0",
     "react-dom": "19.3.0"
+  },
+  "description": "Embeddable React document editor and template authoring interface",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seongbeom-kr/document-studio.git",
+    "directory": "packages/react"
+  },
+  "homepage": "https://github.com/seongbeom-kr/document-studio#readme",
+  "bugs": {
+    "url": "https://github.com/seongbeom-kr/document-studio/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

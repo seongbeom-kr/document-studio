@@ -1,17 +1,32 @@
 # 패키지 빌드와 소비
 
-현재 공식 패키지 버전은 `0.3.0`입니다. `0.3.0-beta.9`의 편집 구현을 유지하면서 다섯 SDK 패키지에서 prerelease 표기를 제거했습니다. 배포 범위는 GitHub 소스와 설치용 tarball이며 npm registry 게시는 별도입니다. [0.3.0 릴리즈 노트](releases/0.3.0.md)에 구성과 제한을 정리했습니다.
+현재 작업 브랜치의 패키지 버전은 `0.4.0`입니다. 문서 위 작성 위치 지정과 선언형 양식 실행 패키지를 추가했습니다. 소스는 GitHub에서 관리하고 현재 패키지는 검증한 tarball로 전달합니다. npm 게시는 보류했으며 registry에 설치 가능한 패키지가 있다고 가정하지 않습니다. [0.4.0 변경·검증 범위](releases/0.4.0.md)를 확인하세요. 패키지 갱신만으로 소비 서비스가 배포되지는 않습니다.
 
 `0.x` 단계에서는 공개 API가 변경될 수 있으므로 소비 앱은 검증한 버전과 tarball 해시를 고정합니다. API 호환성 정책을 확정하는 `1.0.0`은 별도 이정표입니다. 버전 승격은 새로운 업무 문서 호환성이나 실제 호스트 수용 검증을 자동으로 보장하지 않습니다. 이후 prerelease를 npm에 게시할 때는 `beta` 등 별도 dist-tag를 사용하고 `latest`와 구분합니다.
 
-React 연결은 기존 네 SDK 패키지를 사용합니다. DOM 연결은 `@document-studio/browser`를 함께 설치합니다. 별도 Document Studio 서비스는 필요하지 않습니다. `apps/playground`는 private 개발 예제입니다. 호스트는 사용자·문서 ID·저장소 version·초안 namespace·문서 전환·파일 목록을 소유합니다.
+React 연결은 편집 엔진 두 개와 core·react·template 다섯 SDK 패키지를 사용합니다. DOM 연결은 `@document-studio/browser`를 함께 설치합니다. 별도 Document Studio 서비스는 필요하지 않습니다. `apps/playground`는 private 개발 예제입니다. 호스트는 사용자·문서 ID·저장소 version·초안 namespace·문서 전환·파일 목록을 소유합니다.
 
-로컬 검증 tarball은 `.build/packs/core.tgz`, `react.tgz`, `engine-docx.tgz`, `engine-rhwp.tgz`, `browser.tgz`입니다. React 소비 앱에서 앞의 네 파일을 함께 설치하고 RHWP 자산을 자신의 public 디렉터리에 복사합니다. 각각의 immutable hash 파일은 검증 cache 구분용이며 최신 패키지는 고정 이름 파일입니다.
-
-[README의 준비·빌드](../README.md#시작하기)를 마친 뒤 `yarn verify:packages`를 실행하면 다섯 tarball을 생성하고 별도 소비 앱에서 검증합니다. 브라우저 검증 없이 tarball만 만들려면 각 workspace에서 `yarn pack --out <출력 파일의 절대 경로>`를 실행할 수 있습니다. 예: `yarn workspace @document-studio/core pack --out /absolute/output/core.tgz`. 패키지를 같은 소스 버전에서 함께 생성하세요.
+## 검증한 tarball로 설치
 
 ```sh
-npm install /path/to/core.tgz /path/to/react.tgz /path/to/engine-docx.tgz /path/to/engine-rhwp.tgz
+npm install /path/to/core.tgz /path/to/react.tgz /path/to/engine-docx.tgz /path/to/engine-rhwp.tgz /path/to/template.tgz
+npx document-studio-rhwp-assets public/editor-assets/rhwp
+```
+
+DOM 호스트는 같은 버전의 `browser.tgz`도 설치합니다. 소비 앱은 패키지 파일·SHA256·잠금 파일을 함께 커밋합니다. 기존 CI의 `yarn install --immutable` 또는 `npm ci`가 이를 설치하고, 이미지 빌드 때 SDK와 정적 자산을 포함합니다. 실행 중 npm에서 내려받지 않습니다.
+
+## 소스 빌드와 향후 npm 게시
+
+현재 npm 게시는 수행하지 않습니다. 향후 게시할 때는 버전을 올리고 `yarn install`, `yarn build`, `yarn typecheck`, `yarn test`, `yarn verify:packages`를 완료합니다. `yarn verify:packages`가 만든 `.build/packs/*.tgz`를 사용하면 `workspace:` 내부 의존성이 npm 버전으로 변환됩니다. 원본 workspace 폴더에서 `npm pack`으로 대체하지 마세요.
+
+게시 순서는 core → template → react → engine-docx/engine-rhwp → browser입니다. 각 파일을 `npm publish .build/packs/<패키지>.tgz --access public --registry=https://registry.npmjs.org/`로 게시합니다. npm 로그인과 게시 인증은 게시자가 수행합니다. 기존 버전을 덮어쓰지 않으며 registry의 버전·integrity와 다운로드 바이트를 확인한 뒤 소비 앱을 갱신합니다.
+
+로컬 검증 tarball은 `.build/packs/core.tgz`, `react.tgz`, `engine-docx.tgz`, `engine-rhwp.tgz`, `browser.tgz`, `template.tgz`입니다. React 소비 앱에서 browser를 제외한 다섯 파일을 함께 설치하고 RHWP 자산을 자신의 public 디렉터리에 복사합니다. 각각의 immutable hash 파일은 검증 cache 구분용이며 최신 패키지는 고정 이름 파일입니다.
+
+[README의 준비·빌드](../README.md#시작하기)를 마친 뒤 `yarn verify:packages`를 실행하면 여섯 tarball을 생성하고 별도 소비 앱에서 검증합니다. 브라우저 검증 없이 tarball만 만들려면 각 workspace에서 `yarn pack --out <출력 파일의 절대 경로>`를 실행할 수 있습니다. 예: `yarn workspace @document-studio/core pack --out /absolute/output/core.tgz`. 패키지를 같은 소스 버전에서 함께 생성하세요.
+
+```sh
+npm install /path/to/core.tgz /path/to/react.tgz /path/to/engine-docx.tgz /path/to/engine-rhwp.tgz /path/to/template.tgz
 npx document-studio-rhwp-assets public/editor-assets/rhwp
 ```
 
@@ -23,7 +38,7 @@ React 컴포넌트 연결에서는 React 19와 React DOM 19가 host peer입니�
 
 에이전트는 `createAgentBridge()`로 지원/활성 명령·valueSchema를 조회합니다. documentId·expectedSessionId·expectedRevision으로 쓰기를 보호합니다. 0.2.3부터 쓰기 요청의 expectedSessionId는 필수이며 getState()/search()가 반환한 sessionId를 전달합니다. 같은 원본 버전으로 다시 열어도 새 세션 ID를 발급합니다. expectedVersion을 전달하면 저장소 버전도 검증합니다. 그림의 JSON byte 배열은 host transport에서 Uint8Array로 변환합니다. DOCX·HWPX 모두 바꾸기는 하나의 native undo 단계입니다. 기본 엔진의 preset은 하나의 native 작업으로 실행합니다. 외부 엔진의 순차 fallback은 전체 하나의 Undo가 아닙니다.
 
-소스는 [GitHub 저장소](https://github.com/seongbeom-kr/document-studio)에 공개했으며 npm registry 게시 전입니다. npm 공개 전에는 scope 소유권과 package metadata를 확인하고 검증된 버전·자산·notice·lock을 사용합니다. 실제 registry 게시 후에도 같은 외부 소비 시험을 실행합니다. 최신 저장·전환·초기화·에이전트 계약은 [호스트 통합 안내](integration.md), 지원 범위와 근거는 [검증 기록](practical-validation.md), [기능 범위](feature-support.md), [정부 기능 대응](government-office-reference.md), [라이선스](licensing.md)를 참고하세요.
+소스는 [GitHub 저장소](https://github.com/seongbeom-kr/document-studio)에서 관리합니다. 게시 전에는 scope 소유권과 package metadata를 확인하고 검증된 버전·자산·notice·lock을 사용합니다. 게시 후 registry에서 새로 설치한 소비 환경도 검증합니다. 최신 저장·전환·초기화·에이전트 계약은 [호스트 통합 안내](integration.md), 지원 범위와 근거는 [검증 기록](practical-validation.md), [기능 범위](feature-support.md), [정부 기능 대응](government-office-reference.md), [라이선스](licensing.md)를 참고하세요.
 
 이 버전의 파일 처리·저장 보호와 공개 패키지 근거는 갖췄지만, 기관 업무 문서 도입 전 실제 corpus와 한컴 native·물리 IME·운영 저장 계약을 확인해야 합니다. Windows 전용 정부 오피스의 전체 기능을 동일하게 제공하는 완료판으로 홍보하지 않습니다.
 

@@ -5,7 +5,10 @@ dist/
 test-results/
 playwright-report/
 apps/playground/public/editor-assets/
+apps/playground/public/fixtures/template-authoring.docx
+apps/playground/public/fixtures/template-authoring.hwpx
 *.tsbuildinfo
 .yarn/install-state.gz
 .next/
+packages/template/runtime-manifest.json
 examples/nextjs/public/editor-assets/

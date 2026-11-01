@@ -42,6 +42,7 @@ export * from "./selection-conflict";
 export * from "./inspect";
 export * from "./initialization";
 export * from "./fonts";
+export * from "./source-selection";
 import type {
   CommandId,
   EditorCommand,
@@ -180,6 +181,9 @@ export interface ExportSnapshot {
   format: DocumentFormat;
 }
 export interface EditorSession {
+  /** Read-only canonical source selection. Implementations reject edited sessions. */
+  captureSourceSelection?(): Promise<import("./source-selection").SourceSelection>;
+  highlightSourceSelection?(selection: import("./source-selection").SourceSelection | null): Promise<void>;
   captureQuestionTarget?(): Promise<
     import("./document-question").EngineQuestionTarget
   >;

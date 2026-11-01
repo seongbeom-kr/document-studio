@@ -5,5 +5,7 @@ packages/core/assets/fonts/*.txt whitespace=-trailing-space,cr-at-eol
 packages/core/src/font-pack.json text eol=lf
 # Keep audited native bindings, patch and license bytes identical on Windows/Linux.
 third_party/rhwp-core/** -text
+# Supplemental npm notices are hash-pinned too; Windows checkout must not rewrite them.
+third_party/npm/** -text
 third_party/rhwp-core/*.patch whitespace=-trailing-space,cr-at-eol
 scripts/rhwp-native/*.sh text eol=lf
