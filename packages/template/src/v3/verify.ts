@@ -106,8 +106,7 @@ function paragraphView(
   renew = false,
 ) {
   const runName = ns === NS.docx ? "r" : "run";
-  const style = (node: Node) => {
-    const run = parent(node, runName, ns);
+  const runStyle = (run: Element | null | undefined) => {
     if (!run) return null;
     const attrs = attributes(run);
     const props = elements(run)
@@ -123,6 +122,7 @@ function paragraphView(
       ? null
       : [attrs, props];
   };
+  const style = (node: Node) => runStyle(parent(node, runName, ns));
   let units = inlineTokens(p, ns).flatMap((token) =>
     token.value
       .split("")
@@ -131,11 +131,20 @@ function paragraphView(
   for (const c of [...changes].sort((a, b) => b.start - a.start)) {
     const edit = styledReplacementV3(units, c, canonicalV3);
     if (!edit) continue;
+    // Empty cells still have a source run style. The writer inserts into that
+    // first existing run; derive its expected style without changing the source.
+    const insertedStyle = units.length
+      ? (edit.style ?? null)
+      : runStyle(
+          elements(p).find(
+            (n) => n.namespaceURI === ns && n.localName === runName,
+          ),
+        );
     units = [
       ...units.slice(0, edit.start),
       ...edit.text.split("").map((char) => ({
         char: char.charCodeAt(0),
-        style: edit.style ?? null,
+        style: insertedStyle,
       })),
       ...units.slice(edit.end),
     ];

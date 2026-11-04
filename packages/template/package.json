@@ -1,6 +1,6 @@
 {
   "name": "@document-studio/template",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "description": "Declarative DOCX and HWPX template inspection, binding and generation",
   "type": "module",
   "license": "Apache-2.0",
