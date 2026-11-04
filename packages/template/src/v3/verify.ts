@@ -19,6 +19,7 @@ import { prototypeNodeV3, tableLayoutV3 } from "./layout";
 import { directV3 } from "./docx";
 import { cellColumn } from "../table-grid";
 import { workingRuntimeV3 } from "./runtime";
+import { styledReplacementV3 } from "./text-style";
 import type {
   TemplateDefinitionV3,
   ValidatedPlanV3,
@@ -128,15 +129,15 @@ function paragraphView(
       .map((char) => ({ char: char.charCodeAt(0), style: style(token.node) })),
   );
   for (const c of [...changes].sort((a, b) => b.start - a.start)) {
-    const chosen = units[c.start]
-      ? units[c.start]!.style
-      : (units[c.start - 1]?.style ?? null);
+    const edit = styledReplacementV3(units, c, canonicalV3);
+    if (!edit) continue;
     units = [
-      ...units.slice(0, c.start),
-      ...c.text
-        .split("")
-        .map((char) => ({ char: char.charCodeAt(0), style: chosen })),
-      ...units.slice(c.end),
+      ...units.slice(0, edit.start),
+      ...edit.text.split("").map((char) => ({
+        char: char.charCodeAt(0),
+        style: edit.style ?? null,
+      })),
+      ...units.slice(edit.end),
     ];
   }
   return { skeleton: skeleton(p, renew), units };
@@ -229,6 +230,7 @@ export async function verifyWorkingDocumentV3(input: {
       source: TemplateRegionV3;
     }>
   >();
+  const layoutHosts = new Set<Node>();
   for (const p of plan.regions) {
     const d = definition.regions.find((r) => r.id === p.regionId)!,
       s = before.structure.regions.find((r) => r.id === d.sourceRegionId)!,
@@ -237,6 +239,15 @@ export async function verifyWorkingDocumentV3(input: {
       ...(active.get(node) ?? []),
       { definition: d, plan: p, source: s },
     ]);
+    if (format === "hwpx")
+      for (let host = node.parentNode; host; host = host.parentNode) {
+        if (
+          host.nodeType === 1 &&
+          (host as Element).namespaceURI === ns &&
+          (host as Element).localName === "p"
+        )
+          layoutHosts.add(host);
+      }
   }
   const actualByNode = new Map(
     after.structure.regions.map((region) => [
@@ -465,7 +476,15 @@ export async function verifyWorkingDocumentV3(input: {
       if (source.nodeValue !== result.nodeValue) invalid();
       return;
     }
-    const a = children(source),
+    const cachedLayout = (node: Node) =>
+      node.nodeType === 1 &&
+      (node as Element).namespaceURI === ns &&
+      (node as Element).localName === "linesegarray";
+    if (layoutHosts.has(source) && children(result).some(cachedLayout))
+      invalid();
+    const a = children(source).filter(
+        (node) => !layoutHosts.has(source) || !cachedLayout(node),
+      ),
       b = children(result);
     let index = 0;
     for (const sourceChild of a) {

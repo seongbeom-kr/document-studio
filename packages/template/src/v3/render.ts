@@ -9,7 +9,7 @@ import {
   attr,
   type Element,
 } from "../xml";
-import { writeRange } from "../render";
+import { writeStyledRangeV3 } from "./text-style";
 import { previewThumbnail } from "../preview-cache";
 import { inspectV3Internal, sourceNodeV3 } from "./structure";
 import { canonicalV3, digestV3 } from "./contract";
@@ -90,7 +90,7 @@ export async function renderTemplateV3(input: {
     for (const p of paragraphs.slice(1)) p.parentNode!.removeChild(p);
     const p = paragraphs[0];
     if (!p) throw new Error("REPORT_INVALID_PROTOTYPE");
-    writeRange(p, 0, textOf(p, ns).length, text, format);
+    writeStyledRangeV3(p, 0, textOf(p, ns).length, text, format);
     renew(cell);
   };
   const textGroups = new Map<
@@ -102,6 +102,23 @@ export async function renderTemplateV3(input: {
       source = state.structure.regions.find((r) => r.id === d.sourceRegionId)!,
       node = state.nodes.get(source.id)!;
     parts.add(source.address.part);
+    if (format === "hwpx") {
+      // Inline table dimensions contribute to every enclosing paragraph's cached height.
+      // Re-measure these hosts after a cell, repeated paragraph or table changes.
+      for (let host = node.parentNode; host; host = host.parentNode) {
+        if (
+          host.nodeType !== 1 ||
+          (host as Element).namespaceURI !== ns ||
+          (host as Element).localName !== "p"
+        )
+          continue;
+        for (const cached of elements(host).filter(
+          (child) =>
+            child.namespaceURI === ns && child.localName === "linesegarray",
+        ))
+          host.removeChild(cached);
+      }
+    }
     if (p.kind === "text") {
       textGroups.set(node, [
         ...(textGroups.get(node) ?? []),
@@ -119,7 +136,7 @@ export async function renderTemplateV3(input: {
           : [""];
       for (const text of items) {
         const copy = node.cloneNode(true) as Element;
-        writeRange(copy, 0, source.text.length, text, format);
+        writeStyledRangeV3(copy, 0, source.text.length, text, format);
         renew(copy);
         node.parentNode!.insertBefore(copy, node);
       }
@@ -210,7 +227,7 @@ export async function renderTemplateV3(input: {
   }
   for (const [node, changes] of textGroups)
     for (const change of changes.sort((a, b) => b.start - a.start))
-      writeRange(node, change.start, change.end, change.text, format);
+      writeStyledRangeV3(node, change.start, change.end, change.text, format);
   for (const part of parts)
     state.opened.parts[part] = serialize(state.opened.xml.get(part)!);
   if (format === "hwpx" && state.opened.parts["Preview/PrvText.txt"])
