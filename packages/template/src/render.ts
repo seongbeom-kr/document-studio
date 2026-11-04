@@ -101,7 +101,7 @@ function writeTextNode(
     }
   }
 }
-function writeRange(
+export function writeRange(
   p: Element,
   start: number,
   end: number,

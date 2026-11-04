@@ -1,5 +1,5 @@
 import { attr, elements, type Element } from "../xml";
-import { digestV3 } from "./contract";
+import { canonicalV3, digestV3 } from "./contract";
 import type { TemplateStyleV3 } from "./types";
 
 /** Namespace-qualified source properties, including references to protected style sheets. */
@@ -23,6 +23,7 @@ export function styleProperties(node?: Element): Record<string, string> {
 }
 export function createStyleRegistryV3() {
   const styles = new Map<string, TemplateStyleV3>();
+  const cached = new Map<string, string>();
   return {
     styles,
     async add(
@@ -39,9 +40,13 @@ export function createStyleRegistryV3() {
       ])
         if (attr(node, name) !== undefined)
           values[`@${name}`] = attr(node, name)!;
+      const key = canonicalV3({ kind, properties: values }),
+        existing = cached.get(key);
+      if (existing) return existing;
       const digest = await digestV3({ kind, properties: values });
       const id = `style_${digest.slice(7, 31)}`;
       styles.set(id, { id, kind, digest, properties: values });
+      cached.set(key, id);
       return id;
     },
   };

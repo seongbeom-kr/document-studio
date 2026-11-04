@@ -14,6 +14,7 @@ import { cellColumn } from "../table-grid";
 import { fail, type TemplateFormat } from "../types";
 import { digestV3, validateContractV3 } from "./contract";
 import { createStyleRegistryV3 } from "./styles";
+import { previewThumbnail } from "../preview-cache";
 import type {
   SourceAddressV3,
   SourceIdentityV3,
@@ -114,11 +115,9 @@ export async function inspectV3Internal(input: {
   const registry = createStyleRegistryV3(),
     regions: TemplateRegionV3[] = [],
     nodes = new Map<string, Element>();
+  const legacyTargets = new Map(legacy.targets.map((t) => [t.id, t]));
   const targetByNode = new Map(
-    [...legacyNodes].map(([id, node]) => [
-      node,
-      legacy.targets.find((t) => t.id === id)!,
-    ]),
+    [...legacyNodes].map(([id, node]) => [node, legacyTargets.get(id)!]),
   );
   const all = opened.bodyParts.flatMap((part) => walk(opened.xml.get(part)!));
   const page = pageOf(all, input.format),
@@ -178,7 +177,14 @@ export async function inspectV3Internal(input: {
         const target = targetByNode.get(node)!;
         region.editable = target.editable;
         if (target.reason) region.reason = target.reason;
-        region.capabilities.paragraphRepeat = target.editable && !tableParent;
+        region.capabilities.paragraphRepeat =
+          target.editable &&
+          !tableParent &&
+          !walk(node).some(
+            (n) =>
+              n.namespaceURI === ns &&
+              ["secPr", "sectPr", "colPr"].includes(n.localName ?? ""),
+          );
         let offset = 0;
         region.textRuns = [];
         for (const run of elements(node).filter(
@@ -388,7 +394,11 @@ export async function inspectV3Internal(input: {
     await registry.add("section", node, node);
   const protectedParts: Record<string, DigestV3> = {};
   for (const [part, bytes] of Object.entries(opened.parts))
-    if (!opened.bodyParts.includes(part))
+    if (
+      !opened.bodyParts.includes(part) &&
+      part !== "Preview/PrvText.txt" &&
+      !previewThumbnail(part)
+    )
       protectedParts[part] = (await digest(bytes)) as DigestV3;
   const structure: TemplateStructureV3 = {
     schemaVersion: 3,

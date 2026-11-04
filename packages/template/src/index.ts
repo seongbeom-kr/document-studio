@@ -22,3 +22,6 @@ export {
   ReportPlanErrorV3,
 } from "./v3/plan";
 export type { RenderPlanValidationV3 } from "./v3/plan";
+export { renderTemplateV3 } from "./v3/render";
+export type { RenderInputV3 } from "./v3/render";
+export { verifyWorkingDocumentV3 } from "./v3/verify";
