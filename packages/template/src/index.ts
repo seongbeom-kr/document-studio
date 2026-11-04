@@ -16,3 +16,9 @@ export {
 } from "./v3/contract";
 export type { V3ContractKind } from "./v3/contract";
 export { inspectTemplateV3 } from "./v3/structure";
+export {
+  validateRenderPlanV3,
+  regionReviewDigestV3,
+  ReportPlanErrorV3,
+} from "./v3/plan";
+export type { RenderPlanValidationV3 } from "./v3/plan";
