@@ -18,6 +18,7 @@ import { tableLayoutV3, prototypeNodeV3 } from "./layout";
 import { directV3, docxTableV3, docxCellV3, docxRowV3 } from "./docx";
 import { hwpxTableV3, hwpxCellV3, hwpxRowHeightV3 } from "./hwpx";
 import { verifyWorkingDocumentV3 } from "./verify";
+import { validateInputValuesV3 } from "./input-values";
 import type {
   DigestV3,
   TemplateStructureV3,
@@ -36,6 +37,7 @@ export async function renderTemplateV3(input: {
   input: RenderInputV3;
   validatedPlan: ValidatedPlanV3;
 }) {
+  validateInputValuesV3(input.definition.inputSchema, input.input.values);
   const state = await inspectV3Internal({
     bytes: input.bytes,
     format: input.structure.format,
