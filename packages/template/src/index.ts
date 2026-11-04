@@ -15,3 +15,4 @@ export {
   ARTIFACT_FIELDS_V3,
 } from "./v3/contract";
 export type { V3ContractKind } from "./v3/contract";
+export { inspectTemplateV3 } from "./v3/structure";

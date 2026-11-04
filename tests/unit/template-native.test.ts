@@ -5,6 +5,8 @@ import init, { HwpDocument } from "../../third_party/rhwp-core/rhwp.js";
 import {
   inspectTemplate,
   createTemplateSelectionBridge,
+  inspectTemplateV3,
+  createTemplateSelectionBridgeV3,
   renderTemplate,
   verifyTemplateOutput,
   type TemplateDefinition,
@@ -88,6 +90,33 @@ it("maps the verified HWPX working copy after an actual native HWP conversion", 
     converted.free();
   }
   const sourceHash = "sha256:" + createHash("sha256").update(hwp).digest("hex");
+  const structureV3 = await inspectTemplateV3({
+    bytes,
+    format: "hwpx",
+    identity: {
+      sourceHash: sourceHash as `sha256:${string}`,
+      normalizedHash: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+      structureRevision: 1,
+    },
+  });
+  const v3 = await createTemplateSelectionBridgeV3({
+    documentId: "converted-hwp",
+    bytes,
+    structure: structureV3,
+  });
+  const duplicateV3 = structureV3.regions.filter(
+    (r) => r.kind === "text" && r.text === "중복😀",
+  );
+  expect(duplicateV3).toHaveLength(2);
+  expect(duplicateV3[0]!.id).not.toBe(duplicateV3[1]!.id);
+  for (const region of duplicateV3) {
+    const location = v3.locate({ ...v3.identity, targetId: region.id });
+    expect(v3.locate(v3.resolve(location))).toEqual(location);
+  }
+  expect(structureV3.page.width).toBeGreaterThan(10000);
+  expect(
+    structureV3.regions.find((r) => r.kind === "table")!.capabilities.merges,
+  ).toBe(true);
   const bridge = await createTemplateSelectionBridge({
     documentId: "converted-hwp",
     bytes,
