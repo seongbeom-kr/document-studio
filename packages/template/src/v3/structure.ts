@@ -103,7 +103,7 @@ export async function inspectV3Internal(input: {
     opened,
     nodes: legacyNodes,
     structure: legacy,
-  } = await inspectInternal(input);
+  } = await inspectInternal(input, { preservePageNumberReset: true });
   if (input.identity.normalizedHash !== (await digest(input.bytes)))
     fail("TEMPLATE_SELECTION_STALE");
   if (
@@ -183,7 +183,9 @@ export async function inspectV3Internal(input: {
           !walk(node).some(
             (n) =>
               n.namespaceURI === ns &&
-              ["secPr", "sectPr", "colPr"].includes(n.localName ?? ""),
+              ["secPr", "sectPr", "colPr", "newNum"].includes(
+                n.localName ?? "",
+              ),
           );
         let offset = 0;
         region.textRuns = [];

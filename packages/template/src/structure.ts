@@ -39,11 +39,25 @@ const unsafe = new Set([
   "equation",
   "container",
 ]);
-function safety(p: Element, ns: string) {
+function safety(p: Element, ns: string, preservePageNumberReset = false) {
   const columnProperties = (node: Element) => {
     if (node.namespaceURI !== NS.hwpx || node.localName !== "ctrl")
       return false;
     const children = elements(node);
+    if (
+      preservePageNumberReset &&
+      children.length === 1 &&
+      children[0]!.namespaceURI === NS.hwpx &&
+      children[0]!.localName === "newNum" &&
+      attr(children[0]!, "numType") === "PAGE" &&
+      /^[1-9]\d{0,4}$/.test(attr(children[0]!, "num") ?? "") &&
+      Number(attr(children[0]!, "num")) <= 65535 &&
+      elements(children[0]!).length === 0 &&
+      Array.from(children[0]!.attributes).every((attribute) =>
+        ["num", "numType"].includes(attribute.name),
+      )
+    )
+      return true;
     return (
       children.length === 1 &&
       children[0]!.namespaceURI === NS.hwpx &&
@@ -94,10 +108,13 @@ function safety(p: Element, ns: string) {
   return undefined;
 }
 import { cellColumn, crossedByMerge } from "./table-grid";
-export async function inspectInternal(input: {
-  bytes: Uint8Array;
-  format: TemplateFormat;
-}) {
+export async function inspectInternal(
+  input: {
+    bytes: Uint8Array;
+    format: TemplateFormat;
+  },
+  options: { preservePageNumberReset?: boolean } = {},
+) {
   const { bytes, format } = input,
     opened = openArchive(bytes, format),
     sourceHash = await digest(bytes),
@@ -177,7 +194,7 @@ export async function inspectInternal(input: {
           cell = parent(p, "tc", ns),
           rowId = row && rowIds.get(row),
           meta = rows.find((r) => r.id === rowId);
-        const reason = safety(p, ns),
+        const reason = safety(p, ns, options.preservePageNumberReset),
           column = row && cell ? cellColumn(cell, row, format) : undefined;
         const address = meta
           ? `${meta.address} ${column}열 문단`
