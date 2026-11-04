@@ -13,6 +13,10 @@ import { loadNativeRuntime, type NativeHwpDocumentV3 } from "./native-runtime";
 import { verifiedHwpBytesV3 } from "./hwp";
 import { inspectTemplateV3 } from "./structure";
 import { checkNativeBoundsV3 } from "./native-layout-bounds";
+import {
+  fitNativeTableRowsV3,
+  patchNativeRowHeightsV3,
+} from "./native-table-reflow";
 import type {
   FinalDocumentV3,
   PagePreviewV3,
@@ -213,14 +217,22 @@ export async function exportFinalDocumentV3(
   try {
     const fontBindings = runtime.bindFonts(document, working.bytes);
     document.reflowLinesegs();
-    const normalized = document.exportHwpx();
+    const nativeBefore = document.exportHwpx();
+    const rowHeightsChanged = await fitNativeTableRowsV3(document);
+    const normalized = rowHeightsChanged ? document.exportHwpx() : nativeBefore;
     if (!same(await snapshot(working.bytes), await snapshot(normalized)))
       throw new Error("REPORT_HWP_STRUCTURE_MISMATCH");
     const before = await pages(document),
       bytes =
         outputFormat === "hwp"
           ? verifiedHwpBytesV3(document)
-          : new Uint8Array(working.bytes);
+          : rowHeightsChanged
+            ? await patchNativeRowHeightsV3(
+                working.bytes,
+                nativeBefore,
+                normalized,
+              )
+            : new Uint8Array(working.bytes);
     if (bytes.length > 64 * 1024 * 1024) throw new Error("REPORT_OUTPUT_LIMIT");
     const reopened = new runtime.HwpDocument(bytes);
     try {

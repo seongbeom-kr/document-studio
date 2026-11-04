@@ -30,3 +30,12 @@ Regression source: fixtures/paragraph-overlay.hwpx (project-owned synthetic data
 scripts/generate-overlay-fixture.mjs, tests/unit/rhwp-native-layout.test.ts and
 tests/e2e/paragraph-overlay.spec.ts. Customer documents remain local and are not
 part of this repository.
+
+2026-11-05: The pinned source patch also preserves HWP5 lineage on HWP5 -> HWPX -> HWP
+roundtrips. Do not add /RhwpHwpxOrigin when META-INF/rhwp-hwp5-origin is already present.
+Genuine HWPX sources still receive the original marker. This prevents switching the
+reopened pagination profile. No generated HWP binary is rewritten after export.
+Rebuild uses Rust1.93.1, wasm-bindgen0.2.127, wasm32-unknown-unknown, locked release
+default features for the rhwp library. Generate upstream ignored test harnesses first,
+or omit only their unused target declarations in an isolated library-build manifest.
+The SDK packaged-runtime lineage regression and native all-page roundtrip checks apply.

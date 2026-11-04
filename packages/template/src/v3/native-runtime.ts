@@ -23,6 +23,29 @@ export interface NativeHwpDocumentV3 {
   getPageTextLayout(page: number): string;
   getPageRenderTree(page: number): string;
   renderPageSvg(page: number): string;
+  getTableDimensions?(
+    section: number,
+    paragraph: number,
+    control: number,
+  ): string;
+  getCellInfo?(
+    section: number,
+    paragraph: number,
+    control: number,
+    cell: number,
+  ): string;
+  getCellProperties?(
+    section: number,
+    paragraph: number,
+    control: number,
+    cell: number,
+  ): string;
+  resizeTableCells?(
+    section: number,
+    paragraph: number,
+    control: number,
+    changes: string,
+  ): string;
   registerExactFontSource(
     shape: number,
     language: number,

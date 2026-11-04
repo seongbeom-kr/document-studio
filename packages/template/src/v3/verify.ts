@@ -20,6 +20,7 @@ import { directV3 } from "./docx";
 import { cellColumn } from "../table-grid";
 import { workingRuntimeV3 } from "./runtime";
 import { styledReplacementV3 } from "./text-style";
+import { hwpxRowHeightV3 } from "./hwpx";
 import type {
   TemplateDefinitionV3,
   ValidatedPlanV3,
@@ -310,16 +311,35 @@ export async function verifyWorkingDocumentV3(input: {
       )
         invalid();
     }
+    const sourceRows = elements(sourceNode).filter(
+      (n) => n.namespaceURI === ns && n.localName === "tr",
+    );
+    const rowHeights = expected.rows.map((_, index) =>
+      hwpxRowHeightV3(
+        sourceRows[
+          index < layout.headerRows
+            ? index
+            : (d.prototypeRow ??
+              Math.min(source.table!.headerRows, sourceRows.length - 1))
+        ]!,
+      ),
+    );
+    if (format === "hwpx") {
+      const size = directV3(node, "sz");
+      if (
+        !size ||
+        Number(attr(size, "height")) !==
+          rowHeights.reduce((sum, height) => sum + height, 0)
+      )
+        invalid();
+    }
     for (const [r, row] of table.rows.entries()) {
       const wanted = expected.rows[r]!,
         expectedCells = wanted.cells;
       if (row.cells.length !== expectedCells.length) invalid();
-      const sourceRows = elements(sourceNode).filter(
-          (n) => n.namespaceURI === ns && n.localName === "tr",
-        ),
-        actualRow = elements(node).filter(
-          (n) => n.namespaceURI === ns && n.localName === "tr",
-        )[r]!;
+      const actualRow = elements(node).filter(
+        (n) => n.namespaceURI === ns && n.localName === "tr",
+      )[r]!;
       const prototypeRow =
         sourceRows[
           r < layout.headerRows
@@ -418,6 +438,14 @@ export async function verifyWorkingDocumentV3(input: {
           Number(attr(width, format === "docx" ? "w" : "width")) !==
             expectedWidth * (format === "hwpx" ? 5 : 1) ||
           (format === "docx" && attr(width, "type") !== "dxa")
+        )
+          invalid();
+        if (
+          format === "hwpx" &&
+          Number(attr(width, "height")) !==
+            rowHeights
+              .slice(r, r + cell.rowSpan)
+              .reduce((sum, height) => sum + height, 0)
         )
           invalid();
         const sourceCopy = prototype.cloneNode(true) as Element,

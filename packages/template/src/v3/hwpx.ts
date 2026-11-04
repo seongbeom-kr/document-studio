@@ -1,10 +1,10 @@
-import { attr, type Element } from "../xml";
+import { attr, elements, type Element } from "../xml";
 import { directV3, ensureV3 } from "./docx";
 export function hwpxTableV3(
   table: Element,
   widths: number[],
   rowCount: number,
-  height: number,
+  totalHeight: number,
 ) {
   table.setAttribute("rowCnt", String(rowCount));
   table.setAttribute("colCnt", String(widths.length));
@@ -12,7 +12,7 @@ export function hwpxTableV3(
   const size = directV3(table, "sz");
   if (size) {
     size.setAttribute("width", String(widths.reduce((n, w) => n + w, 0) * 5));
-    size.setAttribute("height", String(height * rowCount));
+    size.setAttribute("height", String(totalHeight));
   }
 }
 export function hwpxCellV3(
@@ -22,7 +22,7 @@ export function hwpxCellV3(
   rowSpan: number,
   columnSpan: number,
   width: number,
-  height: number,
+  totalHeight: number,
   header: boolean,
 ) {
   const address = ensureV3(cell, "cellAddr"),
@@ -33,10 +33,21 @@ export function hwpxCellV3(
   span.setAttribute("rowSpan", String(rowSpan));
   span.setAttribute("colSpan", String(columnSpan));
   size.setAttribute("width", String(width * 5));
-  size.setAttribute("height", String(height * rowSpan));
+  size.setAttribute("height", String(totalHeight));
   cell.setAttribute("header", header ? "1" : "0");
 }
-export function hwpxRowHeightV3(cell: Element) {
-  const size = directV3(cell, "cellSz");
-  return Math.max(1, Number(size && attr(size, "height")) || 2000);
+export function hwpxRowHeightV3(row: Element) {
+  return Math.max(
+    1,
+    ...elements(row)
+      .filter((n) => n.localName === "tc")
+      .map((cell) => {
+        const size = directV3(cell, "cellSz"),
+          span = directV3(cell, "cellSpan");
+        const rows = Math.max(1, Number(span && attr(span, "rowSpan")) || 1);
+        return Math.ceil(
+          Math.max(1, Number(size && attr(size, "height")) || 2000) / rows,
+        );
+      }),
+  );
 }

@@ -157,17 +157,24 @@ export async function renderTemplateV3(input: {
           (n) => n.namespaceURI === ns && n.localName === "tr",
         ),
         doc = state.opened.xml.get(source.address.part)!;
-      const baseCell = prototypeNodeV3(
-          doc,
-          source,
-          d,
-          layout.headerRows,
-          0,
-          plan,
+      const rowHeights = plan.rows.map((_, index) =>
+        hwpxRowHeightV3(
+          sourceRows[
+            index < layout.headerRows
+              ? index
+              : (d.prototypeRow ??
+                Math.min(source.table!.headerRows, sourceRows.length - 1))
+          ]!,
         ),
-        height = hwpxRowHeightV3(baseCell);
+      );
       if (format === "docx") docxTableV3(copy, layout.widths);
-      else hwpxTableV3(copy, layout.widths, plan.rows.length, height);
+      else
+        hwpxTableV3(
+          copy,
+          layout.widths,
+          plan.rows.length,
+          rowHeights.reduce((sum, height) => sum + height, 0),
+        );
       for (const [ri, row] of plan.rows.entries()) {
         const prototype =
             sourceRows[
@@ -215,7 +222,9 @@ export async function renderTemplateV3(input: {
               rs,
               cs,
               width,
-              height,
+              rowHeights
+                .slice(ri, ri + rs)
+                .reduce((sum, height) => sum + height, 0),
               ri < layout.headerRows,
             );
           tr.appendChild(cell);
