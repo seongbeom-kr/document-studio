@@ -101,8 +101,36 @@ export function openArchive(bytes: Uint8Array, format: TemplateFormat) {
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   return { parts, xml, bodyParts };
 }
+// xmldom 0.9 supports string replacements here; its declaration omits that runtime branch.
+// Only already-escaped text is returned, covered by exact XML round-trip tests.
+const textSerializer = new XMLSerializer() as unknown as {
+  serializeToString(
+    document: Document,
+    options: { nodeFilter(node: Node): Node | string },
+  ): string;
+};
 export const serialize = (document: Document) =>
-  strToU8(new XMLSerializer().serializeToString(document));
+  strToU8(
+    textSerializer.serializeToString(document, {
+      nodeFilter(node) {
+        // Literal CR characters would normalize to LF when the XML is reopened.
+        // Preserve the parsed text value without changing the DOM or weakening comparison.
+        if (node.nodeType === 3 && node.nodeValue?.includes("\r")) {
+          const entities: Record<string, string> = {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            "\r": "&#13;",
+          };
+          return node.nodeValue.replace(
+            /[&<>\r]/g,
+            (value) => entities[value]!,
+          );
+        }
+        return node;
+      },
+    }),
+  );
 export async function digest(bytes: Uint8Array): Promise<string> {
   const hash = await globalThis.crypto.subtle.digest(
     "SHA-256",

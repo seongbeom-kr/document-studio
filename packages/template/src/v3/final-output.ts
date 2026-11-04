@@ -12,6 +12,7 @@ import { canonicalV3, digestV3, validateContractV3 } from "./contract";
 import { loadNativeRuntime, type NativeHwpDocumentV3 } from "./native-runtime";
 import { verifiedHwpBytesV3 } from "./hwp";
 import { inspectTemplateV3 } from "./structure";
+import { checkNativeBoundsV3 } from "./native-layout-bounds";
 import type {
   FinalDocumentV3,
   PagePreviewV3,
@@ -36,51 +37,6 @@ function geometry(value: unknown): unknown {
       Object.entries(value).map(([k, v]) => [k, geometry(v)]),
     );
   return value;
-}
-function checkBounds(
-  tree: Record<string, unknown>,
-  pageWidth: number,
-  pageHeight: number,
-  cell?: { x: number; y: number; w: number; h: number },
-) {
-  const type = String(tree.type ?? ""),
-    box = tree.bbox as
-      | { x: number; y: number; w: number; h: number }
-      | undefined;
-  if (box) {
-    if (
-      Object.values(box).some((n) => !Number.isFinite(n)) ||
-      box.w < 0 ||
-      box.h < 0
-    )
-      throw new Error("REPORT_LAYOUT_INVALID");
-    if (["TextRun", "Image", "Picture"].includes(type)) {
-      if (
-        box.x < -0.75 ||
-        box.y < -0.75 ||
-        box.x + box.w > pageWidth + 0.75 ||
-        box.y + box.h > pageHeight + 0.75
-      )
-        throw new Error("REPORT_LAYOUT_OVERFLOW");
-      if (
-        cell &&
-        (box.x < cell.x - 0.75 ||
-          box.x + box.w > cell.x + cell.w + 0.75 ||
-          box.y < cell.y - 0.75 ||
-          box.y + box.h > cell.y + cell.h + 0.75)
-      )
-        throw new Error("REPORT_LAYOUT_OVERFLOW");
-    }
-    if (type === "Cell" || type === "TableCell") cell = box;
-  }
-  if (Array.isArray(tree.children))
-    for (const child of tree.children)
-      checkBounds(
-        child as Record<string, unknown>,
-        pageWidth,
-        pageHeight,
-        cell,
-      );
 }
 function safeSvg(svg: string) {
   const doc = parseXml(new TextEncoder().encode(svg));
@@ -121,7 +77,7 @@ async function pages(document: NativeHwpDocumentV3) {
     const info = JSON.parse(document.getPageInfo(page)),
       tree = JSON.parse(document.getPageRenderTree(page)),
       text = JSON.parse(document.getPageTextLayout(page));
-    checkBounds(tree, info.width, info.height);
+    checkNativeBoundsV3(tree, info.width, info.height, text);
     layout.push(geometry({ info, tree, text }));
     const svg = document.renderPageSvg(page),
       bytes = new TextEncoder().encode(svg);
