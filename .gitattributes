@@ -9,3 +9,6 @@ third_party/rhwp-core/** -text
 third_party/npm/** -text
 third_party/rhwp-core/*.patch whitespace=-trailing-space,cr-at-eol
 scripts/rhwp-native/*.sh text eol=lf
+# Generated validation code is checked byte-for-byte against the trusted schema.
+packages/template/contracts/v3/*.json text eol=lf
+packages/template/src/v3/generated/* text eol=lf
