@@ -261,6 +261,24 @@ export interface FinalDocumentProofV3 {
   gridPreserved: true;
   protectedStylesPreserved: true;
   runtimeProfile: RuntimeProfileV3;
+  pageLayoutDigestBefore: DigestV3;
+  pageLayoutDigestAfter: DigestV3;
+  fontBindings: {
+    charShapeId: number;
+    languageIndex: number;
+    requestedFamily: string;
+    resolvedFamily: string;
+    fontDigest: string;
+  }[];
+  previewDigests: DigestV3[];
+  layoutRuntime: string;
+}
+export interface PagePreviewV3 {
+  page: number;
+  width: number;
+  height: number;
+  digest: DigestV3;
+  svg: string;
 }
 export interface FinalDocumentV3 {
   bytes: Uint8Array;
@@ -269,6 +287,7 @@ export interface FinalDocumentV3 {
   byteLength: number;
   verificationDigest: DigestV3;
   proof: FinalDocumentProofV3;
+  previews: PagePreviewV3[];
 }
 export const V3_LIMITS = Object.freeze({
   sourceBytes: 32 * 1024 * 1024,
