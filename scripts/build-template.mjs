@@ -12,6 +12,12 @@ import {
 import { permittedLicense } from "./license-policy.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url)),
   pkg = path.join(root, "packages/template");
+const validators = spawnSync(
+  process.execPath,
+  [path.join(root, "scripts/generate-template-v3-validators.mjs"), "--check"],
+  { cwd: root, stdio: "inherit" },
+);
+if (validators.status !== 0) process.exit(validators.status ?? 1);
 const fontPack = await verifyFontAssets(),
   native = await verifyRhwpCoreAssets();
 for (const [entry, empty] of [

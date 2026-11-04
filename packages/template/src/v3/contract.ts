@@ -1,5 +1,4 @@
-import Ajv2020 from "ajv/dist/2020.js";
-import bundle from "../../contracts/v3/bundle.json";
+import * as compiled from "./generated/validators.cjs";
 import { digest } from "../xml";
 import { validInputSchemaV3 } from "./input-schema";
 import type {
@@ -22,19 +21,7 @@ const kinds: V3ContractKind[] = [
   "artifact",
   "result",
 ];
-const ajv = new Ajv2020({
-  strict: true,
-  allErrors: false,
-  validateFormats: false,
-  ownProperties: true,
-});
-ajv.addSchema(bundle);
-const validators = new Map(
-  kinds.map((kind) => [
-    kind,
-    ajv.compile({ $ref: `${bundle.$id}#/$defs/${kind}` }),
-  ]),
-);
+const validators = new Map(kinds.map((kind) => [kind, compiled[kind]]));
 export const ARTIFACT_FIELDS_V3 = [
   "operationId",
   "outputFormat",
