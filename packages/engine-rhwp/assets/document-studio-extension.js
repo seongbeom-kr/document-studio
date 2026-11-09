@@ -6,6 +6,13 @@ const parentOrigin = new URL(location.href).searchParams.get(
 if (!parentOrigin || !/^https?:\/\//.test(parentOrigin))
   throw new Error("Document Studio parent origin is required.");
 let revision = 0;
+// crypto.randomUUID exists only in secure contexts; plain-http hosts still need table ids.
+const randomId = () =>
+  typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) =>
+        b.toString(16).padStart(2, "0"),
+      ).join("");
 let boundServices;
 let sdkInputDepth = 0;
 let readOnly =
@@ -1055,7 +1062,7 @@ const poll = setInterval(() => {
         "표 크기 제한을 넘었습니다. 2,000셀·50열 이하 표를 선택해 주세요.",
         "table-limit-exceeded",
       );
-    const tableId = crypto.randomUUID();
+    const tableId = randomId();
     const cells = Array.from({ length: dims.cellCount }, (_, index) => {
       const location = [
         pos.sectionIndex,

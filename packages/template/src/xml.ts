@@ -6,7 +6,7 @@ import {
   type Node,
 } from "@xmldom/xmldom";
 import { unzipSync, strToU8 } from "fflate";
-import { validateDocumentArchive } from "@document-studio/core";
+import { sha256Hex, validateDocumentArchive } from "@document-studio/core";
 import { fail, TEMPLATE_LIMITS, type TemplateFormat } from "./types";
 export { type Element, type Document, type Node };
 export const NS = {
@@ -132,16 +132,7 @@ export const serialize = (document: Document) =>
     }),
   );
 export async function digest(bytes: Uint8Array): Promise<string> {
-  const hash = await globalThis.crypto.subtle.digest(
-    "SHA-256",
-    new Uint8Array(bytes).buffer,
-  );
-  return (
-    "sha256:" +
-    Array.from(new Uint8Array(hash), (v) =>
-      v.toString(16).padStart(2, "0"),
-    ).join("")
-  );
+  return "sha256:" + (await sha256Hex(bytes));
 }
 /** Only text belonging to this paragraph: nested tables and shape paragraphs never leak in. */
 export function textNodes(paragraph: Element, ns: string): Element[] {

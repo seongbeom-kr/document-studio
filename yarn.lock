@@ -84,6 +84,9 @@ __metadata:
     "@docx-editor.dev/core": "npm:2.25.0"
     "@docx-editor.dev/i18n": "npm:2.25.0"
     "@docx-editor.dev/react": "npm:2.25.0"
+    "@radix-ui/react-select": "npm:2.3.7"
+    class-variance-authority: "npm:0.7.1"
+    clsx: "npm:2.1.1"
     docx: "npm:9.8.1"
     react: "npm:19.3.0"
     react-dom: "npm:19.3.0"
@@ -902,7 +905,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@radix-ui/react-select@npm:^2.3.3":
+"@radix-ui/react-select@npm:2.3.7, @radix-ui/react-select@npm:^2.3.3":
   version: 2.3.7
   resolution: "@radix-ui/react-select@npm:2.3.7"
   dependencies:
@@ -1523,7 +1526,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"class-variance-authority@npm:^0.7.1":
+"class-variance-authority@npm:0.7.1, class-variance-authority@npm:^0.7.1":
   version: 0.7.1
   resolution: "class-variance-authority@npm:0.7.1"
   dependencies:
@@ -1539,7 +1542,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"clsx@npm:^2.1.1":
+"clsx@npm:2.1.1, clsx@npm:^2.1.1":
   version: 2.1.1
   resolution: "clsx@npm:2.1.1"
   checksum: 10c0/c4c8eb865f8c82baab07e71bfa8897c73454881c4f99d6bc81585aecd7c441746c1399d08363dc096c550cceaf97bd4ce1e8854e1771e9998d9f94c4fe075839

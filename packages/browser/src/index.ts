@@ -1,3 +1,4 @@
+import { randomId } from "@document-studio/core";
 import { createElement, useLayoutEffect, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import {
@@ -142,7 +143,7 @@ export async function mountDocumentEditor(
   let root: Root;
   try {
     root = createRoot(surface, {
-      identifierPrefix: `document-studio-${crypto.randomUUID()}-`,
+      identifierPrefix: `document-studio-${randomId()}-`,
       onUncaughtError(error) {
         renderFailure = error;
         pendingRender?.reject(error);

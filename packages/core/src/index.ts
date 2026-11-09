@@ -21,6 +21,7 @@ export type {
   PageSettings,
   ImageInsert,
 } from "./commands";
+export { randomId, sha256, sha256Hex } from "./web-crypto";
 export { REPORT_PRESETS } from "./presets";
 export type { DocumentPreset } from "./presets";
 export * from "./office-automation";

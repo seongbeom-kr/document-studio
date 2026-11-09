@@ -1,3 +1,4 @@
+import { randomId } from "./web-crypto";
 /** CSS pixels in the host viewport; presentation only, never an edit target. */
 export interface QuestionRect {
   left: number;
@@ -69,7 +70,7 @@ export function createDocumentQuestionSession(port: {
           "질문할 텍스트를 지정해 주세요. 선택 영역은 8,000자까지 지원합니다.",
         );
       const captured: DocumentQuestionTarget = {
-        targetId: crypto.randomUUID(),
+        targetId: randomId(),
         documentId: before.documentId,
         sessionId: before.sessionId,
         version: before.version,

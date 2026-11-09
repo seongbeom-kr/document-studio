@@ -1,3 +1,4 @@
+import { randomId } from "./web-crypto";
 import { parseCalendarDate, formatOfficeDate } from "./office-automation";
 import {
   COMMAND_LABELS,
@@ -342,7 +343,7 @@ export function createQuickActionEditor(port: {
         ...identity(state),
         ...plan,
         request: structuredClone(request),
-        previewId: crypto.randomUUID(),
+        previewId: randomId(),
         selection: {
           mode: state.selectionCollapsed ? "insert" : "replace",
           excerpt: state.selectionText?.slice(0, 160),

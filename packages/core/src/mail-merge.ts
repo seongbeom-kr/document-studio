@@ -1,3 +1,4 @@
+import { randomId, sha256Hex } from "./web-crypto";
 import { unzipSync, zipSync, strFromU8, strToU8, type Zippable } from "fflate";
 import { validateDocumentAsync } from "./validation";
 import { parseDelimited } from "./office-automation";
@@ -184,13 +185,7 @@ const identity = (state: TableEditIdentity): TableEditIdentity => ({
   selectionKey: state.selectionKey,
 });
 async function digest(bytes: Uint8Array) {
-  const hash = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes));
-  return (
-    "sha256:" +
-    Array.from(new Uint8Array(hash), (n) =>
-      n.toString(16).padStart(2, "0"),
-    ).join("")
-  );
+  return "sha256:" + (await sha256Hex(bytes));
 }
 function xmlDocument(bytes: Uint8Array) {
   if (typeof DOMParser === "undefined")
@@ -1063,7 +1058,7 @@ export function createMailMergeSession(port: {
       if (templates.size >= MAIL_MERGE_LIMITS.templates)
         throw issue("서식 등록 한도에 도달했습니다.");
       const info: MailMergeTemplateInfo = {
-        templateId: crypto.randomUUID(),
+        templateId: randomId(),
         fileName: document.fileName,
         format: document.format,
         digest: hash,
@@ -1105,7 +1100,7 @@ export function createMailMergeSession(port: {
       const preview: MailMergePreview = {
         ...started,
         ...plan,
-        previewId: crypto.randomUUID(),
+        previewId: randomId(),
         template: structuredClone(source.info),
         request: input,
       };
@@ -1181,7 +1176,7 @@ export function createMailMergeSession(port: {
             if (size > MAIL_MERGE_LIMITS.outputBytes)
               throw issue("전체 출력 크기 제한을 넘었습니다.");
             const document: EditorDocument = {
-              id: crypto.randomUUID(),
+              id: randomId(),
               format: source.info.format,
               fileName: file.fileName,
               bytes,

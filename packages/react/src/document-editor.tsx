@@ -1,3 +1,4 @@
+import { randomId, sha256Hex } from "@document-studio/core";
 import { FontStatus } from "./font-status";
 import {
   forwardRef,
@@ -191,8 +192,8 @@ export const DocumentEditor = forwardRef<
   const [error, setError] = useState("");
   const [recoveryUnavailable, setRecoveryUnavailable] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const sessionId = useRef(crypto.randomUUID());
-  const engineMountId = useRef(crypto.randomUUID());
+  const sessionId = useRef(randomId());
+  const engineMountId = useRef(randomId());
   const readyMount = useRef<string | null>(null);
   const engineFailure = useRef<EngineInitializationError | null>(null);
   const [initializationError, setInitializationError] =
@@ -548,8 +549,8 @@ export const DocumentEditor = forwardRef<
   };
   const setEditableDocument = (value: EditorDocument | null) => {
     if (editingSource.current !== value) {
-      sessionId.current = crypto.randomUUID();
-      engineMountId.current = crypto.randomUUID();
+      sessionId.current = randomId();
+      engineMountId.current = randomId();
       readyMount.current = null;
       engineFailure.current = null;
       setInitializationError(null);
@@ -807,8 +808,8 @@ export const DocumentEditor = forwardRef<
     if (automationSession.getSnapshot().pending)
       throw new Error("자동화 입력을 보관한 뒤 다시 시도해 주세요.");
     engineFailure.current = null;
-    engineMountId.current = crypto.randomUUID();
-    sessionId.current = crypto.randomUUID();
+    engineMountId.current = randomId();
+    sessionId.current = randomId();
     setInitializationError(null);
     updateInitializationPhase("connecting");
     setError("");
@@ -1539,7 +1540,7 @@ export const DocumentEditor = forwardRef<
     )
       throw new MailMergeError("서식을 등록하는 동안 문서가 변경됐습니다.");
     return mailMerge.register({
-      id: crypto.randomUUID(),
+      id: randomId(),
       fileName: displayed.fileName,
       format: exported.format,
       bytes: exported.bytes,
@@ -1728,7 +1729,7 @@ export const DocumentEditor = forwardRef<
         } else {
           downloadDocument(exported.bytes, document.fileName, exported.format);
           // A local download also establishes a new baseline for the host's retained document.
-          version = `download:${crypto.randomUUID()}`;
+          version = `download:${randomId()}`;
         }
         baseVersion.current = version;
         savedSource.current = {
@@ -1890,14 +1891,11 @@ export const DocumentEditor = forwardRef<
         const saved = lastCommit.current;
         if (!saved || saved.sessionId !== identity)
           throw new SaveConflictError("저장 후 편집 세션이 변경됐습니다.");
-        const hash = await crypto.subtle.digest(
-          "SHA-256",
-          new Uint8Array(saved.bytes),
-        );
+        const hash = await sha256Hex(new Uint8Array(saved.bytes));
         const { bytes: _bytes, ...receipt } = saved;
         return {
           ...receipt,
-          digest: `sha256:${Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("")}`,
+          digest: `sha256:${hash}`,
         };
       },
       readDocument,
@@ -2805,7 +2803,7 @@ export const DocumentEditor = forwardRef<
                   readyMount.current = mountId;
                   inputLocks.current.clear();
                   setInputLockCount(0);
-                  sessionId.current = crypto.randomUUID();
+                  sessionId.current = randomId();
                   setSession(value);
                 }}
                 onError={reportEngineError}

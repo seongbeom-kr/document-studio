@@ -1,3 +1,4 @@
+import { randomId } from "@document-studio/core";
 import init, { HwpDocument } from "@rhwp/core";
 import {
   validateTemplate,
@@ -151,8 +152,8 @@ export async function createHwpxDocument(
       }
     }
     return {
-      id: crypto.randomUUID(),
-      version: crypto.randomUUID(),
+      id: randomId(),
+      version: randomId(),
       fileName: template.fileName.replace(/\.(docx|hwpx|hwp)$/i, "") + ".hwpx",
       format: "hwpx",
       bytes: document.exportHwpx(),
