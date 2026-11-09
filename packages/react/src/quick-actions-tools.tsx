@@ -80,7 +80,18 @@ export function QuickActionTools({
   const [kind, setKind] = useState<QuickActionRequest["kind"]>("date");
   const [moreDates, setMoreDates] = useState(false);
   const moreDatesId = useId();
-  const [preview, setPreview] = useState<QuickActionPreview | null>(null);
+  const [storedPreview, setPreview] = useState<{
+    value: QuickActionPreview;
+    session: AutomationSession;
+    input: string;
+    argument: string;
+  } | null>(null);
+  const preview =
+    storedPreview?.session === session &&
+    storedPreview.input === draft.input &&
+    storedPreview.argument === draft.argument
+      ? storedPreview.value
+      : null;
   const [notice, setNotice] = useState("");
   const [pending, setPending] = useState(false);
   const running = useRef(false);
@@ -107,7 +118,12 @@ export function QuickActionTools({
   const choose = (request: QuickActionRequest, trigger: HTMLButtonElement) => {
     setNotice("");
     try {
-      setPreview(actions.preview(request));
+      setPreview({
+        value: actions.preview(request),
+        session,
+        input: draft.input,
+        argument: draft.argument,
+      });
       previewTrigger.current = trigger;
     } catch (error) {
       setPreview(null);
