@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-type Format = "docx" | "hwpx";
+type Format = "docx" | "hwp" | "hwpx";
 
 test.use({ timezoneId: "Asia/Seoul" });
 
@@ -38,13 +38,26 @@ async function openEmbedded(
   );
 }
 
+async function resizeWorkArea(page: Page, height: number) {
+  await page.locator(".ds-editor").evaluate((editor, height) => {
+    const work = editor.querySelector(".ds-work-area")!;
+    const chromeHeight =
+      editor.getBoundingClientRect().height -
+      work.getBoundingClientRect().height;
+    (editor as HTMLElement).style.height = `${height + chromeHeight}px`;
+  }, height);
+  await expect
+    .poll(
+      async () => (await page.locator(".ds-work-area").boundingBox())?.height,
+    )
+    .toBeCloseTo(height, 0);
+}
+
 test("a short dock scrolls to apply and restores focus when extra dates are collapsed", async ({
   page,
 }) => {
   await openEmbedded(page, "docx", 320, 430);
-  await page.locator(".ds-work-area").evaluate((element) => {
-    (element as HTMLElement).style.flex = "0 0 220px";
-  });
+  await resizeWorkArea(page, 220);
   await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
   const more = page.getByRole("button", { name: "더보기", exact: true });
   await more.click();
@@ -82,7 +95,7 @@ test("replacing the host's draft store clears the prior date preview", async ({
   await expect(result).toBeVisible();
 });
 
-for (const format of ["docx", "hwpx"] as const) {
+for (const format of ["docx", "hwp", "hwpx"] as const) {
   test(`${format}: quick actions leaves expanded automation and returns focus`, async ({
     page,
   }) => {
@@ -131,11 +144,7 @@ for (const format of ["docx", "hwpx"] as const) {
     }) => {
       await page.clock.setFixedTime(new Date("2026-11-09T04:00:00Z"));
       await openEmbedded(page, format, width!, height!);
-      if (width === 320) {
-        await page.locator(".ds-work-area").evaluate((element) => {
-          (element as HTMLElement).style.flex = "0 0 400px";
-        });
-      }
+      if (width === 320) await resizeWorkArea(page, 400);
       const before = await readDocument(page);
       const selection = await page.evaluate(
         () => window.documentStudioTest.state()?.selectionKey,
@@ -246,16 +255,14 @@ for (const format of ["docx", "hwpx"] as const) {
       (button as HTMLButtonElement).click();
       (button as HTMLButtonElement).click();
     });
-    await expect
-      .poll(
-        async () =>
-          (await readDocument(page)).text.split("검증원고-0-끝").length - 1,
-      )
-      .toBe(1);
-    expect((await readDocument(page)).text).toContain("검증원고-69-끝");
-    await page.evaluate(() =>
-      window.documentStudioTest.execute({ id: "undo" }),
-    );
+    await expect(page.getByText(/적용했습니다/)).toBeVisible();
+    const after = (await readDocument(page)).text;
+    expect(after.split("검증원고-0-끝")).toHaveLength(2);
+    expect(after).toContain("검증원고-69-끝");
+    await page.getByRole("button", { name: "되돌리기", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "다시 실행", exact: true }),
+    ).toBeEnabled();
     expect((await readDocument(page)).text).toBe(before);
   });
 }
