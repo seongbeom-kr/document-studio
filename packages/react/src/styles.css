@@ -945,6 +945,48 @@
 .ds-quick-notice:not(:empty) {
   padding: 4px 8px;
 }
+@container quick-dock (min-height: 196px) and (min-width: 320px) {
+  .ds-editing-tools[data-quick-actions="compact"] .ds-tools-header {
+    padding: 4px 12px;
+    font-size: 15px;
+  }
+  .ds-editing-tools[data-quick-actions="compact"] .ds-tools-header .ds-tool {
+    width: 36px;
+    height: 36px;
+  }
+  .ds-editing-tools[data-quick-actions="compact"] .ds-tools-header .ds-button,
+  .ds-quick-actions .ds-button {
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: 14px !important;
+  }
+  .ds-quick-actions,
+  .ds-quick-options .ds-tools-row {
+    font-size: 14px;
+  }
+  .ds-quick-kinds,
+  .ds-quick-buttons {
+    gap: 6px;
+  }
+  .ds-quick-kinds {
+    padding: 4px 12px;
+  }
+  .ds-quick-body,
+  .ds-quick-preview {
+    padding: 6px 12px;
+  }
+  .ds-quick-result strong {
+    font-size: 16px;
+  }
+  .ds-quick-result > span,
+  .ds-quick-preview p,
+  .ds-quick-notice {
+    font-size: 13px;
+  }
+  .ds-quick-notice:not(:empty) {
+    padding-inline: 12px;
+  }
+}
 .ds-mail-merge fieldset {
   min-width: 0;
   border: 0;

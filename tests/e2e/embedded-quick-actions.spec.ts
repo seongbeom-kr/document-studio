@@ -53,6 +53,26 @@ async function resizeWorkArea(page: Page, height: number) {
     .toBeCloseTo(height, 0);
 }
 
+test("a roomy HWP dock gives quick action buttons readable labels and larger targets", async ({
+  page,
+}) => {
+  await openEmbedded(page, "hwp", 760, 820);
+  await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
+  const today = page.getByRole("button", { name: "오늘", exact: true });
+  await expect(today).toHaveCSS("font-size", "14px");
+  expect((await today.boundingBox())?.height).toBeGreaterThanOrEqual(36);
+  await today.click();
+  const apply = page
+    .getByLabel("빠른 작업 미리보기")
+    .getByRole("button", { name: "적용", exact: true });
+  await expect(apply).toHaveCSS("font-size", "14px");
+  expect((await apply.boundingBox())?.height).toBeGreaterThanOrEqual(36);
+  await page.getByRole("button", { name: "서식", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "보고서 제목", exact: true }),
+  ).toHaveCSS("font-size", "14px");
+});
+
 test("a short dock scrolls to apply and restores focus when extra dates are collapsed", async ({
   page,
 }) => {
