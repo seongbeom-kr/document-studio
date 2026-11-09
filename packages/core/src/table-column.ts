@@ -1,3 +1,4 @@
+import { randomId } from "./web-crypto";
 import { SaveConflictError } from "./index";
 import { SelectionConflictError } from "./selection-conflict";
 
@@ -535,7 +536,7 @@ export function createTableColumnEditor(port: {
         sessionId: table.sessionId,
         revision: table.revision,
         selectionKey: table.selectionKey,
-        previewId: crypto.randomUUID(),
+        previewId: randomId(),
       };
       if (previews.size >= 8) previews.delete(previews.keys().next().value!);
       previews.set(preview.previewId, { preview, table });

@@ -1,3 +1,4 @@
+import { sha256Hex } from "./web-crypto";
 /** Source coordinates only. Never a screen rectangle or a text-search anchor. */
 export type SourceAddress =
   | {
@@ -34,14 +35,5 @@ export interface TemplateSelection extends TemplateSelectionIdentity {
   end?: number;
 }
 export async function sourceBytesHash(bytes: Uint8Array): Promise<string> {
-  const hash = await crypto.subtle.digest(
-    "SHA-256",
-    new Uint8Array(bytes).buffer,
-  );
-  return (
-    "sha256:" +
-    Array.from(new Uint8Array(hash), (n) =>
-      n.toString(16).padStart(2, "0"),
-    ).join("")
-  );
+  return "sha256:" + (await sha256Hex(bytes));
 }

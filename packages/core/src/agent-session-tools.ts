@@ -1,3 +1,4 @@
+import { randomId } from "./web-crypto";
 import type { createAgentBridge } from "./agent-bridge";
 import {
   createAgentToolset,
@@ -89,7 +90,7 @@ export function createAgentSessionTools(bridge: Bridge) {
     // The reference must describe the snapshot actually returned to the caller.
     const state = observed ? structuredClone(observed) : now;
     if (!state.ready) return { ...state, contextRef: null };
-    const contextRef = crypto.randomUUID();
+    const contextRef = randomId();
     if (references.size >= 64)
       references.delete(references.keys().next().value!);
     references.set(contextRef, state);

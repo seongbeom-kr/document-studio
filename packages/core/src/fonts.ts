@@ -1,3 +1,4 @@
+import { sha256Hex } from "./web-crypto";
 import manifest from "./font-pack.json" with { type: "json" };
 
 /** The font files keep OFL-1.1; this does not change the SDK's Apache-2.0 license. */
@@ -158,11 +159,7 @@ export async function loadDocumentFontPack(
         data.set(chunk, offset);
         offset += chunk.length;
       }
-      const digest = [
-        ...new Uint8Array(await crypto.subtle.digest("SHA-256", data)),
-      ]
-        .map((value) => value.toString(16).padStart(2, "0"))
-        .join("");
+      const digest = await sha256Hex(data);
       if (digest !== face.sha256)
         throw new Error(`글꼴 해시 검증 실패: ${face.file}`);
       return { ...face, data };

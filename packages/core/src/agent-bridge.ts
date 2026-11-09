@@ -1,3 +1,4 @@
+import { randomId, sha256Hex } from "./web-crypto";
 import {
   AGENT_COMMAND_CATALOG,
   OFFICE_AUTOMATION_FORMS,
@@ -528,7 +529,7 @@ export function createAgentBridge(
           8_000_000
       )
         previews.delete(previews.keys().next().value!);
-      const previewId = crypto.randomUUID();
+      const previewId = randomId();
       previews.set(previewId, { ...identity, result, characters });
       return {
         ...identity,
@@ -687,10 +688,7 @@ export function createAgentBridge(
       const identity = complete(started, "none");
       if (identity.revision !== exported.revision)
         throw new SaveConflictError("구조 조회 중 문서가 변경됐습니다.");
-      const hash = await crypto.subtle.digest(
-        "SHA-256",
-        new Uint8Array(exported.bytes),
-      );
+      const hash = await sha256Hex(new Uint8Array(exported.bytes));
       const finished = complete(started, "none");
       if (finished.revision !== exported.revision)
         throw new AgentGuardError("revision");
@@ -699,7 +697,7 @@ export function createAgentBridge(
         ...structure,
         format: started.state.format,
         inspectedFormat: exported.format,
-        digest: `sha256:${Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("")}`,
+        digest: `sha256:${hash}`,
       };
     },
     /** Receipts are replayable within this bridge lifetime. Hosts must persist them for reconnect recovery. */

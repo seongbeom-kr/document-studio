@@ -1,3 +1,4 @@
+import { randomId } from "@document-studio/core";
 import {
   Document,
   Packer,
@@ -127,8 +128,8 @@ export async function createDocxDocument(
   });
   const bytes = new Uint8Array(await Packer.toArrayBuffer(document));
   return {
-    id: crypto.randomUUID(),
-    version: crypto.randomUUID(),
+    id: randomId(),
+    version: randomId(),
     fileName: template.fileName.replace(/\.(docx|hwpx)$/i, "") + ".docx",
     format: "docx",
     bytes,

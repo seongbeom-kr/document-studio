@@ -1,3 +1,4 @@
+import { randomId } from "@document-studio/core";
 import {
   useEffect,
   useLayoutEffect,
@@ -374,7 +375,7 @@ export function MailMergeTools({
                 const bytes = new Uint8Array(await file.arrayBuffer());
                 if (!alive.current) return;
                 const value = await actions.register({
-                  id: crypto.randomUUID(),
+                  id: randomId(),
                   fileName: file.name,
                   format,
                   bytes,

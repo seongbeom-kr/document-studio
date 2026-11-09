@@ -20,6 +20,9 @@
     "@docx-editor.dev/core": "2.25.0",
     "@docx-editor.dev/i18n": "2.25.0",
     "@docx-editor.dev/react": "2.25.0",
+    "@radix-ui/react-select": "2.3.7",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
     "docx": "9.8.1"
   },
   "peerDependencies": {

@@ -1,3 +1,4 @@
+import { randomId } from "@document-studio/core";
 import type { Editor } from "@docx-editor.dev/react";
 import type { DocxEditorInstance } from "@docx-editor.dev/core/editor";
 import type { OoxmlNode } from "@docx-editor.dev/core/store";
@@ -68,7 +69,7 @@ export function createDocxTableColumn(editor: Editor) {
         "중첩 표는 열 일괄 편집을 지원하지 않습니다.",
         "table-structure-unsupported",
       );
-    const tableId = crypto.randomUUID(),
+    const tableId = randomId(),
       paragraphs = new Map<string, string>();
     const table: TableSnapshot = {
       tableId,

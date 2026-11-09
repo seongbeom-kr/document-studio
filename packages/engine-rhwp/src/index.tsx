@@ -1,3 +1,4 @@
+import { randomId } from "@document-studio/core";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { createStudio, type RhwpEditor } from "@rhwp/editor";
 import { unzipSync, strFromU8 } from "fflate";
@@ -300,7 +301,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
     useEffect(() => {
       let active = true;
       const startedAt = performance.now();
-      const attemptId = crypto.randomUUID();
+      const attemptId = randomId();
       let frameReadyVia: "load" | "runtime" | undefined;
       let bootFrame: HTMLIFrameElement | undefined;
       let stage: EngineInitializationStage = "iframe-loading";
@@ -482,7 +483,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
         method: string,
         params: Record<string, unknown>,
       ): Promise<T> => {
-        const requestId = crypto.randomUUID();
+        const requestId = randomId();
         const response = new Promise<T>((resolve, reject) => {
           const timer = setTimeout(() => {
             calls.delete(requestId);
@@ -515,7 +516,7 @@ export function rhwpEngine(options: RhwpOptions): EngineDefinition {
       };
       const readState = async (): Promise<NativeState> => {
         if (!editor) throw new Error("편집기를 준비하지 못했습니다.");
-        const requestId = crypto.randomUUID();
+        const requestId = randomId();
         const response = new Promise<NativeState>((resolve, reject) => {
           const timeout = setTimeout(() => {
             pending.delete(requestId);
