@@ -29,6 +29,7 @@ jobs:
       - run: yarn audit:security
       - run: yarn playwright install --with-deps chromium
       - run: yarn typecheck
+      - run: yarn build:template
       - run: yarn test
       - run: yarn test:e2e
       - run: yarn build
