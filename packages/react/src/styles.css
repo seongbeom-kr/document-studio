@@ -343,7 +343,8 @@
 .ds-work-area .ds-editing-tools[data-quick-actions="compact"] {
   container: quick-dock / size;
 }
-@container quick-dock (height < 160px) or (width < 240px) {
+/* Let the whole body scroll when the dock cannot fit the default rows. */
+@container quick-dock (height < 132px) or (width < 240px) {
   .ds-tools-content[data-quick-content] {
     display: block;
     overflow: auto;

@@ -38,6 +38,50 @@ async function openEmbedded(
   );
 }
 
+test("a short dock scrolls to apply and restores focus when extra dates are collapsed", async ({
+  page,
+}) => {
+  await openEmbedded(page, "docx", 320, 430);
+  await page.locator(".ds-work-area").evaluate((element) => {
+    (element as HTMLElement).style.flex = "0 0 220px";
+  });
+  await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
+  const more = page.getByRole("button", { name: "더보기", exact: true });
+  await more.click();
+  await page.getByRole("button", { name: "어제", exact: true }).click();
+  await more.click();
+  const apply = page
+    .getByLabel("빠른 작업 미리보기")
+    .getByRole("button", { name: "적용", exact: true });
+  await apply.press("Enter");
+  await expect(page.getByText(/적용했습니다/)).toBeVisible();
+  await expect(more).toBeFocused();
+});
+
+test("replacing the host's draft store clears the prior date preview", async ({
+  page,
+}) => {
+  await openEmbedded(page, "docx", 560, 514);
+  await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
+  await page.getByRole("button", { name: "오늘", exact: true }).click();
+  const result = page.getByLabel("빠른 작업 미리보기");
+  await expect(result).toBeVisible();
+  await page.evaluate(() => {
+    window.documentStudioTest.persistAutomation = true;
+    window.documentStudioTest.rerender();
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.documentStudioTest.state()?.automationDraftReady,
+      ),
+    )
+    .toBe(true);
+  await expect(result).toHaveCount(0);
+  await page.getByRole("button", { name: "오늘", exact: true }).click();
+  await expect(result).toBeVisible();
+});
+
 for (const format of ["docx", "hwpx"] as const) {
   test(`${format}: quick actions leaves expanded automation and returns focus`, async ({
     page,
