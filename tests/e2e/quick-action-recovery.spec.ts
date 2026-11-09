@@ -12,14 +12,33 @@ for (const format of ["docx", "hwpx"] as const) {
       .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
       .toBe(true);
     await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
+    const quick = page.getByRole("region", { name: "빠른 작업", exact: true });
+    const date = quick.getByRole("button", { name: "날짜·기간", exact: true });
+    const cleanup = quick.getByRole("button", {
+      name: "원고 정리",
+      exact: true,
+    });
+    const more = quick.getByText("더보기", { exact: true });
+    await cleanup.click();
     await page.getByLabel("정리할 붙여넣기 원고").fill("보존 원고\u200b [1]");
+    await date.click();
+    await more.click();
     await page.getByLabel("빠른 작업 기준일").fill("2026-10-21");
     await page.getByLabel("빠른 작업 주간 범위").selectOption("calendar");
     await page.getByLabel("빠른 작업 날짜 표시").selectOption("iso");
+    await cleanup.click();
+    await expect(page.getByLabel("정리할 붙여넣기 원고")).toHaveValue(
+      "보존 원고\u200b [1]",
+    );
     await page.getByRole("button", { name: "원고 정리 미리보기" }).click();
+    await date.click();
+    await expect(page.getByLabel("빠른 작업 미리보기")).toHaveCount(0);
     for (const tab of ["글자", "문단", "문서 일괄 생성"]) {
+      await cleanup.click();
+      await page.getByRole("button", { name: "원고 정리 미리보기" }).click();
       await page.getByRole("tab", { name: tab, exact: true }).click();
       await page.getByRole("tab", { name: "빠른 작업", exact: true }).click();
+      await cleanup.click();
       await expect(page.getByLabel("정리할 붙여넣기 원고")).toHaveValue(
         "보존 원고\u200b [1]",
       );
@@ -29,9 +48,12 @@ for (const format of ["docx", "hwpx"] as const) {
       .getByRole("button", { name: "편집 도구 닫기", exact: true })
       .click();
     await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
+    await cleanup.click();
     await expect(page.getByLabel("정리할 붙여넣기 원고")).toHaveValue(
       "보존 원고\u200b [1]",
     );
+    await date.click();
+    await more.click();
     await expect(page.getByLabel("빠른 작업 기준일")).toHaveValue("2026-10-21");
     await expect(page.getByLabel("빠른 작업 주간 범위")).toHaveValue(
       "calendar",
@@ -46,6 +68,7 @@ for (const format of ["docx", "hwpx"] as const) {
       }
     });
     expect(blocked).toBe(true);
+    await cleanup.click();
     await expect(page.getByLabel("정리할 붙여넣기 원고")).toHaveValue(
       "보존 원고\u200b [1]",
     );
@@ -72,6 +95,11 @@ for (const format of ["docx", "hwpx"] as const) {
       .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
       .toBe(true);
     await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
+    const cleanup = page.getByRole("button", {
+      name: "원고 정리",
+      exact: true,
+    });
+    await cleanup.click();
     await page.evaluate(() => {
       window.documentStudioTest.failAutomationWrites = true;
     });
@@ -87,6 +115,7 @@ for (const format of ["docx", "hwpx"] as const) {
       .getByRole("button", { name: "편집 도구 닫기", exact: true })
       .click();
     await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
+    await cleanup.click();
     await expect(page.getByLabel("정리할 붙여넣기 원고")).toHaveValue(
       "첫 문서 전용 원고",
     );
@@ -106,6 +135,7 @@ for (const format of ["docx", "hwpx"] as const) {
       .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
       .toBe(true);
     await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
+    await cleanup.click();
     await expect(page.getByLabel("정리할 붙여넣기 원고")).toHaveValue("");
     await page.evaluate(async (format) => {
       await window.documentStudioTest.load(format, "sample." + format);
@@ -119,6 +149,7 @@ for (const format of ["docx", "hwpx"] as const) {
       .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
       .toBe(true);
     await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
+    await cleanup.click();
     await expect(page.getByLabel("정리할 붙여넣기 원고")).toHaveValue(
       "첫 문서 전용 원고",
     );

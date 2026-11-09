@@ -127,6 +127,13 @@ const api = {
                     </button>
                     <button
                       type="button"
+                      disabled={!context.snapshot.ready}
+                      onClick={() => context.openTools("quick")}
+                    >
+                      앱 빠른 작업
+                    </button>
+                    <button
+                      type="button"
                       disabled={!context.snapshot.commands.bold?.enabled}
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() =>

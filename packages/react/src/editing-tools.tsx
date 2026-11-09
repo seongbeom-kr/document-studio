@@ -1,4 +1,11 @@
-import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { SearchSession, type SearchToken } from "./search-session";
 import { reconcilePropertyDraft, type PropertyDraft } from "./property-draft";
 import { ReportAutomation } from "./report-automation";
@@ -63,6 +70,7 @@ interface Props {
   createDocument?(template: DocumentTemplate): Promise<EditorDocument>;
   onCreateDocument?(document: EditorDocument): void | Promise<void>;
   initialTab?: string;
+  compactQuickActions?: boolean;
   onTabChange?(tab: string): void;
   documentKey?: string;
   onClose?(): void;
@@ -97,7 +105,13 @@ export function EditingTools(props: Props) {
   const tab = props.onTabChange
     ? (props.initialTab as (typeof TABS)[number])
     : localTab;
+  const isQuick = tab === "빠른 작업";
+  const compactQuick = isQuick && props.compactQuickActions;
+  const focusModeControl = useRef(false);
   const setTab = (value: (typeof TABS)[number]) => {
+    if (props.compactQuickActions && isQuick !== (value === "빠른 작업")) {
+      focusModeControl.current = true;
+    }
     setLocalTab(value);
     props.onTabChange?.(value);
   };
@@ -105,12 +119,12 @@ export function EditingTools(props: Props) {
   const contentElement = useRef<HTMLDivElement>(null);
   const expanded = useRef(Boolean(props.expanded));
   expanded.current = Boolean(props.expanded);
+  const needsInputSpace =
+    tab === "업무 자동화" ||
+    tab === "서식·메일머지" ||
+    (isQuick && !compactQuick);
   useEffect(() => {
-    if (
-      !["업무 자동화", "빠른 작업", "서식·메일머지"].includes(tab) ||
-      !props.onExpandedChange
-    )
-      return;
+    if (!needsInputSpace || !props.onExpandedChange) return;
     const area = toolsElement.current?.closest(".ds-work-area");
     if (!area) return;
     const ensureInputSpace = () => {
@@ -128,10 +142,20 @@ export function EditingTools(props: Props) {
     const observer = new ResizeObserver(ensureInputSpace);
     observer.observe(area);
     return () => observer.disconnect();
-  }, [tab, props.documentKey, props.onExpandedChange]);
+  }, [tab, needsInputSpace, props.documentKey, props.onExpandedChange]);
   const statusId = useId();
   const tabId = useId();
   const tabButtons = useRef(new Map<string, HTMLButtonElement>());
+  useLayoutEffect(() => {
+    if (!focusModeControl.current) return;
+    focusModeControl.current = false;
+    const control = compactQuick
+      ? toolsElement.current?.querySelector<HTMLButtonElement>(
+          '.ds-quick-kinds button[aria-pressed="true"]',
+        )
+      : tabButtons.current.get(tab);
+    control?.focus();
+  }, [compactQuick, tab]);
   const selection = `${props.documentKey ?? ""}:${snapshot.selectionKey ?? JSON.stringify(snapshot.paragraph ?? {})}`;
   const currentParagraph = snapshot.paragraph ?? {};
   const [paragraphDraft, setParagraphDraft] = useState<
@@ -433,6 +457,7 @@ export function EditingTools(props: Props) {
       role="region"
       aria-label="추가 편집 도구"
       data-expanded={Boolean(props.expanded)}
+      data-quick-actions={compactQuick ? "compact" : undefined}
       style={{ "--ds-tools-size": `${toolSize}%` } as CSSProperties}
       onKeyDown={(event) => {
         if (event.key !== "Escape") return;
@@ -443,8 +468,17 @@ export function EditingTools(props: Props) {
       }}
     >
       <div className="ds-tools-header">
-        <strong>문서 도구</strong>
-        {props.onExpandedChange && (
+        <strong>{compactQuick ? "빠른 작업" : "문서 도구"}</strong>
+        {compactQuick && (
+          <button
+            type="button"
+            className="ds-button"
+            onClick={() => setTab("문단")}
+          >
+            문서 도구
+          </button>
+        )}
+        {!compactQuick && props.onExpandedChange && (
           <button
             type="button"
             className="ds-button"
@@ -465,21 +499,23 @@ export function EditingTools(props: Props) {
           </button>
         )}
       </div>
-      <div className="ds-tools-target" aria-label="현재 적용 대상">
-        적용 대상:{" "}
-        {snapshot.selectionText
-          ? `“${snapshot.selectionText}”`
-          : (snapshot.selectionDescription ??
-            (snapshot.selectionCollapsed
-              ? "현재 커서 위치"
-              : "현재 선택한 영역"))}
-        <span>
-          {snapshot.selectionCollapsed
-            ? " · 삽입"
-            : " · 텍스트 삽입 시 선택 내용 교체"}
-        </span>
-      </div>
-      {!props.expanded && !props.external && (
+      {!compactQuick && (
+        <div className="ds-tools-target" aria-label="현재 적용 대상">
+          적용 대상:{" "}
+          {snapshot.selectionText
+            ? `“${snapshot.selectionText}”`
+            : (snapshot.selectionDescription ??
+              (snapshot.selectionCollapsed
+                ? "현재 커서 위치"
+                : "현재 선택한 영역"))}
+          <span>
+            {snapshot.selectionCollapsed
+              ? " · 삽입"
+              : " · 텍스트 삽입 시 선택 내용 교체"}
+          </span>
+        </div>
+      )}
+      {!compactQuick && !props.expanded && !props.external && (
         <label className="ds-tools-resize">
           도구 영역 크기
           <input
@@ -504,61 +540,71 @@ export function EditingTools(props: Props) {
           />
         </label>
       )}
-      <div className="ds-tools-tabs" role="tablist" aria-label="편집 도구 종류">
-        {TABS.map((name) => (
-          <button
-            type="button"
-            key={name}
-            role="tab"
-            id={`${tabId}-tab-${TABS.indexOf(name)}`}
-            aria-controls={`${tabId}-panel-${TABS.indexOf(name)}`}
-            aria-selected={tab === name}
-            tabIndex={tab === name ? 0 : -1}
-            ref={(button) => {
-              if (button) tabButtons.current.set(name, button);
-              else tabButtons.current.delete(name);
-            }}
-            onKeyDown={(event) => {
-              const index = TABS.indexOf(name);
-              const next =
-                event.key === "ArrowRight"
-                  ? (index + 1) % TABS.length
-                  : event.key === "ArrowLeft"
-                    ? (index + TABS.length - 1) % TABS.length
-                    : event.key === "Home"
-                      ? 0
-                      : event.key === "End"
-                        ? TABS.length - 1
-                        : -1;
-              if (next < 0) return;
-              event.preventDefault();
-              setTab(TABS[next]!);
-              tabButtons.current.get(TABS[next]!)?.focus();
-            }}
-            className={tab === name ? "active" : ""}
-            onClick={() => setTab(name)}
-          >
-            {name === "서식·메일머지" ? "문서 일괄 생성" : name}
-          </button>
-        ))}
-      </div>
-      {TABS.filter((name) => name !== tab).map((name) => (
+      {!compactQuick && (
         <div
-          key={name}
-          id={`${tabId}-panel-${TABS.indexOf(name)}`}
-          role="tabpanel"
-          aria-labelledby={`${tabId}-tab-${TABS.indexOf(name)}`}
-          hidden
-        />
-      ))}
+          className="ds-tools-tabs"
+          role="tablist"
+          aria-label="편집 도구 종류"
+        >
+          {TABS.map((name) => (
+            <button
+              type="button"
+              key={name}
+              role="tab"
+              id={`${tabId}-tab-${TABS.indexOf(name)}`}
+              aria-controls={`${tabId}-panel-${TABS.indexOf(name)}`}
+              aria-selected={tab === name}
+              tabIndex={tab === name ? 0 : -1}
+              ref={(button) => {
+                if (button) tabButtons.current.set(name, button);
+                else tabButtons.current.delete(name);
+              }}
+              onKeyDown={(event) => {
+                const index = TABS.indexOf(name);
+                const next =
+                  event.key === "ArrowRight"
+                    ? (index + 1) % TABS.length
+                    : event.key === "ArrowLeft"
+                      ? (index + TABS.length - 1) % TABS.length
+                      : event.key === "Home"
+                        ? 0
+                        : event.key === "End"
+                          ? TABS.length - 1
+                          : -1;
+                if (next < 0) return;
+                event.preventDefault();
+                setTab(TABS[next]!);
+                tabButtons.current.get(TABS[next]!)?.focus();
+              }}
+              className={tab === name ? "active" : ""}
+              onClick={() => setTab(name)}
+            >
+              {name === "서식·메일머지" ? "문서 일괄 생성" : name}
+            </button>
+          ))}
+        </div>
+      )}
+      {!compactQuick &&
+        TABS.filter((name) => name !== tab).map((name) => (
+          <div
+            key={name}
+            id={`${tabId}-panel-${TABS.indexOf(name)}`}
+            role="tabpanel"
+            aria-labelledby={`${tabId}-tab-${TABS.indexOf(name)}`}
+            hidden
+          />
+        ))}
       <div
         className="ds-tools-content"
+        data-quick-content={isQuick || undefined}
         ref={contentElement}
-        id={`${tabId}-panel-${TABS.indexOf(tab)}`}
-        role="tabpanel"
-        aria-labelledby={`${tabId}-tab-${TABS.indexOf(tab)}`}
+        id={compactQuick ? undefined : `${tabId}-panel-${TABS.indexOf(tab)}`}
+        role={compactQuick ? undefined : "tabpanel"}
+        aria-labelledby={
+          compactQuick ? undefined : `${tabId}-tab-${TABS.indexOf(tab)}`
+        }
       >
-        {tab === "표" && !snapshot.table ? (
+        {isQuick ? null : tab === "표" && !snapshot.table ? (
           <p id={statusId} className="ds-tools-hint">
             표 안의 셀을 먼저 선택하세요. 표를 새로 만드는 작업은 바로 사용할 수
             있습니다.

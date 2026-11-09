@@ -205,6 +205,7 @@ for (const format of ["docx", "hwpx"] as const) {
       .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
       .toBe(true);
     await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
+    await page.getByRole("button", { name: "원고 정리", exact: true }).click();
     await page
       .getByLabel("정리할 붙여넣기 원고")
       .fill("검증원고\u200b 【4:0†source】 [1] 👩‍💻");
@@ -217,7 +218,10 @@ for (const format of ["docx", "hwpx"] as const) {
         documentId: window.documentStudioTest.agent.getState().documentId,
       }),
     );
-    await page.getByRole("button", { name: "확인한 빠른 작업 적용" }).click();
+    await page
+      .getByLabel("빠른 작업 미리보기")
+      .getByRole("button", { name: "적용", exact: true })
+      .click();
     await expect(
       page.getByText(
         "적용했습니다. 한 번 되돌릴 수 있으며 파일 저장은 별도입니다.",

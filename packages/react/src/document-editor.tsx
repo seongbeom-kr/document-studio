@@ -74,6 +74,7 @@ import {
   EDITOR_TOOL_TABS,
   EditorRegion,
   editorThemeStyle,
+  type EditorToolTab,
   type EditorUIOptions,
   type EditorUISlots,
   type EditorUIContext,
@@ -240,6 +241,20 @@ export const DocumentEditor = forwardRef<
     });
   };
   const [toolsTab, setToolsTab] = useState("문단");
+  const selectToolsTab = (label: string) => {
+    if (props.appearance === "embedded" && label === EDITOR_TOOL_TABS.quick)
+      setToolsExpanded(false);
+    setToolsTab(label);
+  };
+  const showTools = (tab: EditorToolTab, trigger?: HTMLElement) => {
+    if (!Object.hasOwn(EDITOR_TOOL_TABS, tab))
+      throw new TypeError("지원하지 않는 편집 도구입니다.");
+    const focused = window.document.activeElement;
+    toolsReturnFocus.current =
+      trigger ?? (focused instanceof HTMLElement ? focused : null);
+    selectToolsTab(EDITOR_TOOL_TABS[tab]);
+    setToolsOpen(true);
+  };
   const [nativeTools, setNativeTools] = useState(false);
   const [fitWidth, setFitWidth] = useState(props.initialZoom === "width");
   const [viewportWidth, setViewportWidth] = useState(0);
@@ -2232,16 +2247,7 @@ export const DocumentEditor = forwardRef<
     nativeTools,
     fitWidth,
     execute,
-    openTools(tab = "paragraph") {
-      if (!Object.hasOwn(EDITOR_TOOL_TABS, tab))
-        throw new TypeError("지원하지 않는 편집 도구입니다.");
-      toolsReturnFocus.current =
-        window.document.activeElement instanceof HTMLElement
-          ? window.document.activeElement
-          : null;
-      setToolsTab(EDITOR_TOOL_TABS[tab]);
-      setToolsOpen(true);
-    },
+    openTools: (tab = "paragraph") => showTools(tab),
     closeTools,
     setNativeTools,
     setZoom(value) {
@@ -2407,10 +2413,7 @@ export const DocumentEditor = forwardRef<
               type="button"
               className="ds-button"
               disabled={!snapshot.ready || busy}
-              onClick={() => {
-                setToolsTab("빠른 작업");
-                setToolsOpen(true);
-              }}
+              onClick={(event) => showTools("quick", event.currentTarget)}
             >
               빠른 작업
             </button>
@@ -2858,10 +2861,11 @@ export const DocumentEditor = forwardRef<
               automationStatus={automationStatus}
               creationContext={automationContext}
               initialTab={toolsTab}
+              compactQuickActions={props.appearance === "embedded"}
               expanded={overlayTools}
               external={externalTools}
               onExpandedChange={externalTools ? undefined : setToolsExpanded}
-              onTabChange={setToolsTab}
+              onTabChange={selectToolsTab}
               documentKey={`${displayed.id}:${sessionId.current}`}
               onClose={closeTools}
               snapshot={snapshot}
