@@ -1,6 +1,6 @@
 {
   "name": "@document-studio/template",
-  "version": "0.4.0",
+  "version": "0.5.6",
   "description": "Declarative DOCX and HWPX template inspection, binding and generation",
   "type": "module",
   "license": "Apache-2.0",
@@ -15,6 +15,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
     }
   },
   "bin": {
@@ -27,6 +31,7 @@
   },
   "dependencies": {
     "@xmldom/xmldom": "0.9.12",
+    "ajv": "8.17.1",
     "fflate": "0.8.3"
   },
   "repository": {

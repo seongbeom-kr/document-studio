@@ -323,6 +323,36 @@
   min-height: 0;
   overflow: auto;
 }
+.ds-tools-content[data-quick-content] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ds-editing-tools[data-quick-actions="compact"] .ds-tools-header {
+  gap: 6px;
+  padding: 3px 8px;
+}
+.ds-editing-tools[data-quick-actions="compact"] .ds-tools-header strong {
+  flex: 1;
+}
+.ds-editing-tools[data-quick-actions="compact"] .ds-tools-header .ds-button,
+.ds-editing-tools[data-quick-actions="compact"] .ds-tools-header .ds-tool {
+  min-height: 26px;
+  padding-block: 3px;
+}
+.ds-work-area .ds-editing-tools[data-quick-actions="compact"] {
+  container: quick-dock / size;
+}
+/* Let the whole body scroll when the dock cannot fit the default rows. */
+@container quick-dock (height < 132px) or (width < 240px) {
+  .ds-tools-content[data-quick-content] {
+    display: block;
+    overflow: auto;
+  }
+  .ds-tools-content[data-quick-content] .ds-quick-body {
+    overflow: visible;
+  }
+}
 .ds-tools-target {
   flex-shrink: 0;
   padding: 6px 12px;
@@ -417,6 +447,10 @@
     max-height: 48%;
     border-left: 0;
     border-top: 1px solid var(--ds-border);
+  }
+  .ds-work-area .ds-editing-tools[data-quick-actions="compact"] {
+    flex-basis: min(220px, 45%);
+    max-height: min(220px, 45%);
   }
 }
 .ds-tools-tabs {
@@ -789,47 +823,169 @@
   padding: 0 0 16px;
   margin-bottom: 16px;
 }
-.ds-quick-actions fieldset {
-  border: 0;
-  padding: 0;
-  margin: 0 0 18px;
+.ds-quick-actions {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  font-size: 13px;
+  line-height: 1.4;
 }
-.ds-quick-actions fieldset legend {
-  position: static;
-  width: auto;
-  height: auto;
-  clip-path: none;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
+.ds-quick-kinds,
 .ds-quick-buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  gap: 4px;
 }
-.ds-quick-actions label {
+.ds-quick-kinds {
+  flex: none;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--ds-border);
+}
+.ds-quick-actions .ds-button {
+  min-height: 28px;
+  max-width: 100%;
+  padding: 4px 8px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ds-quick-kinds .ds-button[aria-pressed="true"] {
+  border-color: var(--ds-accent);
+  background: var(--ds-accent);
+  color: var(--ds-accent-foreground);
+}
+.ds-quick-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 8px;
+}
+.ds-quick-body fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.ds-quick-body label {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
-.ds-quick-actions select {
-  border: 1px solid var(--ds-border);
-  border-radius: 5px;
+.ds-quick-body :is(input, select, textarea) {
+  max-width: 100%;
   padding: 6px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius);
   font: inherit;
-  color: inherit;
-  background: var(--ds-background, #fff);
 }
-.ds-quick-preview {
-  border-top: 1px solid var(--ds-border);
-  padding-top: 12px;
+.ds-quick-body textarea {
+  resize: vertical;
+}
+.ds-quick-options,
+.ds-quick-detail {
+  margin-block: 8px;
+}
+.ds-quick-options .ds-tools-row {
+  margin-top: 8px;
+}
+.ds-quick-body summary {
+  cursor: pointer;
+}
+.ds-quick-detail {
   overflow-wrap: anywhere;
 }
-.ds-quick-preview output {
-  display: block;
-  padding: 8px 0;
+.ds-quick-detail pre {
   white-space: pre-wrap;
+}
+.ds-quick-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 3px 8px;
+  flex: none;
+  border-top: 1px solid var(--ds-border);
+  padding: 4px 8px;
+  background: var(--ds-background);
+  overflow-wrap: anywhere;
+}
+.ds-quick-preview [aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.45;
+}
+.ds-quick-preview p {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+}
+.ds-quick-result {
+  min-width: 0;
+}
+.ds-quick-result > span {
+  color: var(--ds-muted);
+  font-size: 12px;
+}
+.ds-quick-truncate {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-quick-notice {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  flex: none;
+  margin: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.ds-quick-notice:not(:empty) {
+  padding: 4px 8px;
+}
+@container quick-dock (min-height: 196px) and (min-width: 320px) {
+  .ds-editing-tools[data-quick-actions="compact"] .ds-tools-header {
+    padding: 4px 12px;
+    font-size: 15px;
+  }
+  .ds-editing-tools[data-quick-actions="compact"] .ds-tools-header .ds-tool {
+    width: 36px;
+    height: 36px;
+  }
+  .ds-editing-tools[data-quick-actions="compact"] .ds-tools-header .ds-button,
+  .ds-quick-actions .ds-button {
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: 14px !important;
+  }
+  .ds-quick-actions,
+  .ds-quick-options .ds-tools-row {
+    font-size: 14px;
+  }
+  .ds-quick-kinds,
+  .ds-quick-buttons {
+    gap: 6px;
+  }
+  .ds-quick-kinds {
+    padding: 4px 12px;
+  }
+  .ds-quick-body,
+  .ds-quick-preview {
+    padding: 6px 12px;
+  }
+  .ds-quick-result strong {
+    font-size: 16px;
+  }
+  .ds-quick-result > span,
+  .ds-quick-preview p,
+  .ds-quick-notice {
+    font-size: 13px;
+  }
+  .ds-quick-notice:not(:empty) {
+    padding-inline: 12px;
+  }
 }
 .ds-mail-merge fieldset {
   min-width: 0;

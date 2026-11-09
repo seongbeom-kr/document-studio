@@ -20,7 +20,9 @@ for (const format of ["docx", "hwpx"] as const) {
     await expect
       .poll(() => page.evaluate(() => window.documentStudioTest.state()?.ready))
       .toBe(true);
-    await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
+    await page
+      .getByRole("button", { name: "문단·표·그림", exact: true })
+      .click();
     await page
       .getByRole("tab", { name: "문서 일괄 생성", exact: true })
       .click();

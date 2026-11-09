@@ -1,0 +1,485 @@
+[
+  {
+    "name": "plan-arbitrary-xml",
+    "kind": "plan",
+    "value": {
+      "schemaVersion": 3,
+      "identity": {
+        "sourceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "normalizedHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "structureRevision": 1
+      },
+      "definitionDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "inputDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sourceSnapshotDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "regions": [
+        {
+          "regionId": "intro",
+          "kind": "text",
+          "text": "작성 내용",
+          "evidenceRefs": []
+        }
+      ],
+      "xml": "<node/>"
+    }
+  },
+  {
+    "name": "plan-arbitrary-address",
+    "kind": "plan",
+    "value": {
+      "schemaVersion": 3,
+      "identity": {
+        "sourceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "normalizedHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "structureRevision": 1
+      },
+      "definitionDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "inputDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sourceSnapshotDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "regions": [
+        {
+          "regionId": "intro",
+          "kind": "text",
+          "text": "x",
+          "evidenceRefs": [],
+          "address": "/etc/passwd"
+        }
+      ]
+    }
+  },
+  {
+    "name": "negative-merge-span",
+    "kind": "plan",
+    "value": {
+      "schemaVersion": 3,
+      "identity": {
+        "sourceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "normalizedHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "structureRevision": 1
+      },
+      "definitionDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "inputDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sourceSnapshotDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "regions": [
+        {
+          "regionId": "schedule",
+          "kind": "table",
+          "columns": [
+            {
+              "key": "item",
+              "roleId": "item",
+              "dataKey": "item",
+              "styleId": "cell",
+              "widthWeight": 1
+            }
+          ],
+          "rows": [
+            {
+              "key": "r1",
+              "groupKey": "g1",
+              "cells": [
+                {
+                  "columnKey": "item",
+                  "text": "값",
+                  "evidenceRefs": []
+                }
+              ]
+            }
+          ],
+          "merges": [
+            {
+              "row": 0,
+              "column": 0,
+              "rowSpan": -1,
+              "columnSpan": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "wrong-final-extension",
+    "kind": "artifact",
+    "value": {
+      "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+      "outputFormat": "hwp",
+      "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwpx",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLength": 2048,
+      "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  },
+  {
+    "name": "invalid-digest",
+    "kind": "artifact",
+    "value": {
+      "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+      "outputFormat": "hwp",
+      "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+      "digest": "sha256:abc",
+      "byteLength": 2048,
+      "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  },
+  {
+    "name": "wrong-operation-path",
+    "kind": "artifact",
+    "value": {
+      "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+      "outputFormat": "hwp",
+      "path": "reports/report_ffffffffffffffffffffffffffffffffffffffff/보고서.hwp",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLength": 2048,
+      "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  },
+  {
+    "name": "unsafe-output-path",
+    "kind": "artifact",
+    "value": {
+      "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+      "outputFormat": "hwp",
+      "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/../보고서.hwp",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLength": 2048,
+      "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  },
+  {
+    "name": "missing-result-version",
+    "kind": "result",
+    "value": {
+      "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+      "skillId": "skill_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "version": "1.0.0",
+      "payloadDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ok": true,
+      "generated": true,
+      "serverStored": true,
+      "completion": "completed",
+      "artifact": {
+        "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+        "outputFormat": "hwp",
+        "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 2048,
+        "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "localReceipt": {
+        "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+        "outputFormat": "hwp",
+        "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 2048,
+        "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "finalVerified": true
+      },
+      "registration": {
+        "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+        "outputFormat": "hwp",
+        "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 2048,
+        "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope": "server-workspace",
+        "confirmed": true
+      }
+    }
+  },
+  {
+    "name": "v2-is-not-v3",
+    "kind": "structure",
+    "value": {
+      "schemaVersion": 2,
+      "identity": {
+        "sourceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "normalizedHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "structureRevision": 1
+      },
+      "format": "hwpx",
+      "regions": [],
+      "styles": [],
+      "page": {
+        "width": 11906,
+        "height": 16838,
+        "marginTop": 1440,
+        "marginRight": 1440,
+        "marginBottom": 1440,
+        "marginLeft": 1440,
+        "orientation": "portrait"
+      },
+      "protectedParts": {},
+      "warnings": []
+    }
+  },
+  {
+    "name": "mismatched-receipt",
+    "kind": "result",
+    "value": {
+      "resultContractVersion": 3,
+      "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+      "skillId": "skill_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "version": "1.0.0",
+      "payloadDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ok": true,
+      "generated": true,
+      "serverStored": true,
+      "completion": "completed",
+      "artifact": {
+        "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+        "outputFormat": "hwp",
+        "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 2048,
+        "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "localReceipt": {
+        "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+        "outputFormat": "hwp",
+        "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 2049,
+        "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "finalVerified": true
+      },
+      "registration": {
+        "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+        "outputFormat": "hwp",
+        "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 2048,
+        "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope": "server-workspace",
+        "confirmed": true
+      }
+    }
+  },
+  {
+    "name": "external-input-schema-reference",
+    "kind": "definition",
+    "value": {
+      "schemaVersion": 3,
+      "identity": {
+        "sourceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "normalizedHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "structureRevision": 1
+      },
+      "regions": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "file:///etc/passwd"
+          }
+        },
+        "additionalProperties": false
+      },
+      "output": {
+        "defaultFormat": "hwp",
+        "allowedFormats": ["hwp", "hwpx"],
+        "fileName": "보고서"
+      },
+      "policy": {
+        "pageSize": "preserve",
+        "orientation": "preserve",
+        "fontSize": "preserve"
+      }
+    }
+  },
+  {
+    "name": "leading-zero-version",
+    "kind": "result",
+    "value": {
+      "resultContractVersion": 3,
+      "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+      "skillId": "skill_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "version": "01.0.0",
+      "payloadDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ok": true,
+      "generated": true,
+      "serverStored": true,
+      "completion": "completed",
+      "artifact": {
+        "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+        "outputFormat": "hwp",
+        "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 2048,
+        "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "localReceipt": {
+        "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+        "outputFormat": "hwp",
+        "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 2048,
+        "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "finalVerified": true
+      },
+      "registration": {
+        "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+        "outputFormat": "hwp",
+        "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 2048,
+        "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope": "server-workspace",
+        "confirmed": true
+      }
+    }
+  },
+  {
+    "name": "union-input-type",
+    "kind": "definition",
+    "value": {
+      "schemaVersion": 3,
+      "identity": {
+        "sourceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "normalizedHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "structureRevision": 1
+      },
+      "regions": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": ["string"]
+          }
+        },
+        "additionalProperties": false
+      },
+      "output": {
+        "defaultFormat": "hwp",
+        "allowedFormats": ["hwp", "hwpx"],
+        "fileName": "보고서"
+      },
+      "policy": {
+        "pageSize": "preserve",
+        "orientation": "preserve",
+        "fontSize": "preserve"
+      }
+    }
+  },
+  {
+    "name": "array-input-format",
+    "kind": "definition",
+    "value": {
+      "schemaVersion": 3,
+      "identity": {
+        "sourceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "normalizedHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "structureRevision": 1
+      },
+      "regions": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "string",
+            "format": ["date"]
+          }
+        },
+        "additionalProperties": false
+      },
+      "output": {
+        "defaultFormat": "hwp",
+        "allowedFormats": ["hwp", "hwpx"],
+        "fileName": "보고서"
+      },
+      "policy": {
+        "pageSize": "preserve",
+        "orientation": "preserve",
+        "fontSize": "preserve"
+      }
+    }
+  },
+  {
+    "name": "nonobject-input-root",
+    "kind": "definition",
+    "value": {
+      "schemaVersion": 3,
+      "identity": {
+        "sourceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "normalizedHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "structureRevision": 1
+      },
+      "regions": [],
+      "inputSchema": {
+        "type": "string"
+      },
+      "output": {
+        "defaultFormat": "hwp",
+        "allowedFormats": ["hwp", "hwpx"],
+        "fileName": "보고서"
+      },
+      "policy": {
+        "pageSize": "preserve",
+        "orientation": "preserve",
+        "fontSize": "preserve"
+      }
+    }
+  },
+  {
+    "name": "reversed-text-range",
+    "kind": "definition",
+    "value": {
+      "schemaVersion": 3,
+      "identity": {
+        "sourceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "normalizedHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "structureRevision": 1
+      },
+      "regions": [
+        {
+          "id": "intro_value",
+          "sourceRegionId": "intro_source",
+          "kind": "text",
+          "enabled": true,
+          "intent": {
+            "purpose": "고정 제목 옆 값 작성",
+            "sources": [],
+            "include": [],
+            "exclude": [],
+            "tone": "공문",
+            "instructions": "제목은 유지한다.",
+            "fixedText": []
+          },
+          "reviewState": "confirmed",
+          "reviewDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "styleIds": [],
+          "policy": {
+            "allowRowChanges": false,
+            "allowColumnChanges": false,
+            "allowMerges": false,
+            "allowParagraphRepeat": false,
+            "maxRows": 1,
+            "maxColumns": 1,
+            "minColumnWidth": 1,
+            "empty": "blank"
+          },
+          "columnRoles": [],
+          "range": {
+            "start": 5,
+            "end": 3
+          }
+        }
+      ],
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "output": {
+        "defaultFormat": "hwp",
+        "allowedFormats": ["hwp", "hwpx"],
+        "fileName": "보고서"
+      },
+      "policy": {
+        "pageSize": "preserve",
+        "orientation": "preserve",
+        "fontSize": "preserve"
+      }
+    }
+  }
+]

@@ -10,6 +10,26 @@ async function open(page: Page, format: string, host = "browser") {
   await expect(page.locator("#top").getByRole("toolbar")).toBeVisible();
 }
 for (const format of ["docx", "hwpx"]) {
+  test(`${format}: host quick action keeps the tool slot and returns focus`, async ({
+    page,
+  }) => {
+    await open(page, format, "react");
+    const trigger = page
+      .locator("#top")
+      .getByRole("button", { name: "앱 빠른 작업", exact: true });
+    await trigger.click();
+    const tools = page
+      .locator("#side")
+      .getByRole("region", { name: "추가 편집 도구" });
+    await expect(
+      tools.getByRole("button", { name: "문서 도구", exact: true }),
+    ).toBeVisible();
+    await tools
+      .getByRole("button", { name: "편집 도구 닫기", exact: true })
+      .click();
+    await expect(tools).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
   for (const host of ["browser", "react"]) {
     test(`${host}/${format}: external chrome keeps editing, theme, readonly and saved bytes`, async ({
       page,

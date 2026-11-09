@@ -101,12 +101,13 @@ function writeTextNode(
     }
   }
 }
-function writeRange(
+export function writeRange(
   p: Element,
   start: number,
   end: number,
   value: string,
   format: TemplateFormat,
+  anchorNode?: Node,
 ): void {
   const ns = NS[format];
   let tokens = inlineTokens(p, ns);
@@ -139,6 +140,7 @@ function writeRange(
   const textToken = (t: (typeof tokens)[number]) =>
     t.node.nodeType === 3 || t.node.nodeType === 4;
   let anchor =
+    (anchorNode && tokens.find((t) => textToken(t) && t.node === anchorNode)) ??
     tokens.find((t) => textToken(t) && t.start <= start && t.end > start) ??
     tokens.find((t) => textToken(t) && t.start === start);
   if (!anchor) {

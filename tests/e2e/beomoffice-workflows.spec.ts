@@ -300,18 +300,19 @@ for (const format of ["docx", "hwpx"] as const) {
     await open(page, format);
     await select(page, "원본고정본문");
     await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
+    await page.getByRole("button", { name: "서식", exact: true }).click();
+    const result = page.getByLabel("빠른 작업 미리보기");
+    const apply = result.getByRole("button", { name: "적용", exact: true });
     await page
       .getByRole("button", { name: "보고서 제목", exact: true })
       .click();
-    await expect(page.getByLabel("빠른 작업 미리보기")).toContainText("16pt");
+    await expect(result).toContainText("16pt");
     await select(page, "안내");
-    await expect(
-      page.getByRole("button", { name: "확인한 빠른 작업 적용" }),
-    ).toBeDisabled();
+    await expect(apply).toBeDisabled();
     await page
       .getByRole("button", { name: "보고서 제목", exact: true })
       .click();
-    await page.getByRole("button", { name: "확인한 빠른 작업 적용" }).click();
+    await apply.click();
     await expect(
       page.getByText(
         "적용했습니다. 한 번 되돌릴 수 있으며 파일 저장은 별도입니다.",

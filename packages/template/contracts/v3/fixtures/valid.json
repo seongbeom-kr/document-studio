@@ -1,0 +1,301 @@
+[
+  {
+    "name": "structure-valid",
+    "kind": "structure",
+    "value": {
+      "schemaVersion": 3,
+      "identity": {
+        "sourceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "normalizedHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "structureRevision": 1
+      },
+      "format": "hwpx",
+      "regions": [],
+      "styles": [],
+      "page": {
+        "width": 11906,
+        "height": 16838,
+        "marginTop": 1440,
+        "marginRight": 1440,
+        "marginBottom": 1440,
+        "marginLeft": 1440,
+        "orientation": "portrait"
+      },
+      "protectedParts": {},
+      "warnings": []
+    }
+  },
+  {
+    "name": "definition-valid",
+    "kind": "definition",
+    "value": {
+      "schemaVersion": 3,
+      "identity": {
+        "sourceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "normalizedHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "structureRevision": 1
+      },
+      "regions": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "output": {
+        "defaultFormat": "hwp",
+        "allowedFormats": ["hwp", "hwpx"],
+        "fileName": "보고서"
+      },
+      "policy": {
+        "pageSize": "preserve",
+        "orientation": "preserve",
+        "fontSize": "preserve"
+      }
+    }
+  },
+  {
+    "name": "plan-valid",
+    "kind": "plan",
+    "value": {
+      "schemaVersion": 3,
+      "identity": {
+        "sourceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "normalizedHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "structureRevision": 1
+      },
+      "definitionDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "inputDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sourceSnapshotDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "regions": [
+        {
+          "regionId": "intro",
+          "kind": "text",
+          "text": "작성 내용",
+          "evidenceRefs": []
+        }
+      ]
+    }
+  },
+  {
+    "name": "artifact-valid",
+    "kind": "artifact",
+    "value": {
+      "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+      "outputFormat": "hwp",
+      "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byteLength": 2048,
+      "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  },
+  {
+    "name": "result-valid",
+    "kind": "result",
+    "value": {
+      "resultContractVersion": 3,
+      "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+      "skillId": "skill_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "version": "1.0.0",
+      "payloadDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ok": true,
+      "generated": true,
+      "serverStored": true,
+      "completion": "completed",
+      "artifact": {
+        "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+        "outputFormat": "hwp",
+        "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 2048,
+        "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "localReceipt": {
+        "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+        "outputFormat": "hwp",
+        "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 2048,
+        "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "finalVerified": true
+      },
+      "registration": {
+        "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+        "outputFormat": "hwp",
+        "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 2048,
+        "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope": "server-workspace",
+        "confirmed": true
+      }
+    }
+  },
+  {
+    "name": "result-semver-build",
+    "kind": "result",
+    "value": {
+      "resultContractVersion": 3,
+      "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+      "skillId": "skill_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "version": "1.0.0-rc.1+build.7",
+      "payloadDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ok": true,
+      "generated": true,
+      "serverStored": true,
+      "completion": "completed",
+      "artifact": {
+        "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+        "outputFormat": "hwp",
+        "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 2048,
+        "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "localReceipt": {
+        "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+        "outputFormat": "hwp",
+        "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 2048,
+        "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "finalVerified": true
+      },
+      "registration": {
+        "operationId": "report_cccccccccccccccccccccccccccccccccccccccc",
+        "outputFormat": "hwp",
+        "path": "reports/report_cccccccccccccccccccccccccccccccccccccccc/보고서.hwp",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 2048,
+        "verificationDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "scope": "server-workspace",
+        "confirmed": true
+      }
+    }
+  },
+  {
+    "name": "unicode-input-title",
+    "kind": "definition",
+    "value": {
+      "schemaVersion": 3,
+      "identity": {
+        "sourceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "normalizedHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "structureRevision": 1
+      },
+      "regions": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "title": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+      },
+      "output": {
+        "defaultFormat": "hwp",
+        "allowedFormats": ["hwp", "hwpx"],
+        "fileName": "보고서"
+      },
+      "policy": {
+        "pageSize": "preserve",
+        "orientation": "preserve",
+        "fontSize": "preserve"
+      }
+    }
+  },
+  {
+    "name": "integer-valued-schema-bounds",
+    "kind": "definition",
+    "value": {
+      "schemaVersion": 3,
+      "identity": {
+        "sourceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "normalizedHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "structureRevision": 1
+      },
+      "regions": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 1.0,
+            "maximum": 2.0,
+            "enum": [1.0, 2.0]
+          }
+        },
+        "additionalProperties": false
+      },
+      "output": {
+        "defaultFormat": "hwp",
+        "allowedFormats": ["hwp", "hwpx"],
+        "fileName": "보고서"
+      },
+      "policy": {
+        "pageSize": "preserve",
+        "orientation": "preserve",
+        "fontSize": "preserve"
+      }
+    }
+  },
+  {
+    "name": "reviewed-text-range",
+    "kind": "definition",
+    "value": {
+      "schemaVersion": 3,
+      "identity": {
+        "sourceHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "normalizedHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "structureRevision": 1
+      },
+      "regions": [
+        {
+          "id": "intro_value",
+          "sourceRegionId": "intro_source",
+          "kind": "text",
+          "enabled": true,
+          "intent": {
+            "purpose": "고정 제목 옆 값 작성",
+            "sources": [],
+            "include": [],
+            "exclude": [],
+            "tone": "공문",
+            "instructions": "제목은 유지한다.",
+            "fixedText": []
+          },
+          "reviewState": "confirmed",
+          "reviewDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "styleIds": [],
+          "policy": {
+            "allowRowChanges": false,
+            "allowColumnChanges": false,
+            "allowMerges": false,
+            "allowParagraphRepeat": false,
+            "maxRows": 1,
+            "maxColumns": 1,
+            "minColumnWidth": 1,
+            "empty": "blank"
+          },
+          "columnRoles": [],
+          "range": {
+            "start": 3,
+            "end": 5
+          }
+        }
+      ],
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "output": {
+        "defaultFormat": "hwp",
+        "allowedFormats": ["hwp", "hwpx"],
+        "fileName": "보고서"
+      },
+      "policy": {
+        "pageSize": "preserve",
+        "orientation": "preserve",
+        "fontSize": "preserve"
+      }
+    }
+  }
+]

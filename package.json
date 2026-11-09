@@ -18,6 +18,7 @@
     "build:playground": "node scripts/prepare-playground.mjs && vite build --config apps/playground/vite.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:template:csp": "node scripts/verify-template-csp.mjs",
     "test:e2e": "playwright test",
     "test:native:prepare": "node scripts/export-native-fixtures.mjs",
     "assets:prepare": "node scripts/prepare-rhwp.mjs",

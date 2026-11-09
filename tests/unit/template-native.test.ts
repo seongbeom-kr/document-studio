@@ -2,9 +2,13 @@ import { beforeAll, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import init, { HwpDocument } from "../../third_party/rhwp-core/rhwp.js";
+import { renderScenarioV3 } from "../helpers/template-v3";
 import {
   inspectTemplate,
   createTemplateSelectionBridge,
+  inspectTemplateV3,
+  createTemplateSelectionBridgeV3,
+  renderTemplateV3,
   renderTemplate,
   verifyTemplateOutput,
   type TemplateDefinition,
@@ -15,6 +19,56 @@ beforeAll(async () => {
       new URL("../../third_party/rhwp-core/rhwp_bg.wasm", import.meta.url),
     ),
   });
+});
+it("reopens the v3 dynamic HWPX grid in the native engine after 2 to 4 columns and 3 to 30 rows", async () => {
+  const native = HwpDocument.createEmpty();
+  let bytes: Uint8Array;
+  try {
+    native.createBlankDocument();
+    native.insertParagraph(0, 0);
+    native.insertParagraph(0, 0);
+    native.insertParagraph(0, 0);
+    native.insertText(0, 0, 0, "고정 제목");
+    native.insertText(0, 1, 0, "반복 내용");
+    const table = JSON.parse(native.createTable(0, 2, 0, 3, 2));
+    for (let c = 0; c < 6; c++)
+      native.insertTextInCell(
+        0,
+        table.paraIdx,
+        table.controlIdx ?? table.controlIndex ?? 0,
+        c,
+        0,
+        0,
+        "옛 예시",
+      );
+    native.mergeTableCells(
+      0,
+      table.paraIdx,
+      table.controlIdx ?? table.controlIndex ?? 0,
+      1,
+      0,
+      2,
+      0,
+    );
+    native.insertText(0, 3, 0, "보호 꼬리말");
+    bytes = native.exportHwpx();
+  } finally {
+    native.free();
+  }
+  const scenario = await renderScenarioV3("hwpx", undefined, bytes),
+    rendered = await renderTemplateV3(scenario),
+    opened = new HwpDocument(rendered.bytes);
+  try {
+    // The repeated paragraph adds one preceding paragraph; the table is now in paragraph 3.
+    const dimensions = JSON.parse(opened.getTableDimensions(0, 3, 0));
+    expect(dimensions.rowCount ?? dimensions.rows).toBe(30);
+    expect(dimensions.colCount ?? dimensions.cols).toBe(4);
+    expect(opened.getTextInCell(0, 3, 0, 0, 0, 0, 100)).toContain(
+      "1행 1열 한글😀",
+    );
+  } finally {
+    opened.free();
+  }
 });
 it("maps native HWPX source positions for duplicate and empty cells, including normalized HWP", async () => {
   const original = HwpDocument.createEmpty();
@@ -88,6 +142,33 @@ it("maps the verified HWPX working copy after an actual native HWP conversion", 
     converted.free();
   }
   const sourceHash = "sha256:" + createHash("sha256").update(hwp).digest("hex");
+  const structureV3 = await inspectTemplateV3({
+    bytes,
+    format: "hwpx",
+    identity: {
+      sourceHash: sourceHash as `sha256:${string}`,
+      normalizedHash: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+      structureRevision: 1,
+    },
+  });
+  const v3 = await createTemplateSelectionBridgeV3({
+    documentId: "converted-hwp",
+    bytes,
+    structure: structureV3,
+  });
+  const duplicateV3 = structureV3.regions.filter(
+    (r) => r.kind === "text" && r.text === "중복😀",
+  );
+  expect(duplicateV3).toHaveLength(2);
+  expect(duplicateV3[0]!.id).not.toBe(duplicateV3[1]!.id);
+  for (const region of duplicateV3) {
+    const location = v3.locate({ ...v3.identity, targetId: region.id });
+    expect(v3.locate(v3.resolve(location))).toEqual(location);
+  }
+  expect(structureV3.page.width).toBeGreaterThan(10000);
+  expect(
+    structureV3.regions.find((r) => r.kind === "table")!.capabilities.merges,
+  ).toBe(true);
   const bridge = await createTemplateSelectionBridge({
     documentId: "converted-hwp",
     bytes,

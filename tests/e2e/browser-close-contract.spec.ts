@@ -380,6 +380,7 @@ for (const format of ["docx", "hwpx"] as const) {
     );
     await page.getByRole("button", { name: "계속 편집", exact: true }).click();
     await page.getByRole("button", { name: "빠른 작업", exact: true }).click();
+    await page.getByRole("button", { name: "원고 정리", exact: true }).click();
     await page
       .getByRole("tab", { name: "문서 일괄 생성", exact: true })
       .click();

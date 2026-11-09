@@ -8,6 +8,10 @@ import type {
 import { inspectInternal } from "./structure";
 import { elements, parent, NS, type Element } from "./xml";
 import { fail, type TemplateFormat } from "./types";
+import { inspectV3Internal } from "./v3/structure";
+import { canonicalV3 } from "./v3/contract";
+import type { TemplateStructureV3 } from "./v3/types";
+import type { TemplateSelectionBridgeV3 } from "./selection-types";
 export * from "./selection-types";
 
 function xmlPath(
@@ -210,6 +214,67 @@ export async function createTemplateSelectionBridge(input: {
       session: TemplateSelectionEngine,
       selection: TemplateSelection | null,
     ) {
+      if (!session.highlightSourceSelection || session.getSnapshot().dirty)
+        fail("TEMPLATE_SELECTION_UNSUPPORTED");
+      await session.highlightSourceSelection(
+        selection ? locate(selection) : null,
+      );
+    },
+  };
+}
+
+/** V3 uses the same native, address-based selection coordinates as v2. */
+export async function createTemplateSelectionBridgeV3(input: {
+  documentId: string;
+  bytes: Uint8Array;
+  structure: TemplateStructureV3;
+}): Promise<TemplateSelectionBridgeV3> {
+  const inspected = await inspectV3Internal({
+    bytes: input.bytes,
+    format: input.structure.format,
+    identity: input.structure.identity,
+  });
+  if (canonicalV3(inspected.structure) !== canonicalV3(input.structure))
+    fail("TEMPLATE_SELECTION_STALE");
+  const legacy = await createTemplateSelectionBridge({
+    documentId: input.documentId,
+    bytes: input.bytes,
+    format: input.structure.format,
+    ...input.structure.identity,
+  });
+  const toLegacy = new Map<string, string>(),
+    toV3 = new Map<string, string>();
+  for (const [id, node] of inspected.nodes) {
+    if (!inspected.structure.regions.find((r) => r.id === id)?.editable)
+      continue;
+    const old = [...inspected.legacyNodes].find(([, n]) => n === node)?.[0];
+    if (old) {
+      toLegacy.set(id, old);
+      toV3.set(old, id);
+    }
+  }
+  const resolve = (location: SourceSelection): TemplateSelection => {
+    const old = legacy.resolve(location),
+      targetId = toV3.get(old.targetId);
+    if (!targetId) fail("TEMPLATE_SELECTION_UNSUPPORTED");
+    return { ...old, targetId };
+  };
+  const locate = (selection: TemplateSelection): SourceSelection => {
+    const targetId = toLegacy.get(selection.targetId);
+    if (!targetId) fail("TEMPLATE_SELECTION_UNSUPPORTED");
+    return legacy.locate({ ...selection, targetId });
+  };
+  return {
+    identity: legacy.identity,
+    structure: inspected.structure,
+    resolve,
+    locate,
+    async capture(session) {
+      if (!session.captureSourceSelection || session.getSnapshot().dirty)
+        fail("TEMPLATE_SELECTION_UNSUPPORTED");
+      return resolve(await session.captureSourceSelection());
+    },
+    async highlight(session, selection) {
       if (!session.highlightSourceSelection || session.getSnapshot().dirty)
         fail("TEMPLATE_SELECTION_UNSUPPORTED");
       await session.highlightSourceSelection(

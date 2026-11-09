@@ -19,3 +19,23 @@
              // 선행 TAC Table/Shape 가 있는 경우만 진행된 y_offset 으로 갱신.
              let needs_update = para_start_y
                  .get(&para_index)
+
+--- a/src/document_core/converters/hwpx_to_hwp.rs
++++ b/src/document_core/converters/hwpx_to_hwp.rs
+@@ -2535,9 +2535,16 @@
+         materialize_hwp5_master_page_slots(doc)
+     } else {
+         0
+     };
++    // A HWP5 -> HWPX -> HWP roundtrip must retain HWP5 pagination.
++    // Adding a new HWPX-origin marker changes the reopened layout profile even
++    // though the document already carries its original HWP5 lineage.
++    let hwp5_origin_hwpx = doc
++        .hwpx_aux_entry(crate::model::document::HWP5_ORIGIN_HWPX_MARKER_PATH)
++        .is_some();
+     if matches!(source_format, FileFormat::Hwpx)
++        && !hwp5_origin_hwpx
+         && !doc
+             .extra_streams
+             .iter()
+             .any(|(p, _)| p == HWPX_ORIGIN_STREAM_PATH)

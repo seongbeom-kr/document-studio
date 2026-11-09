@@ -36,3 +36,14 @@ export interface TemplateSelectionEngine {
   highlightSourceSelection?(selection: SourceSelection | null): Promise<void>;
   getSnapshot(): { dirty: boolean };
 }
+export interface TemplateSelectionBridgeV3 {
+  identity: TemplateSelectionIdentity;
+  structure: import("./v3/types").TemplateStructureV3;
+  locate(selection: TemplateSelection): SourceSelection;
+  resolve(location: SourceSelection): TemplateSelection;
+  capture(session: TemplateSelectionEngine): Promise<TemplateSelection>;
+  highlight(
+    session: TemplateSelectionEngine,
+    selection: TemplateSelection | null,
+  ): Promise<void>;
+}
