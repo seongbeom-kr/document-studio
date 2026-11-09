@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 import { canonicalV3, digestV3 } from "./contract";
 import { openArchive, walk, attr, elements } from "../xml";
-import fontPack from "../../../core/src/font-pack.json";
+import fontPack from "../../../core/src/font-pack.json" with { type: "json" };
 import type { RuntimeProfileV3 } from "./types";
 export interface NativeHwpDocumentV3 {
   free(): void;

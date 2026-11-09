@@ -1,5 +1,5 @@
-import fontPack from "../../../core/src/font-pack.json";
-import schema from "../../contracts/v3/bundle.json";
+import fontPack from "../../../core/src/font-pack.json" with { type: "json" };
+import schema from "../../contracts/v3/bundle.json" with { type: "json" };
 import { digestV3 } from "./contract";
 import type { RuntimeProfileV3 } from "./types";
 export async function workingRuntimeV3(): Promise<RuntimeProfileV3> {

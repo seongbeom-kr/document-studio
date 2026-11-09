@@ -1,4 +1,4 @@
-import * as compiled from "./generated/validators.cjs";
+import * as compiled from "./generated/validators.js";
 import { digest } from "../xml";
 import { validInputSchemaV3 } from "./input-schema";
 import type {
