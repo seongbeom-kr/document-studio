@@ -412,6 +412,18 @@ export const DocumentEditor = forwardRef<
   }, [session, syncInputBlock]);
   const baseVersion = useRef(input.version);
   const draftExport = useRef<Promise<void> | null>(null);
+  // The draft already holding this exact revision; autosave skips identical rewrites.
+  const persistedDraft = useRef<{
+    store: DraftStore;
+    key: string;
+    baseVersion?: string;
+    revision: string;
+  } | null>(null);
+  const draftPersisted = (store: DraftStore, key: string, revision: string) =>
+    persistedDraft.current?.store === store &&
+    persistedDraft.current.key === key &&
+    persistedDraft.current.baseVersion === baseVersion.current &&
+    persistedDraft.current.revision === revision;
   const commandTasks = useRef(new Set<Promise<void>>());
   const inFlightSave = useRef<Promise<void> | null>(null);
   const [pendingCommands, setPendingCommands] = useState(0);
@@ -1594,6 +1606,7 @@ export const DocumentEditor = forwardRef<
         throw new Error(
           "초안 저장소가 비활성화돼 있습니다. 문서를 먼저 저장해 주세요.",
         );
+      persistedDraft.current = null;
       await store.put({
         key: activeKey,
         bytes: exported.bytes,
@@ -1602,6 +1615,12 @@ export const DocumentEditor = forwardRef<
         format: document.format,
         updatedAt: Date.now(),
       });
+      persistedDraft.current = {
+        store,
+        key: activeKey,
+        baseVersion: baseVersion.current,
+        revision: exported.revision,
+      };
       transitionPermit.current = session.getSnapshot().revision;
     } catch (cause) {
       const failure = new Error(
@@ -1774,6 +1793,7 @@ export const DocumentEditor = forwardRef<
         // A failed local cleanup must not turn a confirmed remote save into a save failure.
         if (!liveSnapshot().dirty) {
           try {
+            persistedDraft.current = null;
             await activeDraftStore()?.delete(activeKey);
           } catch (cause) {
             setError(
@@ -1971,6 +1991,9 @@ export const DocumentEditor = forwardRef<
         !liveSnapshot().dirty
       )
         return;
+      const store = activeDraftStore();
+      if (store && draftPersisted(store, activeKey, liveSnapshot().revision))
+        return;
       const task = (async () => {
         try {
           const exported = await session.exportDocument();
@@ -1980,7 +2003,10 @@ export const DocumentEditor = forwardRef<
             !matchesAcceptedSource(latest.current.document)
           )
             return;
-          await activeDraftStore()?.put({
+          const target = activeDraftStore();
+          if (!target) return;
+          persistedDraft.current = null;
+          await target.put({
             key: activeKey,
             bytes: exported.bytes,
             baseVersion: baseVersion.current,
@@ -1988,6 +2014,12 @@ export const DocumentEditor = forwardRef<
             format: document.format,
             updatedAt: Date.now(),
           });
+          persistedDraft.current = {
+            store: target,
+            key: activeKey,
+            baseVersion: baseVersion.current,
+            revision: exported.revision,
+          };
         } catch (cause) {
           if (active)
             reportError(
@@ -2074,6 +2106,7 @@ export const DocumentEditor = forwardRef<
         await draftExport.current;
         assertCurrent();
         const revision = liveSnapshot().revision;
+        persistedDraft.current = null;
         await store?.delete(key);
         assertCurrent();
         if (liveSnapshot().revision !== revision)
@@ -2980,6 +3013,7 @@ export const DocumentEditor = forwardRef<
                     throw new Error(
                       "초안 저장소가 변경됐습니다. 복구 상태를 다시 확인해 주세요.",
                     );
+                  persistedDraft.current = null;
                   await context.store?.delete(context.key);
                   if (recoveryContext.current !== context) return;
                   setOffer(null);

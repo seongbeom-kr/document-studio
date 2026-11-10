@@ -1,6 +1,6 @@
+import type { FontSource } from "@docx-editor.dev/core";
 import {
   composeFontConfiguration,
-  createFontSource,
   type FontResolver,
 } from "@docx-editor.dev/core/editor";
 import {
@@ -10,11 +10,46 @@ import {
   type DocumentFontReport,
 } from "@document-studio/core";
 
+// One verified pack per font URL for the page lifetime; every DOCX editor reuses the same
+// sources instead of downloading, verifying and hashing about 20 MB of fonts on each open.
+const packs = new Map<string, Promise<readonly FontSource[]>>();
+function documentFontSources(
+  baseUrl: string | undefined,
+): Promise<readonly FontSource[]> {
+  const key = baseUrl ?? "";
+  const cached = packs.get(key);
+  if (cached) return cached;
+  // Shared by later editors, so one editor's abort must not cancel it.
+  const pending = loadDocumentFontPack(baseUrl).then((faces) =>
+    faces.map(
+      (face): FontSource =>
+        Object.freeze({
+          request: Object.freeze({
+            family: face.family,
+            weight: face.weight,
+            style: "normal" as const,
+          }),
+          id: `document-studio:${face.file}`,
+          bytes: face.data,
+          // loadDocumentFontPack checked size and SHA-256 against the audited manifest, so the
+          // engine's own JavaScript re-hash in createFontSource would only repeat that work.
+          hash: `sha256:${face.sha256}`,
+          faceIndex: 0,
+        }),
+    ),
+  );
+  packs.set(key, pending);
+  // Failed loads may be retried after the host fixes its asset route.
+  pending.catch(() => {
+    if (packs.get(key) === pending) packs.delete(key);
+  });
+  return pending;
+}
+
 export function portableDocxFonts(
   baseUrl: string | undefined,
   report: (value: DocumentFontReport) => void,
 ): FontResolver {
-  let faces: ReturnType<typeof loadDocumentFontPack> | undefined;
   const requested = new Set<string>();
   return async (request) => {
     request.families.forEach((name) => requested.add(name));
@@ -24,24 +59,8 @@ export function portableDocxFonts(
     for (const face of request.resolvedFaces ?? [])
       provided.set(face.family, { source: "provided" });
     try {
-      faces ??= loadDocumentFontPack(baseUrl, request.signal);
-      const loaded = await faces;
+      const sources = await documentFontSources(baseUrl);
       request.signal?.throwIfAborted();
-      const sources = loaded.map((face) => {
-        const result = createFontSource(
-          face.data,
-          { family: face.family, weight: face.weight, style: "normal" },
-          {
-            id: `document-studio:${face.file}`,
-            maxFontBytes: 16 * 1024 * 1024,
-          },
-        );
-        if ("failure" in result)
-          throw new Error(
-            `기본 글꼴 등록 실패: ${face.file} (${result.failure.reason})`,
-          );
-        return result.source;
-      });
       const substitutions = [...requested].slice(0, 64).flatMap((family) =>
         [400, 700].flatMap((weight) =>
           (["normal", "italic"] as const).flatMap((style) => {
@@ -67,13 +86,12 @@ export function portableDocxFonts(
       );
       report(fontReport([...requested], [], provided));
       return composeFontConfiguration({
-        sources,
+        sources: [...sources],
         substitutions,
         language: "ko-KR",
       });
     } catch (error) {
       if (request.signal?.aborted) throw error;
-      faces = undefined; // Failed loads may be retried after the host fixes its asset route.
       report(
         fontReport(
           [...requested],
