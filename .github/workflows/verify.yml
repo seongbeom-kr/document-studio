@@ -2,16 +2,14 @@ name: Verify
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
+env:
+  CI: "true"
+  NEXT_TELEMETRY_DISABLED: "1"
+  DOCUMENT_STUDIO_TEST_SERVER: "bundle"
 jobs:
   verify:
     runs-on: ubuntu-latest
-    # The previous 503-case run took 24m24s including package consumers. Keep
-    # headroom for the expanded suite without changing per-test/engine limits.
     timeout-minutes: 35
-    env:
-      CI: "true"
-      NEXT_TELEMETRY_DISABLED: "1"
-      DOCUMENT_STUDIO_TEST_SERVER: "bundle"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -31,7 +29,6 @@ jobs:
       - run: yarn typecheck
       - run: yarn build:template
       - run: yarn test
-      - run: yarn test:e2e
       - run: yarn build
       - run: yarn build:playground
       - run: yarn verify:packages
@@ -40,9 +37,40 @@ jobs:
         with:
           name: validation
           path: |
-            playwright-report/
-            test-results/
             .build/package-verification.json
             .build/consumer-browser.json
             .build/licenses/sbom.json
+          retention-days: 14
+  e2e:
+    # The browser suite (625 cases) took about 30 minutes on one runner; four shards run in parallel.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          package-manager-cache: false
+      - run: npm install --global corepack@0.34.6
+      - run: corepack enable
+      - run: yarn install --immutable
+      - run: yarn assets:prepare
+      - run: yarn fixtures:generate
+      - run: yarn playwright install --with-deps chromium
+      - run: yarn build:template
+      - run: yarn test:e2e --shard=${{ matrix.shard }}/4
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-${{ matrix.shard }}
+          path: |
+            playwright-report/
+            test-results/
+            .build/e2e-results.json
           retention-days: 14
