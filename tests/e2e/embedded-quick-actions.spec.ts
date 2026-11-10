@@ -39,16 +39,17 @@ async function openEmbedded(
 }
 
 async function resizeWorkArea(page: Page, height: number) {
-  await page.locator(".ds-editor").evaluate((editor, height) => {
-    const work = editor.querySelector(".ds-work-area")!;
-    const chromeHeight =
-      editor.getBoundingClientRect().height -
-      work.getBoundingClientRect().height;
-    (editor as HTMLElement).style.height = `${height + chromeHeight}px`;
-  }, height);
+  // The toolbar may wrap after a host resize; re-measure the chrome until the work area settles.
   await expect
-    .poll(
-      async () => (await page.locator(".ds-work-area").boundingBox())?.height,
+    .poll(() =>
+      page.locator(".ds-editor").evaluate((editor, height) => {
+        const work = editor.querySelector(".ds-work-area")!;
+        const chromeHeight =
+          editor.getBoundingClientRect().height -
+          work.getBoundingClientRect().height;
+        (editor as HTMLElement).style.height = `${height + chromeHeight}px`;
+        return work.getBoundingClientRect().height;
+      }, height),
     )
     .toBeCloseTo(height, 0);
 }
