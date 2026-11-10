@@ -247,11 +247,7 @@ export function DocxView({
           atomicPresets: true,
           atomicTextInsertion: true,
           tableColumnEditing: true,
-          // Font resolution re-lays out the surface and blocks input; report ready after it.
-          ready:
-            !native.isLoading &&
-            !native.isOpening &&
-            !(editor as DocxEditorInstance).fontMeasurement?.().resolving,
+          ready: !native.isLoading && !native.isOpening,
           revision,
           dirty: revisions.dirty(revision),
           pageCount: native.page.total,
